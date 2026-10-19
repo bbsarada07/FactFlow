@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api", tags=["stats"])
 
 @router.get("/stats")
 async def stats(session: AsyncSession = Depends(get_session)):
-    done = Claim.status == "complete"
+    done = (Claim.status == "complete") & Claim.is_public.is_(True)
     live = Claim.is_seed.is_(False)
     since = utcnow() - timedelta(hours=24)
 

@@ -1,6 +1,9 @@
 """SQLAlchemy 2.0 models. Portable across PostgreSQL (asyncpg) and SQLite (aiosqlite)."""
+import secrets
+import string
 import uuid
 from datetime import date, datetime, timezone
+from urllib.parse import quote_plus
 
 from sqlalchemy import (
     JSON,
@@ -15,13 +18,40 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from config import settings
+
+_SLUG_ALPHABET = string.ascii_lowercase + string.digits
+
 
 def utcnow() -> datetime:
+    """Timezone-aware current UTC time."""
     return datetime.now(timezone.utc)
 
 
 def new_id() -> str:
+    """Internal request id (32 hex chars)."""
     return uuid.uuid4().hex
+
+
+def new_slug() -> str:
+    """Short, unguessable public id for registry URLs (10 chars, ~51 bits)."""
+    return "".join(secrets.choice(_SLUG_ALPHABET) for _ in range(10))
+
+
+def registry_url(slug: str | None) -> str | None:
+    """Public verdict page URL on the configured frontend."""
+    return f"{settings.FRONTEND_URL.rstrip('/')}/v/{slug}" if slug else None
+
+
+def confidence_band(confidence: float | None) -> str:
+    """Map a 0-1 confidence to high (>=0.85), medium (0.6-0.84) or low (<0.6 or unknown)."""
+    if confidence is None:
+        return "low"
+    if confidence >= 0.85:
+        return "high"
+    if confidence >= 0.6:
+        return "medium"
+    return "low"
 
 
 def iso(dt: datetime | None) -> str | None:
@@ -63,6 +93,15 @@ class Claim(Base):
     cached_from: Mapped[str | None] = mapped_column(String(32))
     is_seed: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Public registry
+    slug: Mapped[str | None] = mapped_column(String(12), unique=True, index=True, default=new_slug)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    normalized_text: Mapped[str | None] = mapped_column(Text)
+    view_count: Mapped[int] = mapped_column(Integer, default=0)
+    repeat_count: Mapped[int] = mapped_column(Integer, default=0)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    previous_id: Mapped[str | None] = mapped_column(String(32))
+
     # Intake
     claim_text: Mapped[str | None] = mapped_column(Text)
     language: Mapped[str | None] = mapped_column(String(32))
@@ -77,6 +116,16 @@ class Claim(Base):
     summary: Mapped[str | None] = mapped_column(Text)
     reasoning_chain: Mapped[list] = mapped_column(JSON, default=list)
     contradictions: Mapped[list] = mapped_column(JSON, default=list)
+
+    # Honest uncertainty
+    confidence_band: Mapped[str | None] = mapped_column(String(8))
+    model_verdict: Mapped[str | None] = mapped_column(String(16))
+    model_confidence: Mapped[float | None] = mapped_column(Float)
+    gate_reasons: Mapped[list] = mapped_column(JSON, default=list)
+    missing_context: Mapped[list] = mapped_column(JSON, default=list)
+    evidence_gaps: Mapped[list] = mapped_column(JSON, default=list)
+    checks_to_do: Mapped[list] = mapped_column(JSON, default=list)
+    correction: Mapped[dict | None] = mapped_column(JSON)
 
     # Explainer
     summary_local: Mapped[str | None] = mapped_column(Text)
@@ -96,23 +145,63 @@ class Claim(Base):
     )
 
     def to_summary(self) -> dict:
+        """Compact row for feeds and registry listings."""
         return {
             "request_id": self.id,
+            "slug": self.slug,
             "created_at": iso(self.created_at),
             "status": self.status,
             "claim": self.claim_text or self.raw_input[:280],
             "verdict": self.verdict,
             "confidence": self.confidence,
+            "confidence_band": self.confidence_band or confidence_band(self.confidence),
             "harm_type": self.harm_type,
             "harm_level": self.harm_level,
             "urgency": self.urgency,
             "platform": self.platform,
             "is_seed": self.is_seed,
+            "is_public": self.is_public,
+            "view_count": self.view_count or 0,
+            "repeat_count": self.repeat_count or 0,
+        }
+
+    def to_public(self) -> dict:
+        """Registry record served at /api/v/{slug}: only what is safe and useful to share."""
+        return {
+            "slug": self.slug,
+            "registry_url": registry_url(self.slug),
+            "claim": self.claim_text or self.raw_input[:280],
+            "verdict": self.verdict,
+            "confidence": self.confidence,
+            "confidence_band": self.confidence_band or confidence_band(self.confidence),
+            "summary": self.summary,
+            "reasons": self.reasoning_chain or [],
+            "contradictions": self.contradictions or [],
+            "evidence_gaps": self.evidence_gaps or [],
+            "checks_to_do": self.checks_to_do or [],
+            "gate_reasons": self.gate_reasons or [],
+            "model_verdict": self.model_verdict,
+            "model_confidence": self.model_confidence,
+            "correction": self.correction,
+            "sources": [s.to_dict() for s in self.sources],
+            "harm_type": self.harm_type,
+            "harm_level": self.harm_level,
+            "claim_type": self.claim_type,
+            "language_name": self.language_name,
+            "platform": self.platform,
+            "is_seed": self.is_seed,
+            "version": self.version or 1,
+            "repeat_count": self.repeat_count or 0,
+            "created_at": iso(self.created_at),
+            "view_count": self.view_count or 0,
         }
 
     def to_result(self) -> dict:
+        """Full record for the requester (includes pipeline internals)."""
         return {
             **self.to_summary(),
+            **self.to_public(),
+            "request_id": self.id,
             "completed_at": iso(self.completed_at),
             "input_type": self.input_type,
             "raw_input": self.raw_input,
@@ -220,8 +309,22 @@ class Incident(Base):
     spread_minutes: Mapped[int | None] = mapped_column(Integer)
     fact_check_days: Mapped[int | None] = mapped_column(Integer)
     reference_query: Mapped[str] = mapped_column(String(255))
+    # Primary source for the figures shown; when unconfirmed, a search link labelled "Find source".
+    source_url: Mapped[str | None] = mapped_column(Text)
+    source_label: Mapped[str | None] = mapped_column(String(255))
+    source_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    extra_sources: Mapped[list] = mapped_column(JSON, default=list)
 
     def to_dict(self) -> dict:
+        """Incident record; every figure is accompanied by its source link."""
+        if self.source_confirmed and self.source_url:
+            source = {"label": self.source_label or "Source", "url": self.source_url, "confirmed": True}
+        else:
+            source = {
+                "label": "Find source",
+                "url": settings.GOOGLE_SEARCH_URL + quote_plus(self.reference_query),
+                "confirmed": False,
+            }
         return {
             "slug": self.slug,
             "name": self.name,
@@ -237,6 +340,6 @@ class Incident(Base):
             "forward_is_reconstruction": self.forward_is_reconstruction,
             "spread_minutes": self.spread_minutes,
             "fact_check_days": self.fact_check_days,
-            "reference_url": "https://en.wikipedia.org/w/index.php?search="
-            + self.reference_query.replace(" ", "+"),
+            "source": source,
+            "extra_sources": self.extra_sources or [],
         }

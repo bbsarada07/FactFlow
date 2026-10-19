@@ -5,8 +5,8 @@ relevance/stance of each source, and produces a preliminary verdict.
 """
 import asyncio
 
-from agents.context import VERDICTS, AgentOutput, PipelineContext, clamp, norm_verdict, str_list
-from models.groq_client import call_nano
+from agents.context import HONESTY_RULE, VERDICTS, AgentOutput, PipelineContext, clamp, norm_verdict, str_list
+from models.groq_client import LLMJSONError, call_nano
 from services.factcheck_service import search_factchecks
 from services.news_service import domain_of, search_duckduckgo, search_newsapi
 
@@ -50,7 +50,7 @@ def tier_for(url: str, origin: str) -> int:
 
 SYSTEM = """You are the Source Tracer agent of NemesisAI, a misinformation forensics system.
 You judge evidence against a claim with the rigour of a professional fact-checker.
-Respond with a single JSON object and nothing else."""
+""" + HONESTY_RULE
 
 PROMPT = """Today's date: {today}
 CLAIM: {claim}
@@ -68,16 +68,20 @@ Tasks:
    - FALSE: the core claim is wrong. TRUE: accurate. MISLEADING: real elements but distorted, out of context, exaggerated, or old media presented as new.
    - UNVERIFIED: no reliable evidence either way (typical for brand-new events with no coverage). SATIRE: obviously a joke or parody.
    - A tier-1 fact-check rating such as "False" or "Misleading" about this same claim is strong evidence.
-   - If the evidence is thin, you may rely on well-established scientific, medical or historical consensus, but say so and keep confidence at or below 0.8.
+   - Base the verdict on the evidence listed. If it is thin, return UNVERIFIED and say what is missing rather than relying on memory.
 3. "confidence": probability (0.0-1.0) that your verdict is correct. Be calibrated: few relevant sources means lower confidence.
+4. "contradictions_found": specific contradictions between the claim and the evidence (empty list if none).
+   "missing_context": context needed to decide that the evidence does NOT provide (empty list if the evidence is sufficient).
+   "evidence_gaps": short phrases naming what is missing, e.g. "no primary source found", "no official statement", "image origin unknown".
 
 Return JSON:
 {{"assessments": [{{"i": 1, "relevance": 0.0, "stance": "NEUTRAL"}}],
  "verdict": "...", "confidence": 0.0,
  "summary": "2-3 sentences explaining the verdict, citing source names",
  "reasoning": ["3-5 short reasoning steps"],
- "fact": "one sentence stating what is actually true",
- "key_source": "name of the single most authoritative source used, or 'Scientific consensus'"}}"""
+ "contradictions_found": [], "missing_context": [], "evidence_gaps": [],
+ "fact": "one sentence stating what the evidence shows, naming its source",
+ "key_source": "name of the single most authoritative source used, or empty if none"}}"""
 
 
 async def _gather(ctx: PipelineContext) -> list[dict]:
@@ -111,9 +115,22 @@ async def _gather(ctx: PipelineContext) -> list[dict]:
 
 
 async def run(ctx: PipelineContext) -> AgentOutput:
+    """Gather evidence, have the model assess it, and set the preliminary verdict.
+
+    Evidence is only kept once the model has assessed it; if assessment fails, ctx.evidence is
+    left empty so unassessed search hits can never count towards the uncertainty gate.
+    """
     candidates = await _gather(ctx)
     ctx.evidence = candidates
+    try:
+        return await _assess(ctx, candidates)
+    except Exception:
+        ctx.evidence = []
+        raise
 
+
+async def _assess(ctx: PipelineContext, candidates: list[dict]) -> AgentOutput:
+    """Model call + parsing for run()."""
     res = await call_nano(
         SYSTEM,
         PROMPT.format(
@@ -131,9 +148,12 @@ async def run(ctx: PipelineContext) -> AgentOutput:
     by_index: dict[int, dict] = {}
     for a in d.get("assessments") or []:
         try:
-            by_index[int(a.get("i"))] = a
+            by_index[int(a.get("i", a.get("index", a.get("id"))))] = a
         except (TypeError, ValueError, AttributeError):
             continue
+    if candidates and not by_index:
+        # A missing assessment list is a malformed answer, not evidence of absence.
+        raise LLMJSONError("Source tracer returned no usable relevance assessments")
 
     kept = []
     for i, ev in enumerate(candidates, 1):
@@ -155,6 +175,9 @@ async def run(ctx: PipelineContext) -> AgentOutput:
     ctx.reasoning_chain = str_list(d.get("reasoning"), 6)
     ctx.fact = str(d.get("fact") or "").strip()
     ctx.key_source = str(d.get("key_source") or (ctx.evidence[0]["name"] if ctx.evidence else "")).strip()
+    ctx.contradictions = str_list(d.get("contradictions_found"), 6)
+    ctx.missing_context = str_list(d.get("missing_context"), 6)
+    ctx.model_gaps = str_list(d.get("evidence_gaps"), 6)
 
     refutes = sum(1 for e in ctx.evidence if e["stance"] == "REFUTES")
     supports = sum(1 for e in ctx.evidence if e["stance"] == "SUPPORTS")

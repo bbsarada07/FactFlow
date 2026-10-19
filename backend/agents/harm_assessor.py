@@ -20,7 +20,7 @@ rumours, communal riots after recycled videos, deaths from fake cures). Respond 
 
 PROMPT = """CONTENT: \"\"\"{raw}\"\"\"
 CLAIM: {claim}
-VERDICT: {verdict} ({confidence:.0%})
+VERDICT: {verdict} (model leaned {model_verdict} at {confidence:.0%})
 Claim type: {claim_type} | Urgency: {urgency} | Platform: {platform}
 
 Return JSON:
@@ -46,7 +46,8 @@ async def run(ctx: PipelineContext) -> AgentOutput:
             raw=ctx.raw_text[:1500],
             claim=ctx.claim,
             verdict=ctx.verdict,
-            confidence=ctx.confidence,
+            confidence=ctx.model_confidence if ctx.model_confidence is not None else 0.0,
+            model_verdict=ctx.model_verdict or ctx.verdict,
             claim_type=ctx.claim_type,
             urgency=ctx.urgency,
             platform=ctx.platform,
@@ -59,7 +60,7 @@ async def run(ctx: PipelineContext) -> AgentOutput:
     stated = pick(d.get("harm_level"), URGENCY, "LOW")
     score = clamp(d.get("severity"), 0, 10, default=LEVEL_FLOOR[stated])
     # Never rate a CRITICAL-urgency falsehood below HIGH, and keep level and score consistent.
-    if ctx.urgency == "CRITICAL" and ctx.verdict in ("FALSE", "MISLEADING"):
+    if ctx.urgency == "CRITICAL" and (ctx.model_verdict or ctx.verdict) in ("FALSE", "MISLEADING"):
         score = max(score, LEVEL_FLOOR["HIGH"])
     ctx.harm_score = round(score, 1)
     ctx.harm_level = level_for(score)
@@ -75,6 +76,6 @@ def fallback(ctx: PipelineContext) -> None:
     mapping = {"VIOLENCE": "VIOLENCE", "HEALTH": "HEALTH", "COMMUNAL": "COMMUNAL", "ELECTORAL": "ELECTORAL",
                "POLITICAL": "ELECTORAL", "FINANCIAL": "FINANCIAL"}
     ctx.harm_type = mapping.get(ctx.claim_type, "NONE")
-    ctx.harm_level = ctx.urgency if ctx.verdict in ("FALSE", "MISLEADING") else "LOW"
+    ctx.harm_level = ctx.urgency if (ctx.model_verdict or ctx.verdict) in ("FALSE", "MISLEADING") else "LOW"
     ctx.harm_score = LEVEL_FLOOR[ctx.harm_level]
     ctx.harm_rationale = "Estimated from claim type and urgency (harm model unavailable)."

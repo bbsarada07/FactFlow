@@ -1,25 +1,27 @@
 """Agent 0 — Orchestrator.
 
-Routes the input (text / URL / image), checks the verdict cache and known
-patterns, runs the five specialist agents in order, emits SSE events for every
-state change, degrades gracefully when an agent fails, and persists the result.
+Routes the input (text / URL / image), matches known patterns, runs the five
+specialist agents in order, applies the honest-uncertainty gate (decide_verdict),
+emits SSE events for every state change, degrades gracefully when an agent fails,
+and persists the result to the public registry. Repeat claims are caught before the
+pipeline starts (see services/registry.py and api/verify.py).
 """
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import asdict
 
 from loguru import logger
 from sqlalchemy import select
 
 from agents import deep_reasoning, explainer, harm_assessor, intake_agent, source_tracer
-from agents.context import AgentOutput, PipelineContext
+from agents.context import AgentOutput, PipelineContext, clamp, norm_verdict
+from agents.uncertainty import build_checks, evidence_gaps, strong_source_count
+from config import settings
 from database import connection
-from database.models import Claim, KnownPattern, Source, utcnow
+from database.models import Claim, KnownPattern, Source, confidence_band, utcnow
 from services import input_service
-from services.cache_service import cache
 from services.event_bus import get_bus
-from services.text_utils import input_hash, keyword_score, similarity, truncate
+from services.text_utils import input_hash, keyword_score, normalize, redact_pii, similarity, truncate
 
 AGENTS = [
     {"index": 0, "name": "ORCHESTRATOR", "tier": "NANO", "role": "Routes and controls"},
@@ -30,18 +32,72 @@ AGENTS = [
     {"index": 5, "name": "HARM ASSESSOR", "tier": "NANO", "role": "Risk classification"},
 ]
 PIPELINE_TIMEOUT = 170
-CACHED_FIELDS = (
-    "claim", "language", "language_name", "claim_type", "urgency", "evidence", "verdict", "confidence",
-    "summary", "reasoning_chain", "contradictions", "fact", "key_source", "used_ultra", "summary_local",
-    "myth", "fact_source", "whatsapp_reply", "harm_type", "harm_level", "harm_score", "harm_rationale",
-    "pattern_matches", "platform",
-)
 
 _patterns: list[dict] | None = None
 
 
 class PipelineError(RuntimeError):
     pass
+
+
+def decide_verdict(evidence: list[dict], model_output: dict) -> dict:
+    """Honest-uncertainty gate. Pure function: returns {verdict, confidence, reasons}.
+
+    The model's verdict stands only when the evidence can carry it. UNVERIFIED is returned if
+      - fewer than MIN_STRONG_SOURCES evidence items come from credibility tier 1 or 2, or
+      - the model's confidence is below MIN_VERDICT_CONFIDENCE, or
+      - the model found no contradictions but reports missing context.
+    A model verdict of UNVERIFIED is never upgraded. When the gate downgrades a verdict,
+    confidence is None (there is no calibrated confidence for "unverified").
+    """
+    verdict = norm_verdict(model_output.get("verdict"))
+    raw_conf = model_output.get("confidence")
+    confidence = None if raw_conf is None else clamp(raw_conf)
+    contradictions = model_output.get("contradictions_found") or []
+    missing = model_output.get("missing_context") or []
+    strong = strong_source_count(evidence)
+
+    reasons: list[str] = []
+    if strong < settings.MIN_STRONG_SOURCES:
+        plural = "s" if strong != 1 else ""
+        reasons.append(
+            f"Only {strong} high-credibility (tier 1-2) source{plural} found; "
+            f"at least {settings.MIN_STRONG_SOURCES} are needed for a definite verdict."
+        )
+    if confidence is None or confidence < settings.MIN_VERDICT_CONFIDENCE:
+        reasons.append("The analysis was not confident enough to give a definite verdict.")
+    if not contradictions and missing:
+        reasons.append("No contradiction was found, and key context is missing.")
+
+    if verdict == "UNVERIFIED":
+        return {
+            "verdict": "UNVERIFIED",
+            "confidence": confidence,
+            "reasons": reasons or ["The evidence reviewed was not enough to confirm or refute the claim."],
+        }
+    if reasons:
+        return {"verdict": "UNVERIFIED", "confidence": None, "reasons": reasons}
+    return {"verdict": verdict, "confidence": confidence, "reasons": []}
+
+
+def apply_gate(ctx: PipelineContext) -> None:
+    """Run decide_verdict on the pipeline state and attach evidence gaps and next-step checks."""
+    ctx.model_verdict = ctx.verdict
+    ctx.model_confidence = ctx.confidence
+    decision = decide_verdict(
+        ctx.evidence,
+        {
+            "verdict": ctx.verdict,
+            "confidence": ctx.confidence,
+            "contradictions_found": ctx.contradictions,
+            "missing_context": ctx.missing_context,
+        },
+    )
+    ctx.verdict = decision["verdict"]
+    ctx.confidence = decision["confidence"]
+    ctx.gate_reasons = decision["reasons"]
+    ctx.evidence_gaps = evidence_gaps(ctx.evidence, ctx.model_gaps + ctx.missing_context, ctx.input_type)
+    ctx.checks_to_do = build_checks(ctx.claim, ctx.raw_text, ctx.input_type, ctx.claim_type)
 
 
 class Run:
@@ -119,10 +175,11 @@ async def _prepare_input(claim: Claim) -> tuple[str, str]:
         else:
             raise input_service.InputError("Image input has no data")
         text, method = await input_service.image_to_text(b64, mime)
+        text = redact_pii(text)
         combined = f"{text}\n\nUser note: {note}" if note else text
         return combined, f"Image → text via {method} ({len(text)} chars)"
     if claim.input_type == "url" and claim.source_url:
-        text = await input_service.fetch_url_text(claim.source_url)
+        text = redact_pii(await input_service.fetch_url_text(claim.source_url))
         combined = f"{text}\n\nUser note: {note}" if note else text
         return combined, f"URL fetched ({len(text)} chars)"
     if not note:
@@ -130,20 +187,18 @@ async def _prepare_input(claim: Claim) -> tuple[str, str]:
     return note, f"Text input ({len(note)} chars)"
 
 
-def _cache_key(text: str, ctx: PipelineContext) -> str:
-    return f"{input_hash(text)}:{ctx.requested_language}"
-
-
-async def _persist(ctx: PipelineContext, run: Run, raw_text: str, cached_from: str | None) -> Claim:
+async def _persist(ctx: PipelineContext, run: Run, raw_text: str) -> Claim:
+    """Write the finished verdict, its uncertainty fields and evidence to the database."""
     async with connection.session_factory()() as s:
         claim = await s.get(Claim, ctx.request_id)
         claim.raw_input = raw_text
+        claim.normalized_text = normalize(raw_text)
+        claim.input_hash = input_hash(raw_text)
         claim.image_data = None
         claim.status = "complete"
         claim.completed_at = utcnow()
         claim.processing_ms = run.elapsed_ms
         claim.agent_log = run.agents
-        claim.cached_from = cached_from
         claim.platform = ctx.platform
         claim.pattern_matches = ctx.pattern_matches
         claim.claim_text = ctx.claim
@@ -152,10 +207,18 @@ async def _persist(ctx: PipelineContext, run: Run, raw_text: str, cached_from: s
         claim.claim_type = ctx.claim_type
         claim.urgency = ctx.urgency
         claim.verdict = ctx.verdict
-        claim.confidence = round(ctx.confidence, 3)
+        claim.confidence = None if ctx.confidence is None else round(ctx.confidence, 3)
+        claim.confidence_band = confidence_band(ctx.confidence)
+        claim.model_verdict = ctx.model_verdict
+        claim.model_confidence = None if ctx.model_confidence is None else round(ctx.model_confidence, 3)
+        claim.gate_reasons = ctx.gate_reasons
+        claim.missing_context = ctx.missing_context
+        claim.evidence_gaps = ctx.evidence_gaps
+        claim.checks_to_do = ctx.checks_to_do
+        claim.correction = ctx.correction
         claim.summary = ctx.summary
         claim.reasoning_chain = ctx.reasoning_chain
-        claim.contradictions = ctx.contradictions
+        claim.contradictions = ctx.contradictions + [f"Manipulation marker: {m}" for m in ctx.manipulation_markers]
         claim.used_ultra = ctx.used_ultra
         claim.summary_local = ctx.summary_local
         claim.myth = ctx.myth
@@ -209,6 +272,7 @@ async def _pipeline(request_id: str, run: Run) -> None:
         claim.status = "processing"
         await s.commit()
         input_type, platform, language = claim.input_type, claim.platform, claim.requested_language
+        slug = claim.slug
         snapshot = Claim(
             input_type=claim.input_type, raw_input=claim.raw_input, image_data=claim.image_data,
             source_url=claim.source_url,
@@ -226,22 +290,9 @@ async def _pipeline(request_id: str, run: Run) -> None:
 
     ctx = PipelineContext(
         request_id=request_id, raw_text=raw_text, input_type=input_type,
-        requested_language=language or "auto", platform=platform or "web",
+        requested_language=language or "auto", platform=platform or "web", slug=slug,
     )
     ctx.pattern_matches = await match_patterns(raw_text)
-
-    key = _cache_key(raw_text, ctx)
-    cached = await cache.get(key)
-    if cached:
-        for f in CACHED_FIELDS:
-            if f in cached:
-                setattr(ctx, f, cached[f])
-        await run.set_agent(0, "complete", f"{route_note} · cache hit — verified earlier, reusing forensic record")
-        for idx in range(1, 6):
-            await run.set_agent(idx, "complete", "Reused from cached verdict")
-        stored = await _persist(ctx, run, raw_text, cached.get("request_id"))
-        await run.emit({"type": "result", "progress": 100, "result": stored.to_result()})
-        return
 
     pattern_note = f" · resembles '{ctx.pattern_matches[0]['name']}'" if ctx.pattern_matches else ""
     await run.set_agent(0, "complete", f"{route_note}{pattern_note} · dispatching 5 agents")
@@ -268,6 +319,9 @@ async def _pipeline(request_id: str, run: Run) -> None:
     else:
         await run.set_agent(3, "skipped", f"Not needed — confidence {ctx.confidence:.0%} and urgency {ctx.urgency}")
 
+    # ── Honest-uncertainty gate ───────────────────────────────────────
+    apply_gate(ctx)
+
     # ── Agents 4 & 5 in parallel ──────────────────────────────────────
     explain_ok, harm_ok = await asyncio.gather(
         run.step(4, explainer.run, ctx, f"Writing explanation in {ctx.output_language_name}"),
@@ -278,8 +332,7 @@ async def _pipeline(request_id: str, run: Run) -> None:
     if not harm_ok:
         harm_assessor.fallback(ctx)
 
-    stored = await _persist(ctx, run, raw_text, None)
-    await cache.set(key, {**{f: asdict(ctx)[f] for f in CACHED_FIELDS}, "request_id": request_id})
+    stored = await _persist(ctx, run, raw_text)
     await run.emit({"type": "result", "progress": 100, "result": stored.to_result()})
 
 

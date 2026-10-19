@@ -16,7 +16,7 @@ async def history(
     include_seed: bool = True,
     session: AsyncSession = Depends(get_session),
 ):
-    cond = [Claim.status == "complete"]
+    cond = [Claim.status == "complete", Claim.is_public.is_(True)]
     if not include_seed:
         cond.append(Claim.is_seed.is_(False))
     rows = (

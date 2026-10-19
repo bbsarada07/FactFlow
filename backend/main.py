@@ -10,10 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from sqlalchemy import text
 
-from api import history, incidents, result, stats, stream, verify
+from api import history, incidents, public_config, registry, result, stats, stream, verify
 from config import settings
 from database import connection
-from services.cache_service import cache
+from services.cache_service import redis_ping
 
 logger.remove()
 logger.add(sys.stderr, level="DEBUG" if settings.DEBUG else "INFO")
@@ -45,7 +45,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (verify, stream, result, history, incidents, stats):
+for module in (verify, stream, result, history, incidents, stats, registry, public_config):
     app.include_router(module.router)
 
 
@@ -61,7 +61,7 @@ async def health():
         "status": "ok" if db_ok else "degraded",
         "database": connection.engine.dialect.name if connection.engine else None,
         "database_ok": db_ok,
-        "cache": "redis" if await cache.ping() else "memory",
+        "redis": await redis_ping(),
         "llm_configured": bool(settings.GROQ_API_KEY),
         "models": {"nano": settings.NANO_MODEL, "ultra": settings.ULTRA_MODEL, "vision": settings.VISION_MODEL},
         "queue": "celery" if settings.USE_CELERY else "inprocess",

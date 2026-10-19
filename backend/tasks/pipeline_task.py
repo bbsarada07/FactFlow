@@ -30,11 +30,9 @@ _background: set[asyncio.Task] = set()
 async def _run_in_worker(request_id: str) -> None:
     from agents.orchestrator import run_pipeline
     from database import connection
-    from services.cache_service import cache
     from services.event_bus import reset_bus
 
     reset_bus()
-    cache.reset()
     await connection.init_db(null_pool=True)
     try:
         await run_pipeline(request_id)

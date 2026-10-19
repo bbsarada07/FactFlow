@@ -1,45 +1,112 @@
-"""Agent 4 — Explainer (Nano): plain-language verdict, translation, myth vs fact, WhatsApp reply."""
+"""Agent 4 — Explainer (Nano): plain-language verdict, translation, myth vs fact, and the
+"correction in place": a short, sourced reply in English, Hindi and Telugu that links the
+public registry page and fits a single post (280 characters including the link)."""
+import re
+
 from agents.context import AgentOutput, PipelineContext
+from agents.uncertainty import STRONG_TIERS
+from database.models import registry_url
 from models.groq_client import call_nano
-from services.text_utils import truncate
+from services.text_utils import fit_words, truncate
+
+POST_LIMIT = 280
+NO_SOURCE = "No verified source yet"
 
 SYSTEM = """You are the Explainer agent of NemesisAI. You turn forensic verdicts into short, kind, plain-language
-messages that ordinary people — including elderly relatives in family WhatsApp groups — will read and trust.
-Never shame the sender. Respond with a single JSON object and nothing else."""
+messages that ordinary people, including elderly relatives in family WhatsApp groups, will read and trust.
+Never shame or insult the sender. Use only the facts and source names given to you.
+Return ONLY valid JSON, no preamble, no markdown backticks."""
 
 PROMPT = """CLAIM: {claim}
-VERDICT: {verdict} ({confidence:.0%} confidence)
+VERDICT: {verdict}
 FINDINGS: {summary}
-WHAT IS TRUE: {fact}
-KEY SOURCE: {key_source}
+WHAT THE EVIDENCE SHOWS: {fact}
+BEST SOURCE: {source}
 TARGET LANGUAGE: {language} (code: {code})
 
 Return JSON:
 {{"simple_summary": "2-3 sentences in plain English (max 60 words) explaining what we found",
  "local_summary": "the same explanation written natively in {language}; if {language} is English repeat simple_summary",
  "myth": "the claim as people are sharing it, max 20 words, in English",
- "fact": "what is actually true, max 35 words, in English",
- "fact_source": "short source attribution, e.g. 'WHO' or 'Alt News fact-check'",
- "whatsapp_reply": "a ready-to-send reply to the forward, written in {language}, max 70 words, warm and respectful, stating the verdict and the true facts, asking people not to forward it further, ending with the line: — Checked with NemesisAI"}}
+ "fact": "what the evidence shows, max 35 words, in English",
+ "whatsapp_reply": "a ready-to-send reply to the forward, in {language}, max 70 words, warm and respectful, stating the verdict and the evidence, asking people not to forward it further, ending with: — Checked with NemesisAI",
+ "correction_en": "a post-length correction in English, max {budget} characters, no URL: name the claim, give the verdict, and one fact attributed to {source}",
+ "correction_hi": "the same correction in Hindi, max {budget} characters, no URL",
+ "correction_te": "the same correction in Telugu, max {budget} characters, no URL"}}
 
-If the verdict is TRUE, "myth" should restate the claim and "fact" should confirm it with context.
-If the verdict is UNVERIFIED, say clearly that no reliable confirmation exists yet and advise waiting for official sources."""
+Rules: no insults, no hashtags, no emojis in the corrections. If the verdict is TRUE, "myth" restates the claim and the
+corrections confirm it. Never name a source other than {source}."""
+
+# For UNVERIFIED we never let the model word the correction: it must not imply the claim is false.
+UNVERIFIED_TEMPLATES = {
+    "text_en": 'We could not verify this yet: "{claim}". No reliable source confirms or denies it so far. Please don\'t forward it until it is checked.',
+    "text_hi": 'हम अभी इसकी पुष्टि नहीं कर सके: "{claim}"। अब तक कोई भरोसेमंद स्रोत इसकी पुष्टि या खंडन नहीं करता। जाँच होने तक इसे आगे न भेजें।',
+    "text_te": 'మేము దీనిని ఇంకా ధృవీకరించలేకపోయాము: "{claim}". ఇప్పటివరకు నమ్మదగిన మూలం దీనిని నిర్ధారించలేదు లేదా ఖండించలేదు. తనిఖీ అయ్యే వరకు దీనిని ఫార్వర్డ్ చేయవద్దు.',
+}
+FALLBACK_EN = 'Fact check: "{claim}" is {verdict}. {fact} Source: {source}.'
+_DEFINITIVE_WORDS = re.compile(r"\b(false|fake|hoax|untrue|debunk\w*|lie|lies|wrong)\b|झूठ|फर्जी|फेक|నకిలీ|అబద్ధ", re.IGNORECASE)
+
+
+def best_source(ctx: PipelineContext) -> str:
+    """Name of the most credible tier 1-2 source, or the no-source label when unverified."""
+    if ctx.verdict == "UNVERIFIED":
+        return NO_SOURCE
+    strong = [e for e in ctx.evidence if e.get("tier") in STRONG_TIERS]
+    if not strong:
+        return NO_SOURCE
+    return max(strong, key=lambda e: e.get("credibility", 0))["name"]
+
+
+def _with_link(text: str, url: str | None) -> str:
+    """Fit text plus the registry link into one post (POST_LIMIT characters)."""
+    if not url:
+        return fit_words(text, POST_LIMIT)
+    return f"{fit_words(text, POST_LIMIT - len(url) - 1)} {url}"
+
+
+def _template(template: str, ctx: PipelineContext, url: str | None) -> str:
+    """Render a fixed template, shortening the quoted claim so the whole post fits."""
+    room = POST_LIMIT - (len(url) + 1 if url else 0) - len(template.format(claim="", verdict=ctx.verdict, fact="", source=""))
+    claim = fit_words(ctx.claim, max(40, room))
+    return _with_link(template.format(claim=claim, verdict=ctx.verdict, fact=ctx.fact, source=best_source(ctx)), url)
+
+
+def build_correction(ctx: PipelineContext, model: dict | None) -> dict:
+    """Assemble the correction object. Deterministic for UNVERIFIED and when the model output is missing."""
+    url = registry_url(ctx.slug)
+    source = best_source(ctx)
+    if ctx.verdict == "UNVERIFIED":
+        texts = {k: _template(t, ctx, url) for k, t in UNVERIFIED_TEMPLATES.items()}
+        return {**texts, "source_label": NO_SOURCE, "registry_url": url}
+
+    model = model or {}
+    texts = {}
+    for key, field_name in (("text_en", "correction_en"), ("text_hi", "correction_hi"), ("text_te", "correction_te")):
+        raw = str(model.get(field_name) or "").strip()
+        raw = re.sub(r"https?://\S+", "", raw).strip()
+        texts[key] = _with_link(raw, url) if raw else None
+    if not texts["text_en"]:
+        texts["text_en"] = _template(FALLBACK_EN, ctx, url)
+    return {**texts, "source_label": source, "registry_url": url}
 
 
 async def run(ctx: PipelineContext) -> AgentOutput:
+    """Write the explanation, myth/fact card, WhatsApp reply and multilingual correction."""
+    source = best_source(ctx)
+    budget = POST_LIMIT - len(registry_url(ctx.slug) or "") - 1
     res = await call_nano(
         SYSTEM,
         PROMPT.format(
             claim=ctx.claim,
             verdict=ctx.verdict,
-            confidence=ctx.confidence,
             summary=ctx.summary or "(none)",
             fact=ctx.fact or "(not established)",
-            key_source=ctx.key_source or "(none)",
+            source=source,
             language=ctx.output_language_name,
             code=ctx.output_language,
+            budget=budget,
         ),
-        max_tokens=1200,
+        max_tokens=1800,
     )
     d = res.data
 
@@ -49,11 +116,16 @@ async def run(ctx: PipelineContext) -> AgentOutput:
     ctx.summary_local = str(d.get("local_summary") or ctx.summary).strip()
     ctx.myth = truncate(str(d.get("myth") or ctx.claim), 220)
     ctx.fact = truncate(str(d.get("fact") or ctx.fact), 320)
-    ctx.fact_source = str(d.get("fact_source") or ctx.key_source or "NemesisAI analysis").strip()
+    ctx.fact_source = source
     ctx.whatsapp_reply = str(d.get("whatsapp_reply") or "").strip()
+    ctx.correction = build_correction(ctx, d)
+    if ctx.verdict == "UNVERIFIED":
+        local_key = {"en": "text_en", "hi": "text_hi", "te": "text_te"}.get(ctx.output_language)
+        if local_key or _DEFINITIVE_WORDS.search(ctx.whatsapp_reply):
+            ctx.whatsapp_reply = ctx.correction[local_key or "text_en"]
 
     return AgentOutput(
-        preview=f"Verdict explained in {ctx.output_language_name} · WhatsApp reply + myth/fact card ready",
+        preview=f"Explained in {ctx.output_language_name} · correction ready in EN / HI / TE",
         model=res.model,
         ms=res.ms,
     )
@@ -64,8 +136,6 @@ def fallback(ctx: PipelineContext) -> None:
     ctx.summary_local = ctx.summary
     ctx.myth = truncate(ctx.claim, 220)
     ctx.fact = ctx.fact or ctx.summary
-    ctx.fact_source = ctx.key_source or "NemesisAI analysis"
-    ctx.whatsapp_reply = (
-        f"This message has been checked and appears to be {ctx.verdict}. {ctx.fact} "
-        "Please don't forward it further.\n— Checked with NemesisAI"
-    )
+    ctx.fact_source = best_source(ctx)
+    ctx.correction = build_correction(ctx, None)
+    ctx.whatsapp_reply = ctx.correction["text_en"]

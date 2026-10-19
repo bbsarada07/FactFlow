@@ -45,10 +45,27 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
 
+    # Shown to users in the footer / navbar (must name the real provider)
+    INFERENCE_PROVIDER: str = "Groq"
+
     # Pipeline behaviour
     DEEP_REASONING_THRESHOLD: float = 0.85
     MAX_REQUESTS_PER_MINUTE: int = 10
-    CACHE_TTL_HOURS: int = 24
+    MAX_CLAIM_CHARS: int = 4000
+
+    # Honest-uncertainty gate
+    MIN_STRONG_SOURCES: int = 2  # tier 1-2 sources required for a definitive verdict
+    MIN_VERDICT_CONFIDENCE: float = 0.6
+
+    # Public registry / repeat detection
+    REPEAT_WINDOW_DAYS: int = 7
+    REPEAT_SIMILARITY: float = 85.0  # rapidfuzz token_set_ratio, 0-100
+    REPEAT_CORPUS_SIZE: int = 500
+
+    # Allow-listed URLs for user-facing "checks to do" (never model-generated)
+    GOOGLE_SEARCH_URL: str = "https://www.google.com/search?q="
+    REVERSE_IMAGE_SEARCH_URL: str = "https://lens.google.com/"
+    PIB_FACTCHECK_URL: str = "https://factcheck.pib.gov.in"
 
 
 @lru_cache

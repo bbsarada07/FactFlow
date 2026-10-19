@@ -1,16 +1,19 @@
 """Seed documented incidents, their archived verdicts, and known misinformation patterns.
 
-The forward texts are representative reconstructions of the rumours as reported
-at the time, not verbatim copies; the UI labels them as such.
+Every figure shown for an incident (date, deaths, what was true) is taken from the
+linked source, which was retrieved and read when this file was written (October 2026).
+The forward texts are representative reconstructions of the rumours as reported,
+not verbatim copies; the UI labels them as such. Seeding is an upsert, so edits here
+propagate to existing databases on the next start.
 """
-from datetime import date, datetime, time, timezone
+from datetime import datetime, time, timezone, date
 
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Claim, Incident, KnownPattern
-from services.text_utils import input_hash
+from database.models import Claim, Incident, KnownPattern, Source, new_slug
+from services.text_utils import input_hash, normalize
 
 INCIDENTS = [
     {
@@ -22,49 +25,45 @@ INCIDENTS = [
         "deaths": 3,
         "harm_type": "VIOLENCE",
         "verdict": "FALSE",
-        "claim": "Gangs of child kidnappers and organ thieves are roaming villages at night.",
+        "claim": "A gang of child thieves harvesting organs is active in the area.",
         "summary": (
-            "During the COVID-19 lockdown, rumours spread across villages on WhatsApp that "
-            "child-kidnappers and organ thieves were moving around at night. A mob stopped a car "
-            "carrying two sadhus and their driver and beat all three to death in front of police."
+            "A rumour spread through the village on WhatsApp that a gang of child thieves harvesting "
+            "organs was active in the area. A vigilante group lynched two Hindu sadhus and their driver."
         ),
-        "what_was_true": (
-            "No kidnapping or organ-theft gang existed. The victims were two Hindu sadhus and their "
-            "driver passing through the area by car."
-        ),
+        "what_was_true": "The victims were two sadhus and their driver, not child thieves or organ harvesters.",
         "forward_text": (
             "ALERT!! Gangs of child kidnappers are moving in villages at night dressed as sadhus and "
             "police. They take children and remove their kidneys. Stay awake, guard your village and "
             "stop every outside vehicle. Forward to all groups!"
         ),
-        "fact_check_days": 4,
-        "reference_query": "Palghar mob lynching",
+        "reference_query": "2020 Palghar mob lynching",
+        "source_url": "https://en.wikipedia.org/wiki/2020_Palghar_mob_lynching",
+        "source_label": "Wikipedia: 2020 Palghar mob lynching",
+        "extra_sources": [],
     },
     {
         "slug": "muzaffarnagar-2013",
         "name": "Muzaffarnagar Riots",
-        "occurred_on": date(2013, 9, 7),
+        "occurred_on": date(2013, 8, 27),
         "location": "Muzaffarnagar, Uttar Pradesh",
-        "platform": "Facebook",
+        "platform": "Social media",
         "deaths": 62,
         "harm_type": "COMMUNAL",
         "verdict": "FALSE",
-        "claim": "A video shows two young men from Kawal village being lynched by a mob.",
+        "claim": "A video shows the murder of two young men from Kawal village.",
         "summary": (
-            "After a deadly clash in Kawal village, a graphic video of two young men being beaten to "
-            "death was shared as footage of the killings. It inflamed communal tension in the run-up "
-            "to riots that killed at least 62 people and displaced tens of thousands."
+            "A video said to show the killing of two cousins from Kawal village circulated during rising "
+            "tension. In the riots that followed (27 August to 17 September 2013), 62 people died."
         ),
-        "what_was_true": (
-            "The video was older footage of a lynching in Sialkot, Pakistan, unrelated to Kawal or "
-            "Muzaffarnagar."
-        ),
+        "what_was_true": "The video was footage of unrelated violence in Pakistan from several years earlier.",
         "forward_text": (
             "Watch how they killed our boys in Kawal. Share this video so everyone sees what was done "
             "to them. Don't stay silent!"
         ),
-        "fact_check_days": None,
         "reference_query": "2013 Muzaffarnagar riots",
+        "source_url": "https://en.wikipedia.org/wiki/2013_Muzaffarnagar_riots",
+        "source_label": "Wikipedia: 2013 Muzaffarnagar riots",
+        "extra_sources": [],
     },
     {
         "slug": "dhule-2018",
@@ -75,22 +74,25 @@ INCIDENTS = [
         "deaths": 5,
         "harm_type": "VIOLENCE",
         "verdict": "FALSE",
-        "claim": "A child-kidnapping gang disguised as beggars has entered the district.",
+        "claim": "A child-kidnapping gang has entered the district.",
         "summary": (
-            "WhatsApp messages warning of child-kidnapping gangs had circulated in the region for "
-            "weeks. When five men from a nomadic community stopped at a weekly market, a crowd accused "
-            "them of being kidnappers and beat them to death."
+            "WhatsApp messages about child kidnappers had spread widely in the area. Five men who got off a "
+            "bus at the Sunday market were dragged to the gram panchayat office and beaten to death."
         ),
         "what_was_true": (
-            "There was no kidnapping gang. The five victims were members of a nomadic community who had "
-            "come to the market seeking alms."
+            "There was no kidnapping gang. The victims were members of a nomadic community who had come "
+            "to the weekly market to seek alms."
         ),
         "forward_text": (
             "Child kidnapping gang has entered our district. Many members, dressed as beggars. They "
             "kidnap children and sell their organs. Share in all groups and stay alert!"
         ),
-        "fact_check_days": None,
-        "reference_query": "Dhule lynching 2018",
+        "reference_query": "Dhule Rainpada lynching July 2018",
+        "source_url": "https://www.boomlive.in/dhule-lynching-takes-death-toll-due-to-fake-news-to-23-5-things-to-know",
+        "source_label": "BOOM",
+        "extra_sources": [
+            {"label": "The Quint", "url": "https://www.thequint.com/news/india/lynchings-due-to-rumours-spreading-on-whatsapp"}
+        ],
     },
     {
         "slug": "covid-communal-2020",
@@ -103,67 +105,78 @@ INCIDENTS = [
         "verdict": "FALSE",
         "claim": "Videos show Muslims deliberately spitting on food to spread COVID-19.",
         "summary": (
-            "After a COVID-19 cluster was linked to a religious gathering in Delhi, unrelated and "
-            "staged videos were shared claiming Muslims were spitting on food to spread the virus. "
-            "The wave fuelled boycotts of and assaults on Muslim vendors."
+            "During the pandemic, videos were shared with communal captions claiming Muslims were "
+            "spitting on food to spread the coronavirus."
         ),
         "what_was_true": (
-            "Fact-checkers traced the videos to other countries, earlier years or staged scenes; none "
-            "showed deliberate spreading of COVID-19."
+            "Fact-checkers traced the videos to earlier years, other countries or unrelated events; "
+            "none showed deliberate spreading of COVID-19."
         ),
         "forward_text": (
             "SHOCKING video: see how they are spitting on fruits to spread corona. Don't buy from them. "
             "Forward to save your family."
         ),
-        "fact_check_days": None,
-        "reference_query": "Tablighi Jamaat coronavirus misinformation",
+        "reference_query": "fact check video spitting on food coronavirus India",
+        "source_url": "https://www.altnews.in/old-video-falsely-viral-as-muslim-man-spitting-on-food-at-indian-restaurant-in-the-backdrop-of-coronavirus-pandemic/",
+        "source_label": "Alt News",
+        "extra_sources": [
+            {"label": "BOOM", "url": "https://www.boomlive.in/fake-news/false-video-shows-muslim-man-spitting-on-bread-to-spread-coronavirus-7572"}
+        ],
     },
     {
         "slug": "manipur-2023",
         "name": "Manipur Fake Photo",
         "occurred_on": date(2023, 5, 4),
         "location": "B. Phainom, Kangpokpi, Manipur",
-        "platform": "WhatsApp / Facebook",
+        "platform": "Social media",
         "deaths": 2,
         "harm_type": "COMMUNAL",
         "verdict": "FALSE",
-        "claim": "A photo shows a Meitei woman murdered by Kuki men in Churachandpur.",
+        "claim": "A photo shows a Meitei woman raped and murdered by Kuki men in Manipur.",
         "summary": (
-            "As ethnic violence broke out, a photo of a woman's body wrapped in plastic was shared with "
-            "the claim that a Meitei woman had been killed in Churachandpur. Police said the rumour "
-            "preceded a mob attack in B. Phainom village in which two men were killed and two women "
-            "were paraded and assaulted."
+            "As ethnic violence broke out, a photo of a woman's body wrapped in plastic was shared as a "
+            "Meitei woman killed in Manipur. Sources cited by India Today said fake rape news triggered the "
+            "4 May mob attack in B. Phainom, where a CBI chargesheet says two family members of one of the "
+            "assaulted women were killed."
         ),
-        "what_was_true": "The photo came from an unrelated murder case outside Manipur.",
+        "what_was_true": "The photo was from an unrelated 2022 murder case outside Manipur.",
         "forward_text": (
             "Our sister was raped and killed in Churachandpur. Look at what they did to her body. "
             "We cannot keep quiet any more. Share widely."
         ),
-        "fact_check_days": None,
-        "reference_query": "2023 Manipur violence",
+        "reference_query": "Manipur fake photo Meitei woman fact check",
+        "source_url": "https://www.boomlive.in/fact-check/viral-photo-kuki-people-rape-kill-meitei-woman-old-picture-aayushi-murder-case-social-media-21874",
+        "source_label": "BOOM",
+        "extra_sources": [
+            {"label": "Business Today", "url": "https://businesstoday.in/latest/story/manipur-shocker-fake-rape-news-triggered-mob-to-parade-women-naked-say-sources-390666-2023-07-20"},
+            {"label": "Deccan Herald (CBI chargesheet)", "url": "https://www.deccanherald.com/india/manipur/cbi-files-charge-sheet-in-case-related-to-naked-parading-of-tribal-women-in-manipur-2729041"},
+        ],
     },
     {
         "slug": "modi-garba-2023",
         "name": "PM Modi 'Deepfake' Garba Video",
-        "occurred_on": date(2023, 11, 17),
+        "occurred_on": date(2023, 11, 11),
         "location": "Nationwide",
         "platform": "Instagram / X",
         "deaths": 0,
         "harm_type": "ELECTORAL",
         "verdict": "MISLEADING",
-        "claim": "A video shows PM Narendra Modi performing garba at a festival.",
+        "claim": "A video shows PM Narendra Modi performing garba.",
         "summary": (
-            "A video of a man resembling PM Narendra Modi dancing garba went viral. The PM cited it "
-            "publicly as a dangerous deepfake, showing how hard it has become to tell synthetic media "
-            "from authentic footage."
+            "A video of a man resembling PM Narendra Modi dancing garba went viral and was widely "
+            "described as a deepfake."
         ),
         "what_was_true": (
-            "The man was a lookalike, Vikas Mahante. The footage was real, not AI-generated, and did "
-            "not show the Prime Minister."
+            "The man was a lookalike, Vikas Mahante, filmed at a Diwali event in London. The footage was "
+            "real, not AI-generated, and did not show the Prime Minister."
         ),
         "forward_text": "PM Modi dancing garba with women at the festival! Look at this video 😍",
-        "fact_check_days": None,
-        "reference_query": "Vikas Mahante",
+        "reference_query": "Modi garba video lookalike Vikas Mahante fact check",
+        "source_url": "https://www.boomlive.in/fact-check/narendra-modi-doing-garba-lookalike-vikas-mahante-fact-check-23560",
+        "source_label": "BOOM",
+        "extra_sources": [
+            {"label": "Alt News", "url": "https://www.altnews.in/no-man-performing-garba-in-viral-video-is-not-pm-narendra-modi/"}
+        ],
     },
 ]
 
@@ -261,76 +274,91 @@ KNOWN_PATTERNS = [
 ]
 
 
-def _seed_claim(inc: dict) -> Claim:
+
+INCIDENT_FIELDS = (
+    "name", "occurred_on", "location", "platform", "deaths", "harm_type", "verdict", "summary",
+    "what_was_true", "forward_text", "reference_query", "source_url", "source_label", "extra_sources",
+)
+
+
+def _apply_seed_claim(claim: Claim, inc: dict) -> None:
+    """Copy an incident's archived verdict onto its seed claim (used for insert and update)."""
     when = datetime.combine(inc["occurred_on"], time(12, 0), tzinfo=timezone.utc)
-    return Claim(
-        id=f"seed{inc['slug'].replace('-', '')}"[:32],
-        created_at=when,
-        completed_at=when,
-        input_type="text",
-        raw_input=inc["forward_text"],
-        input_hash=input_hash(inc["forward_text"]),
-        platform=inc["platform"].split(" / ")[0].lower(),
-        status="complete",
-        is_seed=True,
-        claim_text=inc["claim"],
-        language="en",
-        language_name="English",
-        claim_type=inc["harm_type"],
-        urgency="CRITICAL" if inc["deaths"] else "HIGH",
-        verdict=inc["verdict"],
-        confidence=None,
-        summary=f"{inc['summary']} {inc['what_was_true']}",
-        reasoning_chain=[],
-        myth=inc["claim"],
-        fact=inc["what_was_true"],
-        fact_source="Documented incident archive",
-        harm_type=inc["harm_type"],
-        harm_level="CRITICAL" if inc["deaths"] else "HIGH",
-        harm_score=10.0 if inc["deaths"] else 7.0,
-        harm_rationale=f"Archived incident: {inc['name']} ({inc['deaths']} deaths).",
-        agent_log=[],
-    )
+    claim.created_at = when
+    claim.completed_at = when
+    claim.input_type = "text"
+    claim.raw_input = inc["forward_text"]
+    claim.input_hash = input_hash(inc["forward_text"])
+    claim.normalized_text = normalize(inc["forward_text"])
+    claim.platform = inc["platform"].split(" / ")[0].lower()
+    claim.status = "complete"
+    claim.is_seed = True
+    claim.is_public = True
+    claim.claim_text = inc["claim"]
+    claim.language = "en"
+    claim.language_name = "English"
+    claim.claim_type = inc["harm_type"]
+    claim.urgency = "CRITICAL" if inc["deaths"] else "HIGH"
+    claim.verdict = inc["verdict"]
+    claim.model_verdict = None
+    claim.confidence = None
+    claim.confidence_band = None
+    claim.summary = f"{inc['summary']} {inc['what_was_true']}"
+    claim.reasoning_chain = []
+    claim.evidence_gaps = []
+    claim.checks_to_do = []
+    claim.myth = inc["claim"]
+    claim.fact = inc["what_was_true"]
+    claim.fact_source = inc["source_label"]
+    claim.correction = None
+    claim.harm_type = inc["harm_type"]
+    claim.harm_level = "CRITICAL" if inc["deaths"] else "HIGH"
+    claim.harm_score = None
+    claim.harm_rationale = f"Archived incident: {inc['name']}."
+    claim.agent_log = []
 
 
 async def seed(session: AsyncSession) -> None:
-    existing_incidents = set((await session.scalars(select(Incident.slug))).all())
-    existing_patterns = set((await session.scalars(select(KnownPattern.slug))).all())
-    existing_claims = set((await session.scalars(select(Claim.id).where(Claim.is_seed.is_(True)))).all())
+    """Upsert incidents, their archive claims (with their real source) and known patterns."""
+    incidents = {i.slug: i for i in (await session.scalars(select(Incident))).all()}
+    patterns = set((await session.scalars(select(KnownPattern.slug))).all())
+    claims = {c.id: c for c in (await session.scalars(select(Claim).where(Claim.is_seed.is_(True)))).all()}
 
-    added = 0
     for inc in INCIDENTS:
-        if inc["slug"] not in existing_incidents:
-            session.add(
-                Incident(
-                    slug=inc["slug"],
-                    name=inc["name"],
-                    occurred_on=inc["occurred_on"],
-                    location=inc["location"],
-                    platform=inc["platform"],
-                    deaths=inc["deaths"],
-                    harm_type=inc["harm_type"],
-                    verdict=inc["verdict"],
-                    summary=inc["summary"],
-                    what_was_true=inc["what_was_true"],
-                    forward_text=inc["forward_text"],
-                    forward_is_reconstruction=True,
-                    spread_minutes=None,
-                    fact_check_days=inc["fact_check_days"],
-                    reference_query=inc["reference_query"],
+        row = incidents.get(inc["slug"])
+        if row is None:
+            row = Incident(slug=inc["slug"], forward_is_reconstruction=True)
+            session.add(row)
+        for f in INCIDENT_FIELDS:
+            setattr(row, f, inc[f])
+        row.source_confirmed = True
+        row.fact_check_days = None
+        row.spread_minutes = None
+
+        claim_id = f"seed{inc['slug'].replace('-', '')}"[:32]
+        claim = claims.get(claim_id)
+        if claim is None:
+            claim = Claim(id=claim_id, slug=new_slug(), sources=[])
+            session.add(claim)
+        _apply_seed_claim(claim, inc)
+        await session.flush()
+        if not any(s.url == inc["source_url"] for s in claim.sources):
+            claim.sources.append(
+                Source(
+                    name=inc["source_label"],
+                    url=inc["source_url"],
+                    title=inc["name"],
+                    snippet=inc["what_was_true"],
+                    origin="archive",
+                    tier=1,
+                    credibility=0.9,
+                    stance="REFUTES",
                 )
             )
-            added += 1
-        claim = _seed_claim(inc)
-        if claim.id not in existing_claims:
-            session.add(claim)
-            added += 1
 
     for pat in KNOWN_PATTERNS:
-        if pat["slug"] not in existing_patterns:
+        if pat["slug"] not in patterns:
             session.add(KnownPattern(**pat))
-            added += 1
 
-    if added:
-        await session.commit()
-        logger.info(f"Seeded {added} rows")
+    await session.commit()
+    logger.info(f"Seed data up to date ({len(INCIDENTS)} incidents, {len(KNOWN_PATTERNS)} patterns)")

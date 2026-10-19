@@ -3,6 +3,12 @@ from dataclasses import dataclass, field
 from datetime import date
 
 VERDICTS = ("FALSE", "TRUE", "MISLEADING", "UNVERIFIED", "SATIRE")
+
+# Appended to every prompt that judges a claim.
+HONESTY_RULE = (
+    "If the evidence is insufficient, say so. Do not guess. Return UNVERIFIED with a reason. "
+    "Return ONLY valid JSON, no preamble, no markdown backticks."
+)
 URGENCY = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
 HARM_TYPES = ("VIOLENCE", "HEALTH", "COMMUNAL", "ELECTORAL", "FINANCIAL", "REPUTATIONAL", "NONE")
 CLAIM_TYPES = ("HEALTH", "COMMUNAL", "POLITICAL", "ELECTORAL", "VIOLENCE", "SCIENCE", "FINANCIAL", "DISASTER", "OTHER")
@@ -103,6 +109,18 @@ class PipelineContext:
     fact: str = ""
     key_source: str = ""
     used_ultra: bool = False
+    missing_context: list[str] = field(default_factory=list)
+    model_gaps: list[str] = field(default_factory=list)
+    manipulation_markers: list[str] = field(default_factory=list)
+
+    # Honest-uncertainty gate (orchestrator)
+    model_verdict: str | None = None
+    model_confidence: float | None = None
+    gate_reasons: list[str] = field(default_factory=list)
+    evidence_gaps: list[str] = field(default_factory=list)
+    checks_to_do: list[dict] = field(default_factory=list)
+    slug: str | None = None
+    correction: dict | None = None
 
     # Explainer
     summary_local: str = ""
