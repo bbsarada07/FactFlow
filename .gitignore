@@ -1,0 +1,21 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+backend/*.db
+
+# Secrets
+.env
+.env.local
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+
+# OS / logs
+.DS_Store
+Thumbs.db
+*.log

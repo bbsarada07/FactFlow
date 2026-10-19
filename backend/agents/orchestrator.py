@@ -1,0 +1,296 @@
+"""Agent 0 — Orchestrator.
+
+Routes the input (text / URL / image), checks the verdict cache and known
+patterns, runs the five specialist agents in order, emits SSE events for every
+state change, degrades gracefully when an agent fails, and persists the result.
+"""
+import asyncio
+import time
+from collections.abc import Awaitable, Callable
+from dataclasses import asdict
+
+from loguru import logger
+from sqlalchemy import select
+
+from agents import deep_reasoning, explainer, harm_assessor, intake_agent, source_tracer
+from agents.context import AgentOutput, PipelineContext
+from database import connection
+from database.models import Claim, KnownPattern, Source, utcnow
+from services import input_service
+from services.cache_service import cache
+from services.event_bus import get_bus
+from services.text_utils import input_hash, keyword_score, similarity, truncate
+
+AGENTS = [
+    {"index": 0, "name": "ORCHESTRATOR", "tier": "NANO", "role": "Routes and controls"},
+    {"index": 1, "name": "INTAKE & TRIAGE", "tier": "NANO", "role": "Extracts core claim"},
+    {"index": 2, "name": "SOURCE TRACER", "tier": "NANO", "role": "Finds evidence"},
+    {"index": 3, "name": "DEEP REASONING", "tier": "ULTRA", "role": "Multi-hop analysis"},
+    {"index": 4, "name": "EXPLAINER", "tier": "NANO", "role": "Translates verdict"},
+    {"index": 5, "name": "HARM ASSESSOR", "tier": "NANO", "role": "Risk classification"},
+]
+PIPELINE_TIMEOUT = 170
+CACHED_FIELDS = (
+    "claim", "language", "language_name", "claim_type", "urgency", "evidence", "verdict", "confidence",
+    "summary", "reasoning_chain", "contradictions", "fact", "key_source", "used_ultra", "summary_local",
+    "myth", "fact_source", "whatsapp_reply", "harm_type", "harm_level", "harm_score", "harm_rationale",
+    "pattern_matches", "platform",
+)
+
+_patterns: list[dict] | None = None
+
+
+class PipelineError(RuntimeError):
+    pass
+
+
+class Run:
+    """Tracks agent state for one request and publishes events."""
+
+    def __init__(self, request_id: str) -> None:
+        self.request_id = request_id
+        self.bus = get_bus()
+        self.t0 = time.perf_counter()
+        self.agents = [{**a, "status": "waiting", "preview": "", "model": None, "ms": 0} for a in AGENTS]
+
+    @property
+    def elapsed_ms(self) -> int:
+        return int((time.perf_counter() - self.t0) * 1000)
+
+    @property
+    def progress(self) -> int:
+        done = sum(1 for a in self.agents if a["status"] in ("complete", "skipped", "failed"))
+        return round(done / len(self.agents) * 100)
+
+    async def emit(self, event: dict) -> None:
+        await self.bus.publish(self.request_id, {**event, "elapsed_ms": self.elapsed_ms})
+
+    async def set_agent(self, idx: int, status: str, preview: str = "", model: str | None = None, ms: int = 0) -> None:
+        a = self.agents[idx]
+        a.update(status=status, preview=preview or a["preview"], model=model or a["model"], ms=ms or a["ms"])
+        await self.emit({"type": "agent", "agent": idx, **a, "progress": self.progress})
+
+    async def step(
+        self, idx: int, fn: Callable[[PipelineContext], Awaitable[AgentOutput]], ctx: PipelineContext, running: str
+    ) -> bool:
+        """Run one agent with a single orchestrator-level retry. Returns success."""
+        await self.set_agent(idx, "running", running)
+        last_exc: Exception | None = None
+        for attempt in range(2):
+            try:
+                out = await fn(ctx)
+                await self.set_agent(idx, "complete", out.preview, out.model, out.ms)
+                return True
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                logger.warning(f"[{self.request_id}] agent {idx} attempt {attempt + 1} failed: {exc!r}")
+                if attempt == 0:
+                    await self.set_agent(idx, "running", "Retrying after an upstream error…")
+        await self.set_agent(idx, "failed", f"Failed: {truncate(str(last_exc), 140)}")
+        return False
+
+
+async def _known_patterns() -> list[dict]:
+    global _patterns
+    if _patterns is None:
+        async with connection.session_factory()() as s:
+            rows = (await s.scalars(select(KnownPattern))).all()
+        _patterns = [{**p.to_dict(), "example_text": p.example_text, "keywords": p.keywords or []} for p in rows]
+    return _patterns
+
+
+async def match_patterns(text: str) -> list[dict]:
+    scored = []
+    for p in await _known_patterns():
+        score = 0.5 * similarity(text, p["example_text"]) + 0.5 * keyword_score(text, p["keywords"])
+        if score >= 0.35:
+            scored.append({k: p[k] for k in ("slug", "name", "category", "typical_verdict")} | {"score": round(score, 2)})
+    return sorted(scored, key=lambda x: -x["score"])[:2]
+
+
+async def _prepare_input(claim: Claim) -> tuple[str, str]:
+    """Returns (text_to_analyse, routing_note)."""
+    note = claim.raw_input.strip()
+    if claim.input_type == "image":
+        if claim.image_data:
+            b64, mime = input_service.split_data_url(claim.image_data)
+        elif claim.source_url:
+            b64, mime = await input_service.download_image(claim.source_url)
+        else:
+            raise input_service.InputError("Image input has no data")
+        text, method = await input_service.image_to_text(b64, mime)
+        combined = f"{text}\n\nUser note: {note}" if note else text
+        return combined, f"Image → text via {method} ({len(text)} chars)"
+    if claim.input_type == "url" and claim.source_url:
+        text = await input_service.fetch_url_text(claim.source_url)
+        combined = f"{text}\n\nUser note: {note}" if note else text
+        return combined, f"URL fetched ({len(text)} chars)"
+    if not note:
+        raise input_service.InputError("No text to analyse")
+    return note, f"Text input ({len(note)} chars)"
+
+
+def _cache_key(text: str, ctx: PipelineContext) -> str:
+    return f"{input_hash(text)}:{ctx.requested_language}"
+
+
+async def _persist(ctx: PipelineContext, run: Run, raw_text: str, cached_from: str | None) -> Claim:
+    async with connection.session_factory()() as s:
+        claim = await s.get(Claim, ctx.request_id)
+        claim.raw_input = raw_text
+        claim.image_data = None
+        claim.status = "complete"
+        claim.completed_at = utcnow()
+        claim.processing_ms = run.elapsed_ms
+        claim.agent_log = run.agents
+        claim.cached_from = cached_from
+        claim.platform = ctx.platform
+        claim.pattern_matches = ctx.pattern_matches
+        claim.claim_text = ctx.claim
+        claim.language = ctx.language
+        claim.language_name = ctx.language_name
+        claim.claim_type = ctx.claim_type
+        claim.urgency = ctx.urgency
+        claim.verdict = ctx.verdict
+        claim.confidence = round(ctx.confidence, 3)
+        claim.summary = ctx.summary
+        claim.reasoning_chain = ctx.reasoning_chain
+        claim.contradictions = ctx.contradictions
+        claim.used_ultra = ctx.used_ultra
+        claim.summary_local = ctx.summary_local
+        claim.myth = ctx.myth
+        claim.fact = ctx.fact
+        claim.fact_source = ctx.fact_source
+        claim.whatsapp_reply = ctx.whatsapp_reply
+        claim.harm_type = ctx.harm_type
+        claim.harm_level = ctx.harm_level
+        claim.harm_score = ctx.harm_score
+        claim.harm_rationale = ctx.harm_rationale
+        for e in ctx.evidence:
+            s.add(
+                Source(
+                    claim_id=ctx.request_id,
+                    name=truncate(e["name"] or "Unknown", 250),
+                    url=e["url"],
+                    title=e.get("title"),
+                    snippet=truncate(e.get("snippet") or "", 600),
+                    origin=e["origin"],
+                    tier=e["tier"],
+                    credibility=e["credibility"],
+                    stance=e.get("stance", "NEUTRAL"),
+                    rating=e.get("rating"),
+                    published_at=e.get("published_at"),
+                )
+            )
+        await s.commit()
+        await s.refresh(claim)
+        return claim
+
+
+async def _mark_failed(request_id: str, run: Run, message: str) -> None:
+    async with connection.session_factory()() as s:
+        claim = await s.get(Claim, request_id)
+        if claim:
+            claim.status = "failed"
+            claim.error = message
+            claim.image_data = None
+            claim.completed_at = utcnow()
+            claim.processing_ms = run.elapsed_ms
+            claim.agent_log = run.agents
+            await s.commit()
+    await run.emit({"type": "error", "message": message})
+
+
+async def _pipeline(request_id: str, run: Run) -> None:
+    async with connection.session_factory()() as s:
+        claim = await s.get(Claim, request_id)
+        if claim is None:
+            raise PipelineError(f"Unknown request {request_id}")
+        claim.status = "processing"
+        await s.commit()
+        input_type, platform, language = claim.input_type, claim.platform, claim.requested_language
+        snapshot = Claim(
+            input_type=claim.input_type, raw_input=claim.raw_input, image_data=claim.image_data,
+            source_url=claim.source_url,
+        )
+
+    await run.emit({"type": "start", "request_id": request_id, "input_type": input_type, "agents": run.agents})
+
+    # ── Agent 0: routing ──────────────────────────────────────────────
+    await run.set_agent(0, "running", f"Routing {input_type} input")
+    try:
+        raw_text, route_note = await _prepare_input(snapshot)
+    except input_service.InputError as exc:
+        await run.set_agent(0, "failed", str(exc))
+        raise PipelineError(str(exc)) from exc
+
+    ctx = PipelineContext(
+        request_id=request_id, raw_text=raw_text, input_type=input_type,
+        requested_language=language or "auto", platform=platform or "web",
+    )
+    ctx.pattern_matches = await match_patterns(raw_text)
+
+    key = _cache_key(raw_text, ctx)
+    cached = await cache.get(key)
+    if cached:
+        for f in CACHED_FIELDS:
+            if f in cached:
+                setattr(ctx, f, cached[f])
+        await run.set_agent(0, "complete", f"{route_note} · cache hit — verified earlier, reusing forensic record")
+        for idx in range(1, 6):
+            await run.set_agent(idx, "complete", "Reused from cached verdict")
+        stored = await _persist(ctx, run, raw_text, cached.get("request_id"))
+        await run.emit({"type": "result", "progress": 100, "result": stored.to_result()})
+        return
+
+    pattern_note = f" · resembles '{ctx.pattern_matches[0]['name']}'" if ctx.pattern_matches else ""
+    await run.set_agent(0, "complete", f"{route_note}{pattern_note} · dispatching 5 agents")
+
+    # ── Agent 1: intake ───────────────────────────────────────────────
+    if not await run.step(1, intake_agent.run, ctx, "Extracting core claim and language"):
+        ctx.claim = truncate(raw_text, 300)
+        ctx.search_queries = [truncate(raw_text, 80)]
+        ctx.fact_check_query = ctx.search_queries[0]
+
+    # ── Agent 2: source tracer ────────────────────────────────────────
+    tracer_ok = await run.step(2, source_tracer.run, ctx, "Searching fact-checks, news and the open web")
+
+    # ── Agent 3: deep reasoning (conditional) ─────────────────────────
+    if not tracer_ok or deep_reasoning.should_run(ctx):
+        reason = (
+            "source tracer failed" if not tracer_ok
+            else "claim is CRITICAL" if ctx.urgency == "CRITICAL"
+            else f"confidence {ctx.confidence:.0%} below threshold"
+        )
+        deep_ok = await run.step(3, deep_reasoning.run, ctx, f"Escalated to Ultra: {reason}")
+        if not deep_ok and not tracer_ok:
+            raise PipelineError("Could not reach a verdict: evidence and reasoning agents both failed")
+    else:
+        await run.set_agent(3, "skipped", f"Not needed — confidence {ctx.confidence:.0%} and urgency {ctx.urgency}")
+
+    # ── Agents 4 & 5 in parallel ──────────────────────────────────────
+    explain_ok, harm_ok = await asyncio.gather(
+        run.step(4, explainer.run, ctx, f"Writing explanation in {ctx.output_language_name}"),
+        run.step(5, harm_assessor.run, ctx, "Scoring real-world harm"),
+    )
+    if not explain_ok:
+        explainer.fallback(ctx)
+    if not harm_ok:
+        harm_assessor.fallback(ctx)
+
+    stored = await _persist(ctx, run, raw_text, None)
+    await cache.set(key, {**{f: asdict(ctx)[f] for f in CACHED_FIELDS}, "request_id": request_id})
+    await run.emit({"type": "result", "progress": 100, "result": stored.to_result()})
+
+
+async def run_pipeline(request_id: str) -> None:
+    run = Run(request_id)
+    try:
+        await asyncio.wait_for(_pipeline(request_id, run), timeout=PIPELINE_TIMEOUT)
+    except asyncio.TimeoutError:
+        await _mark_failed(request_id, run, f"Analysis timed out after {PIPELINE_TIMEOUT}s")
+    except PipelineError as exc:
+        await _mark_failed(request_id, run, str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(f"[{request_id}] pipeline crashed")
+        await _mark_failed(request_id, run, f"Internal error: {exc.__class__.__name__}: {exc}")

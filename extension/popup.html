@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>NemesisAI</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        width: 320px; margin: 0; background: #040407; color: #F0F0F5;
+        font-family: Inter, "Segoe UI", system-ui, sans-serif; font-size: 13px;
+      }
+      header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #1E1E2A;
+        background: radial-gradient(ellipse 80% 120% at 50% -40%, rgba(255,45,45,.16), transparent 70%); }
+      header img { width: 26px; height: 26px; }
+      .title { font-family: "Space Grotesk", "Segoe UI", sans-serif; font-weight: 700; font-size: 15px; }
+      .sub { color: #8888A0; font-size: 11px; }
+      .status { margin-left: auto; display: flex; align-items: center; gap: 6px; font: 10px Consolas, monospace; letter-spacing: 1px; color: #8888A0; }
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: #444455; }
+      .dot.on { background: #00E676; box-shadow: 0 0 8px #00E676; }
+      .dot.off { background: #FF2D2D; box-shadow: 0 0 8px #FF2D2D; }
+      .label { padding: 14px 16px 6px; font-size: 10px; font-weight: 600; letter-spacing: 2px; color: #8888A0; }
+      ul { list-style: none; margin: 0; padding: 0 8px; }
+      li { display: flex; gap: 10px; align-items: flex-start; padding: 9px 8px; border-radius: 8px; cursor: pointer; }
+      li:hover { background: #16161F; }
+      .verdict { flex: none; min-width: 78px; text-align: center; font-weight: 700; font-size: 10px; letter-spacing: 1px;
+        padding: 3px 6px; border-radius: 5px; color: #fff; }
+      .claim { flex: 1; min-width: 0; color: #D8D8E4; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      .time { flex: none; color: #6A6A80; font: 10px Consolas, monospace; }
+      .empty { padding: 18px 16px; color: #6A6A80; text-align: center; }
+      .actions { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 16px; border-top: 1px solid #1E1E2A; margin-top: 8px; }
+      button { font: inherit; cursor: pointer; border-radius: 100px; padding: 10px 14px; font-weight: 600; letter-spacing: .5px; transition: filter .2s, transform .2s; }
+      button:active { transform: scale(.98); }
+      .primary { background: #FF2D2D; color: #fff; border: 0; }
+      .primary:hover { filter: brightness(1.1); box-shadow: 0 0 24px rgba(255,45,45,.35); }
+      .ghost { background: transparent; color: #F0F0F5; border: 1px solid #2A2A3A; }
+      .ghost:hover { background: #16161F; }
+      .hint { color: #6A6A80; font-size: 10.5px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="icon48.png" alt="" />
+      <div>
+        <div class="title">NemesisAI</div>
+        <div class="sub">Fact Checker</div>
+      </div>
+      <div class="status"><span class="dot" id="dot"></span><span id="status">…</span></div>
+    </header>
+
+    <div class="label">LAST 5 VERIFICATIONS</div>
+    <ul id="history"></ul>
+
+    <div class="actions">
+      <button class="primary" id="verify">Verify Selected Text</button>
+      <button class="ghost" id="dashboard">Open Dashboard →</button>
+      <div class="hint">Right-click any text or image · Ctrl+Shift+V</div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

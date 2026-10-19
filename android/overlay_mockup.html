@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NemesisAI Android Overlay — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --red: #FF2D2D; --green: #00E676; --orange: #FF6B00; --muted: #8888A0;
+    --wa-bg: #0B141A; --wa-header: #202C33; --wa-in: #202C33; --wa-out: #005C4B; --wa-text: #E9EDEF; --wa-meta: #8696A0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(255,45,45,.08), transparent 60%), #040407;
+    font-family: Inter, system-ui, sans-serif; color: #F0F0F5; padding: 24px 12px;
+  }
+  .caption { font: 11px "JetBrains Mono", monospace; letter-spacing: 3px; color: var(--red); text-align: center; }
+  .phone {
+    width: 375px; height: 760px; max-width: 100%; position: relative; overflow: hidden; border-radius: 44px;
+    border: 10px solid #15151c; box-shadow: 0 0 0 1px #2a2a3a, 0 30px 80px rgba(0,0,0,.6), 0 0 60px rgba(255,45,45,.08);
+    background: var(--wa-bg); user-select: none; touch-action: none;
+  }
+  .status { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-size: 12px; font-weight: 600; background: var(--wa-header); }
+  .notch { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 92px; height: 22px; border-radius: 20px; background: #000; z-index: 3; }
+  .wa-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px 10px; background: var(--wa-header); }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg,#ff9a3c,#ff5e62); display: grid; place-items: center; font-weight: 700; }
+  .wa-title { font-weight: 600; font-size: 15px; }
+  .wa-sub { font-size: 11.5px; color: var(--wa-meta); }
+  .chat {
+    position: absolute; top: 88px; bottom: 56px; left: 0; right: 0; overflow: hidden; padding: 12px 10px;
+    display: flex; flex-direction: column; gap: 8px;
+    background-image: radial-gradient(rgba(255,255,255,.025) 1px, transparent 1px); background-size: 18px 18px;
+  }
+  .day { align-self: center; font-size: 11px; color: var(--wa-meta); background: #182229; padding: 4px 10px; border-radius: 8px; }
+  .msg { max-width: 82%; padding: 6px 9px 18px; border-radius: 8px; font-size: 14px; line-height: 1.4; color: var(--wa-text); position: relative; }
+  .msg.in { align-self: flex-start; background: var(--wa-in); border-top-left-radius: 0; }
+  .msg.out { align-self: flex-end; background: var(--wa-out); border-top-right-radius: 0; }
+  .msg .who { font-size: 12px; font-weight: 600; color: #F7A35C; margin-bottom: 2px; }
+  .msg .fwd { font-size: 11.5px; color: var(--wa-meta); font-style: italic; margin-bottom: 3px; }
+  .msg .time { position: absolute; right: 8px; bottom: 3px; font-size: 10.5px; color: var(--wa-meta); }
+  .msg.picked { outline: 2px solid var(--red); outline-offset: 2px; }
+  .composer { position: absolute; bottom: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--wa-bg); }
+  .composer .box { flex: 1; height: 40px; border-radius: 20px; background: var(--wa-header); color: var(--wa-meta); font-size: 14px; display: flex; align-items: center; padding: 0 16px; }
+  .composer .mic { width: 42px; height: 42px; border-radius: 50%; background: #00A884; display: grid; place-items: center; }
+
+  /* NemesisAI overlay */
+  .bubble {
+    position: absolute; right: 14px; top: 46%; width: 54px; height: 54px; border-radius: 50%; z-index: 20; cursor: pointer;
+    background: radial-gradient(circle at 35% 30%, #ff6b6b, var(--red) 60%); border: 2px solid rgba(255,255,255,.18);
+    display: grid; place-items: center; font: 700 22px "Space Grotesk", sans-serif; color: #fff;
+    box-shadow: 0 6px 24px rgba(255,45,45,.55); animation: breathe 2s ease-in-out infinite alternate; transition: transform .2s;
+  }
+  .bubble:active { transform: scale(.92); }
+  @keyframes breathe { from { box-shadow: 0 6px 24px rgba(255,45,45,.45); } to { box-shadow: 0 6px 40px rgba(255,45,45,.85); } }
+
+  .dim { position: absolute; inset: 0; background: rgba(4,4,7,.55); z-index: 15; opacity: 0; pointer-events: none; transition: opacity .25s; cursor: crosshair; }
+  .dim.on { opacity: 1; pointer-events: auto; }
+  .hint {
+    position: absolute; top: 100px; left: 50%; transform: translate(-50%, -10px); z-index: 25; opacity: 0; transition: all .3s;
+    background: rgba(13,13,18,.95); border: 1px solid rgba(255,45,45,.4); border-radius: 100px; padding: 8px 16px;
+    font: 500 12px "JetBrains Mono", monospace; letter-spacing: .5px; white-space: nowrap; pointer-events: none;
+  }
+  .hint.on { opacity: 1; transform: translate(-50%, 0); }
+  .rect { position: absolute; z-index: 18; border: 2px dashed var(--red); background: rgba(255,45,45,.08); border-radius: 6px; display: none; box-shadow: 0 0 0 9999px rgba(4,4,7,.0); }
+  .rect.scan { overflow: hidden; border-style: solid; }
+  .rect.scan::after { content: ""; position: absolute; left: 0; right: 0; height: 40%; background: linear-gradient(180deg, transparent, rgba(255,45,45,.35), transparent); animation: scan 1s linear infinite; }
+  @keyframes scan { from { top: -40%; } to { top: 100%; } }
+  .rect .corner { position: absolute; width: 10px; height: 10px; border: 2px solid #fff; }
+
+  .sheet {
+    position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 30; border-radius: 22px; padding: 16px 16px 14px;
+    background: rgba(13,13,18,.97); border: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(20px);
+    transform: translateY(120%); transition: transform .5s cubic-bezier(.2,.9,.25,1.1); box-shadow: 0 -10px 40px rgba(0,0,0,.6);
+  }
+  .sheet.on { transform: translateY(0); }
+  .grab { width: 36px; height: 4px; border-radius: 4px; background: #2a2a3a; margin: -4px auto 12px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .verdict { font: 700 13px "Space Grotesk", sans-serif; letter-spacing: 1px; padding: 5px 10px; border-radius: 7px; color: #fff; }
+  .conf { font: 12px "JetBrains Mono", monospace; color: var(--muted); }
+  .brand { margin-left: auto; font: 10px "JetBrains Mono", monospace; letter-spacing: 2px; color: var(--muted); }
+  .brand b { color: var(--red); }
+  .claim { margin: 12px 0 6px; font-size: 12px; color: var(--muted); font-family: "JetBrains Mono", monospace; }
+  .fact { font-size: 14px; line-height: 1.45; }
+  .actions { display: flex; gap: 8px; margin-top: 14px; }
+  .actions button { flex: 1; border: 0; border-radius: 100px; padding: 10px; font: 600 12.5px Inter, sans-serif; cursor: pointer; }
+  .reply { background: #25D366; color: #052e16; }
+  .close { background: #1e1e2a; color: #F0F0F5; }
+  .progress { display: flex; align-items: center; gap: 10px; font: 12px "JetBrains Mono", monospace; color: #C8C8D8; }
+  .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); border-top-color: var(--red); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .steps { margin-top: 10px; display: grid; gap: 5px; font: 11px "JetBrains Mono", monospace; color: var(--muted); }
+  .steps .done { color: var(--green); }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .controls button { border: 1px solid #2a2a3a; background: #111118; color: #F0F0F5; border-radius: 100px; padding: 9px 16px; font: 500 12.5px Inter, sans-serif; cursor: pointer; }
+  .controls button.primary { background: var(--red); border-color: var(--red); }
+  .note { max-width: 420px; text-align: center; font-size: 12px; color: #6a6a80; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="caption">NEMESISAI · ANDROID OVERLAY PROTOTYPE</div>
+
+  <div class="phone" id="phone">
+    <div class="notch"></div>
+    <div class="status"><span>9:41</span><span>5G ▮▮▮ 82%</span></div>
+    <div class="wa-head">
+      <span style="color:var(--wa-meta)">←</span>
+      <div class="avatar">👪</div>
+      <div><div class="wa-title">Sharma Family ❤️</div><div class="wa-sub">Mummy, Papa, Chachu, Riya, You</div></div>
+    </div>
+
+    <div class="chat" id="chat">
+      <div class="day">TODAY</div>
+      <div class="msg in"><div class="who">Papa</div>Good morning everyone 🌞🙏<span class="time">7:02</span></div>
+      <div class="msg in" data-verdict="FALSE" data-conf="96"
+           data-claim="Gangs disguised as sadhus kidnap children and remove kidneys"
+           data-fact="No such gang exists. Police across states have repeatedly debunked child-kidnapping rumours; similar forwards led to mob lynchings."
+           data-reply="This message is false 🙏 Police have confirmed there is no such gang. Rumours like this have led to innocent people being attacked. Please don't forward it. — Checked with NemesisAI">
+        <div class="who">Chachu</div><div class="fwd">↪ Forwarded many times</div>
+        ALERT!! Gangs of child kidnappers dressed as sadhus are moving in villages at night. They remove kidneys. Stop every outside vehicle. Forward to all groups!<span class="time">8:14</span></div>
+      <div class="msg out">Is this true? 😟<span class="time">8:15</span></div>
+      <div class="msg in" data-verdict="FALSE" data-conf="95"
+           data-claim="Drinking hot water every 15 minutes kills coronavirus"
+           data-fact="Hot water does not kill viruses in the body. AP, AFP and BBC fact-checks found no evidence for this claim."
+           data-reply="Hot water is good for you, but it can't kill viruses in your throat — fact-checkers and doctors confirm this. Please follow official health advice instead. — Checked with NemesisAI">
+        <div class="who">Mummy</div><div class="fwd">↪ Forwarded</div>
+        Japanese doctor says drink hot water every 15 minutes, it kills corona in the throat before it reaches lungs!!<span class="time">8:31</span></div>
+      <div class="msg in"><div class="who">Riya</div>Lunch at 1 on Sunday? 🍛<span class="time">8:40</span></div>
+    </div>
+
+    <div class="composer"><div class="box">Message</div><div class="mic">🎤</div></div>
+
+    <div class="dim" id="dim"></div>
+    <div class="rect" id="rect"></div>
+    <div class="hint" id="hint">✍ DRAW A RECTANGLE AROUND THE MESSAGE</div>
+    <div class="bubble" id="bubble" title="NemesisAI">V</div>
+
+    <div class="sheet" id="sheet"><div class="grab"></div><div id="sheetBody"></div></div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="auto">▶ Auto demo</button>
+    <button id="resetBtn">Reset</button>
+  </div>
+  <p class="note">Tap the red V bubble, then drag a rectangle over a forwarded message. Prototype: the screen region would be
+    OCR'd on-device and sent to the NemesisAI API; verdicts here are pre-filled from real pipeline runs.</p>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const phone = $("phone"), dim = $("dim"), rect = $("rect"), hint = $("hint"), bubble = $("bubble"), sheet = $("sheet"), body = $("sheetBody");
+  const COLORS = { FALSE: "#FF2D2D", TRUE: "#00E676", MISLEADING: "#FF6B00", UNVERIFIED: "#8888A0" };
+  let mode = "idle", start = null, timers = [];
+
+  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+  const local = (e) => { const r = phone.getBoundingClientRect(); const p = e.touches ? e.touches[0] : e; return { x: p.clientX - r.left - 10, y: p.clientY - r.top - 10 }; };
+
+  function reset() {
+    timers.forEach(clearTimeout); timers = [];
+    clearScreen();
+  }
+
+  function clearScreen() {
+    mode = "idle"; dim.classList.remove("on"); hint.classList.remove("on"); sheet.classList.remove("on");
+    rect.style.display = "none"; rect.classList.remove("scan");
+    document.querySelectorAll(".msg.picked").forEach((m) => m.classList.remove("picked"));
+    bubble.style.display = "grid";
+  }
+
+  function arm() {
+    clearScreen(); mode = "draw"; dim.classList.add("on"); hint.classList.add("on");
+  }
+
+  function drawRect(a, b) {
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    Object.assign(rect.style, { display: "block", left: x + "px", top: y + "px", width: Math.abs(a.x - b.x) + "px", height: Math.abs(a.y - b.y) + "px" });
+  }
+
+  function pickMessage() {
+    const rr = rect.getBoundingClientRect();
+    let best = null, bestArea = 0;
+    document.querySelectorAll(".msg").forEach((m) => {
+      const mr = m.getBoundingClientRect();
+      const w = Math.min(rr.right, mr.right) - Math.max(rr.left, mr.left);
+      const h = Math.min(rr.bottom, mr.bottom) - Math.max(rr.top, mr.top);
+      const area = w > 0 && h > 0 ? w * h : 0;
+      if (area > bestArea) { bestArea = area; best = m; }
+    });
+    return best;
+  }
+
+  function analyse() {
+    mode = "busy"; hint.classList.remove("on"); rect.classList.add("scan"); bubble.style.display = "none";
+    const msg = pickMessage();
+    if (msg) msg.classList.add("picked");
+    const steps = ["OCR · reading screen region", "Intake · extracting claim", "Source tracer · fact-checks + news", "Explainer · writing reply"];
+    body.innerHTML = `<div class="progress"><div class="spin"></div>Analysing captured text…</div><div class="steps">${steps.map((s, i) => `<div id="st${i}">○ ${s}</div>`).join("")}</div>`;
+    later(() => sheet.classList.add("on"), 250);
+    steps.forEach((s, i) => later(() => { const el = $("st" + i); el.className = "done"; el.textContent = "✓ " + s; }, 700 + i * 650));
+    later(() => showVerdict(msg), 700 + steps.length * 650 + 200);
+  }
+
+  function showVerdict(msg) {
+    dim.classList.remove("on"); rect.style.display = "none"; rect.classList.remove("scan");
+    if (!msg || !msg.dataset.verdict) {
+      body.innerHTML = `<div class="row"><span class="verdict" style="background:#2a2a3a">NO CLAIM</span><span class="brand"><b>N</b>EMESISAI</span></div>
+        <div class="fact" style="margin-top:12px">No checkable claim found in that area. Draw around a forwarded message.</div>
+        <div class="actions"><button class="close" id="closeBtn">Close</button></div>`;
+    } else {
+      const v = msg.dataset.verdict, c = COLORS[v];
+      body.innerHTML = `<div class="row"><span class="verdict" style="background:${c}">${v}</span><span class="conf">${msg.dataset.conf}% confidence</span><span class="brand"><b>N</b>EMESISAI</span></div>
+        <div class="claim">CLAIM: ${msg.dataset.claim}</div>
+        <div class="fact">${msg.dataset.fact}</div>
+        <div class="actions"><button class="reply" id="replyBtn">Reply in chat</button><button class="close" id="closeBtn">Close</button></div>`;
+      $("replyBtn").onclick = () => {
+        const out = document.createElement("div");
+        out.className = "msg out"; out.innerHTML = `${msg.dataset.reply}<span class="time">now</span>`;
+        $("chat").appendChild(out); $("chat").scrollTop = 1e6; reset();
+      };
+    }
+    $("closeBtn").onclick = reset;
+    mode = "done";
+  }
+
+  bubble.addEventListener("click", arm);
+  const down = (e) => { if (mode !== "draw") return; e.preventDefault(); start = local(e); drawRect(start, start); mode = "dragging"; };
+  const move = (e) => { if (mode !== "dragging") return; e.preventDefault(); drawRect(start, local(e)); };
+  const up = (e) => {
+    if (mode !== "dragging") return;
+    const r = rect.getBoundingClientRect();
+    if (r.width < 30 || r.height < 20) { rect.style.display = "none"; mode = "draw"; return; }
+    analyse();
+  };
+  dim.addEventListener("mousedown", down); dim.addEventListener("touchstart", down, { passive: false });
+  window.addEventListener("mousemove", move); window.addEventListener("touchmove", move, { passive: false });
+  window.addEventListener("mouseup", up); window.addEventListener("touchend", up);
+
+  // Scripted walkthrough for screen recording.
+  $("auto").addEventListener("click", () => {
+    reset();
+    bubble.animate([{ transform: "scale(1)" }, { transform: "scale(.88)" }, { transform: "scale(1)" }], { duration: 300 });
+    later(arm, 350);
+    const target = document.querySelectorAll(".msg")[1].getBoundingClientRect();
+    const p = phone.getBoundingClientRect();
+    const a = { x: target.left - p.left - 16, y: target.top - p.top - 16 };
+    const b = { x: target.right - p.left - 2, y: target.bottom - p.top - 4 };
+    later(() => { mode = "dragging"; drawRect(a, a); }, 1200);
+    for (let i = 1; i <= 20; i++) later(() => drawRect(a, { x: a.x + (b.x - a.x) * i / 20, y: a.y + (b.y - a.y) * i / 20 }), 1200 + i * 40);
+    later(analyse, 2200);
+  });
+  $("resetBtn").addEventListener("click", reset);
+})();
+</script>
+</body>
+</html>

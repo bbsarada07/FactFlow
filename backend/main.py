@@ -1,0 +1,73 @@
+"""NemesisAI API — multi-agent misinformation forensics.
+
+Run:  uvicorn main:app --reload --port 8000
+"""
+import sys
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
+from sqlalchemy import text
+
+from api import history, incidents, result, stats, stream, verify
+from config import settings
+from database import connection
+from services.cache_service import cache
+
+logger.remove()
+logger.add(sys.stderr, level="DEBUG" if settings.DEBUG else "INFO")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    dialect = await connection.init_db()
+    if not settings.GROQ_API_KEY:
+        logger.error("GROQ_API_KEY missing — verifications will fail until it is set in backend/.env")
+    logger.info(f"NemesisAI ready · db={dialect} · nano={settings.NANO_MODEL} · ultra={settings.ULTRA_MODEL}")
+    yield
+    await connection.close_db()
+
+
+app = FastAPI(
+    title="NemesisAI",
+    description="Multi-agent misinformation detection: intake, source tracing, deep reasoning, explanation and harm assessment.",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.FRONTEND_URL, "http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origin_regex=r"chrome-extension://.*",
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+for module in (verify, stream, result, history, incidents, stats):
+    app.include_router(module.router)
+
+
+@app.get("/health", tags=["health"])
+async def health():
+    db_ok = True
+    try:
+        async with connection.session_factory()() as s:
+            await s.execute(text("SELECT 1"))
+    except Exception:  # noqa: BLE001
+        db_ok = False
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "database": connection.engine.dialect.name if connection.engine else None,
+        "database_ok": db_ok,
+        "cache": "redis" if await cache.ping() else "memory",
+        "llm_configured": bool(settings.GROQ_API_KEY),
+        "models": {"nano": settings.NANO_MODEL, "ultra": settings.ULTRA_MODEL, "vision": settings.VISION_MODEL},
+        "queue": "celery" if settings.USE_CELERY else "inprocess",
+        "evidence_sources": {
+            "newsapi": bool(settings.NEWS_API_KEY),
+            "google_fact_check": bool(settings.GOOGLE_FACT_CHECK_API_KEY),
+            "duckduckgo": True,
+        },
+    }
