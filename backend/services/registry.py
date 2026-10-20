@@ -4,6 +4,7 @@ Matching uses only the stdlib and rapidfuzz (no embeddings / pgvector):
   1. exact match on the normalised-text hash, then
   2. rapidfuzz token_set_ratio >= REPEAT_SIMILARITY over the most recent public claims.
 """
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -17,8 +18,20 @@ from services.text_utils import input_hash
 
 # token_set_ratio scores 100 whenever one text's tokens are a subset of the other's, so a
 # two-word query would "match" any long claim containing those words. Require comparable
-# lengths before trusting a fuzzy score.
-MIN_LENGTH_RATIO = 0.5
+# lengths before trusting a fuzzy score. 0.6 keeps short boilerplate forwards ("forward this
+# to ...") from matching longer, different claims.
+MIN_LENGTH_RATIO = 0.6
+
+# redact_pii() inserts [phone]/[email]/[handle]; normalize() turns them into bare words. Two
+# unrelated forwards that both contained a phone number would share that token, so drop the
+# placeholders before fuzzy scoring. (Exact-hash matching is unaffected.)
+_PLACEHOLDERS = re.compile(r"\b(?:phone|email|handle)\b")
+_SPACES = re.compile(r"\s+")
+
+
+def _for_fuzzy(normalized: str) -> str:
+    """Normalised text with redaction placeholders removed, for fuzzy comparison only."""
+    return _SPACES.sub(" ", _PLACEHOLDERS.sub(" ", normalized)).strip()
 
 
 @dataclass(frozen=True)
@@ -49,15 +62,17 @@ def find_repeat(normalized: str, candidates: list[Candidate], threshold: float |
     if not normalized:
         return None
     best: RepeatMatch | None = None
+    query = _for_fuzzy(normalized)
     for c in candidates:
         if not c.normalized_text:
             continue
         if c.normalized_text == normalized:
             return RepeatMatch(c, 100.0, True)
-        shorter, longer = sorted((len(normalized), len(c.normalized_text)))
-        if longer == 0 or shorter / longer < MIN_LENGTH_RATIO:
+        other = _for_fuzzy(c.normalized_text)
+        shorter, longer = sorted((len(query), len(other)))
+        if shorter == 0 or shorter / longer < MIN_LENGTH_RATIO:
             continue
-        score = fuzz.token_set_ratio(normalized, c.normalized_text)
+        score = fuzz.token_set_ratio(query, other)
         if score >= threshold and (best is None or score > best.score):
             best = RepeatMatch(c, float(score), False)
     return best

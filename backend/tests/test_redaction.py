@@ -23,6 +23,13 @@ def test_phone_numbers_are_redacted(text):
     assert not any(ch.isdigit() for ch in out.replace("[phone]", ""))
 
 
+def test_two_numbers_in_one_forward_are_both_redacted():
+    out = redact_pii("Forward this to +91 98765 43210 or 9876543210 now")
+    assert "98765 43210" not in out
+    assert "9876543210" not in out
+    assert out.count("[phone]") == 2
+
+
 def test_email_and_handles_are_redacted():
     out = redact_pii("Mail rumours@example.com or DM @some_user_99 today")
     assert "rumours@example.com" not in out and "@some_user_99" not in out
