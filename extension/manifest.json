@@ -3,6 +3,7 @@
   "name": "NemesisAI — Fact Checker",
   "version": "1.0",
   "description": "Verify any claim instantly",
+  "options_page": "options.html",
   "permissions": ["contextMenus", "activeTab", "storage", "notifications"],
   "host_permissions": ["http://localhost:8000/*", "http://127.0.0.1:8000/*"],
   "background": {

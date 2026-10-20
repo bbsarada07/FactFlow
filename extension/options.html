@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>NemesisAI — Options</title>
+    <style>
+      body { margin: 0; padding: 32px; background: #040407; color: #F0F0F5; font-family: Inter, "Segoe UI", system-ui, sans-serif; font-size: 14px; }
+      main { max-width: 480px; }
+      h1 { font-size: 18px; margin: 0 0 20px; }
+      label { display: block; font-size: 12px; letter-spacing: 1px; color: #8888A0; margin-bottom: 6px; }
+      input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid #2A2A3A; background: #111118; color: #F0F0F5; font: 13px Consolas, monospace; }
+      input:focus { outline: none; border-color: #FF2D2D; }
+      button { margin-top: 14px; padding: 9px 22px; border: 0; border-radius: 100px; background: #FF2D2D; color: #fff; font-weight: 600; cursor: pointer; }
+      #status { margin-top: 12px; min-height: 18px; font-size: 12px; color: #8888A0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>NemesisAI — Options</h1>
+      <label for="apiBase">API BASE URL</label>
+      <input id="apiBase" type="url" placeholder="http://localhost:8000" spellcheck="false" />
+      <button id="save" type="button">Save</button>
+      <div id="status" role="status"></div>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>
