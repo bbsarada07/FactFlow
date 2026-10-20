@@ -46,7 +46,14 @@ async def public_verdict(slug: str, track: bool = True, session: AsyncSession = 
             ({"slug": r.slug, "verdict": r.verdict, "version": r.version, "created_at": r.to_summary()["created_at"]} for r in rows),
             key=lambda v: v["version"],
         )
-    return {**claim.to_public(), "versions": versions}
+    return {
+        **claim.to_public(),
+        # Same stored values the verify/result responses use, so both views agree.
+        "urgency": claim.urgency,
+        "processing_ms": claim.processing_ms,
+        "processing_time_seconds": round(claim.processing_ms / 1000, 1) if claim.processing_ms is not None else None,
+        "versions": versions,
+    }
 
 
 @router.get("/registry")

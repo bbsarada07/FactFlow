@@ -17,7 +17,14 @@ export async function getServerSideProps({ params, req }) {
   if (res.status === 404) return { notFound: true };
   if (!res.ok) return { props: { record: null, error: `Could not load this verdict (${res.status}).` } };
 
-  const record = await res.json();
+  const data = await res.json();
+  // Map the public fields onto the props VerdictCard reads (urgency, processing_ms in ms).
+  const record = {
+    ...data,
+    urgency: data.urgency ?? null,
+    processing_ms:
+      data.processing_ms ?? (data.processing_time_seconds != null ? Math.round(data.processing_time_seconds * 1000) : null),
+  };
   const proto = req.headers["x-forwarded-proto"] || "http";
   const origin = SITE_URL || `${proto}://${req.headers.host}`;
   return { props: { record, pageUrl: `${origin}/v/${params.slug}`, error: null } };
