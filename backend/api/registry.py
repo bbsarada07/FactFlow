@@ -20,8 +20,9 @@ def _public():
 
 
 @router.get("/v/{slug}")
-async def public_verdict(slug: str, session: AsyncSession = Depends(get_session)):
-    """Public verdict record for a shareable registry page. Increments view_count.
+async def public_verdict(slug: str, track: bool = True, session: AsyncSession = Depends(get_session)):
+    """Public verdict record for a shareable registry page. Increments view_count unless track=false
+    (used by link-preview image rendering so crawlers don't inflate the count).
 
     Also returns links to other versions of the same claim (re-verifications after the
     repeat window) so readers can see whether the verdict changed over time.
@@ -30,9 +31,10 @@ async def public_verdict(slug: str, session: AsyncSession = Depends(get_session)
     if claim is None:
         raise HTTPException(404, "No public verdict with this id")
 
-    await session.execute(update(Claim).where(Claim.id == claim.id).values(view_count=Claim.view_count + 1))
-    await session.commit()
-    await session.refresh(claim)
+    if track:
+        await session.execute(update(Claim).where(Claim.id == claim.id).values(view_count=Claim.view_count + 1))
+        await session.commit()
+        await session.refresh(claim)
 
     related_ids = {i for i in (claim.previous_id,) if i}
     newer = (await session.scalars(select(Claim.id).where(Claim.previous_id == claim.id, *_public()))).all()

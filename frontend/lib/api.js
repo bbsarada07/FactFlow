@@ -1,4 +1,6 @@
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+import { API_URL } from "@/lib/config";
+
+export { API_URL };
 
 export class ApiError extends Error {
   constructor(message, status) {
@@ -7,6 +9,7 @@ export class ApiError extends Error {
   }
 }
 
+/** Fetch JSON from the backend, turning network and HTTP errors into readable ApiErrors. */
 export async function api(path, options = {}) {
   let res;
   try {
@@ -34,4 +37,7 @@ export const getResult = (id) => api(`/api/result/${id}`);
 export const getHistory = (limit = 20) => api(`/api/history?limit=${limit}`).then((r) => r.data);
 export const getStats = () => api("/api/stats").then((r) => r.data);
 export const getIncidents = () => api("/api/incidents").then((r) => r.data);
+export const getPublicConfig = () => api("/api/config").then((r) => r.data);
+export const searchRegistry = (q = "", limit = 30) =>
+  api(`/api/registry?q=${encodeURIComponent(q)}&limit=${limit}`).then((r) => r.data);
 export const streamUrl = (id) => `${API_URL}/api/stream/${id}`;
