@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, ChevronDown, ImageIcon, Link2, Loader2, RotateCcw, X } from "lucide-react";
 import Head from "next/head";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import CountUp from "react-countup";
@@ -124,6 +125,7 @@ export default function VerifyPage() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [avgSeconds, setAvgSeconds] = useState(null);
+  const [cachedMatch, setCachedMatch] = useState(null);
 
   const esRef = useRef(null);
   const timerRef = useRef(null);
@@ -238,6 +240,7 @@ export default function VerifyPage() {
       setProgress(0);
       setElapsed(0);
       setResult(null);
+      setCachedMatch(null);
       setError(null);
       setPhase("running");
       startRef.current = Date.now();
@@ -249,13 +252,20 @@ export default function VerifyPage() {
         if (claimText) payload.text = claimText;
         if (claimUrl) payload.url = claimUrl;
         if (image) payload.image_base64 = image.dataUrl;
-        const { request_id } = await startVerification(payload);
-        listen(request_id);
+        const started = await startVerification(payload);
+        if (started.cached) {
+          // Repeat claim: answered from the public registry, no new analysis.
+          setCachedMatch({ slug: started.matched_slug, at: started.matched_at });
+          const { data } = await getResult(started.request_id);
+          finish(data);
+        } else {
+          listen(started.request_id);
+        }
       } catch (err) {
         fail(err.message);
       }
     },
-    [text, url, showUrl, image, language, listen, fail, stopAll]
+    [text, url, showUrl, image, language, listen, fail, finish, stopAll]
   );
 
   // Deep link: /?claim=...&auto=true (used by the Incident Library)
@@ -285,6 +295,7 @@ export default function VerifyPage() {
     stopAll();
     setPhase("idle");
     setResult(null);
+    setCachedMatch(null);
     setError(null);
     setText("");
     setUrl("");
@@ -444,6 +455,23 @@ export default function VerifyPage() {
               <button type="button" className="btn-ghost" onClick={() => submit()}>
                 <RotateCcw size={13} /> Retry
               </button>
+            </motion.div>
+          )}
+
+          {result && cachedMatch && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-active bg-surface p-4 text-[14px]"
+            >
+              <span className="text-primary">
+                <span className="mono mr-2 text-[11px] tracking-[2px] text-green">ALREADY CHECKED</span>
+                This claim was verified {cachedMatch.at ? new Date(cachedMatch.at).toLocaleString("en-IN") : "earlier"}; showing that
+                verdict instead of re-running the analysis.
+              </span>
+              <Link href={`/v/${cachedMatch.slug}`} className="btn-ghost">
+                View public record
+              </Link>
             </motion.div>
           )}
 

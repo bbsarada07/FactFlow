@@ -1,12 +1,13 @@
 import { motion } from "framer-motion";
-import { Check, Copy, ExternalLink, Zap } from "lucide-react";
-import { useState } from "react";
-import toast from "react-hot-toast";
+import { ArrowUpRight, ExternalLink, Zap } from "lucide-react";
+import Link from "next/link";
 
 import Accordion from "@/components/Accordion";
-import ConfidenceRing from "@/components/ConfidenceRing";
+import ConfidenceBand from "@/components/ConfidenceBand";
 import { StanceBadge, TierBadge } from "@/components/HarmBadge";
+import HonestUncertainty from "@/components/HonestUncertainty";
 import MythVsFact from "@/components/MythVsFact";
+import ShareCorrection from "@/components/ShareCorrection";
 import { HARM_COLORS, LEVEL_COLORS, TIER_COLORS, verdictStyle } from "@/lib/theme";
 
 function VerdictWord({ word, color }) {
@@ -41,47 +42,6 @@ function Chip({ label, value, color }) {
 
 function SectionLabel({ children }) {
   return <div className="mono mb-3 text-[11px] uppercase tracking-[2px] text-secondary">{children}</div>;
-}
-
-function WhatsAppReply({ text }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Clipboard access was blocked by the browser");
-    }
-  }
-
-  return (
-    <div className="rounded-md p-5" style={{ background: "rgba(37,211,102,0.05)", border: "1px solid rgba(37,211,102,0.15)" }}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true">
-            <path d="M17.47 14.38c-.3-.15-1.75-.86-2.02-.96-.27-.1-.47-.15-.67.15-.2.3-.77.96-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.48-1.75-1.65-2.05-.17-.3-.02-.46.13-.6.13-.14.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.6-.92-2.2-.24-.58-.49-.5-.67-.5h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48 0 1.46 1.07 2.88 1.21 3.07.15.2 2.1 3.2 5.08 4.49.71.3 1.27.49 1.7.63.72.23 1.37.2 1.88.12.58-.09 1.75-.72 2-1.41.25-.7.25-1.29.17-1.41-.07-.13-.27-.2-.57-.35M12.05 21.5h-.01a9.4 9.4 0 0 1-4.8-1.32l-.34-.2-3.56.94.95-3.48-.23-.36a9.4 9.4 0 0 1-1.44-5.02c0-5.2 4.24-9.44 9.45-9.44a9.4 9.4 0 0 1 6.68 2.77 9.38 9.38 0 0 1 2.76 6.68c0 5.21-4.23 9.44-9.44 9.44M20.08 3.9A11.3 11.3 0 0 0 12.05.58C5.79.58.69 5.68.69 11.94c0 2 .52 3.96 1.52 5.68L.6 23.5l6.02-1.58a11.33 11.33 0 0 0 5.43 1.38h.01c6.26 0 11.36-5.1 11.36-11.36 0-3.03-1.18-5.89-3.33-8.03" />
-          </svg>
-          <span className="label !text-[#25D366]">Ready to correct this forward?</span>
-        </div>
-        <button
-          type="button"
-          onClick={copy}
-          className="mono flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-medium tracking-[1px] transition-all"
-          style={{
-            background: copied ? "#25D366" : "rgba(37,211,102,0.12)",
-            color: copied ? "#04140b" : "#25D366",
-            border: "1px solid rgba(37,211,102,0.35)",
-          }}
-        >
-          {copied ? <Check size={13} /> : <Copy size={13} />}
-          {copied ? "COPIED ✓" : "COPY"}
-        </button>
-      </div>
-      <p className="mono whitespace-pre-wrap text-[13px] leading-relaxed text-primary">{text}</p>
-    </div>
-  );
 }
 
 function SourceCard({ s }) {
@@ -119,17 +79,35 @@ function SourceCard({ s }) {
             transition={{ duration: 0.8 }}
           />
         </div>
-        <span className="mono text-[10.5px] text-secondary">{Math.round(s.credibility * 100)}% CRED</span>
         <StanceBadge stance={s.stance} />
       </div>
     </a>
   );
 }
 
-export default function VerdictCard({ result, compact = false }) {
+function DetailRow({ label, children }) {
+  return (
+    <div className="flex flex-wrap justify-between gap-2 border-b border-subtle py-2 last:border-0">
+      <span className="mono text-[11px] tracking-[1px] text-secondary">{label}</span>
+      <span className="mono text-[12px] text-primary">{children}</span>
+    </div>
+  );
+}
+
+const pct = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
+
+/**
+ * Truth Autopsy Report. Banner shows the confidence band only; raw numbers are under Details.
+ * UNVERIFIED gets the calm "Honest uncertainty" section; every verdict gets the shareable correction.
+ */
+export default function VerdictCard({ result, compact = false, showRegistryLink = true }) {
   const v = verdictStyle(result.verdict);
+  const unverified = result.verdict === "UNVERIFIED";
+  const archive = result.is_seed;
   const seconds = result.processing_ms != null ? `${(result.processing_ms / 1000).toFixed(1)}s` : "ARCHIVE";
   const showLocal = result.summary_local && result.summary_local !== result.summary;
+  const models = [...new Set((result.agents || []).map((a) => a.model).filter(Boolean))];
+  const gated = unverified && result.model_verdict && result.model_verdict !== "UNVERIFIED";
 
   return (
     <motion.article
@@ -138,7 +116,6 @@ export default function VerdictCard({ result, compact = false }) {
       transition={{ type: "spring", stiffness: 120, damping: 18, duration: 0.6 }}
       className={`overflow-hidden rounded-lg border border-subtle bg-card ${compact ? "" : "mt-6"}`}
     >
-      {/* Verdict banner */}
       <div
         className="flex min-h-[120px] items-center justify-between gap-4 px-5 py-5 sm:px-8"
         style={{ background: v.gradient, borderLeft: `4px solid ${v.color}` }}
@@ -147,18 +124,14 @@ export default function VerdictCard({ result, compact = false }) {
           <div className="mono mb-2 text-[11px] tracking-[3px] text-secondary">VERDICT</div>
           <VerdictWord word={v.label} color={v.color} />
         </div>
-        <ConfidenceRing value={result.confidence} color={v.color} />
+        <ConfidenceBand band={result.confidence_band || "low"} color={v.color} archive={archive} />
       </div>
 
       <div className="flex flex-col gap-6 p-5 sm:p-8">
         <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
           <Chip label="CLAIM TYPE" value={result.claim_type || "—"} color="#6EA2FF" />
           <Chip label="URGENCY" value={result.urgency || "—"} color={LEVEL_COLORS[result.urgency] || "#8888A0"} />
-          <Chip
-            label="HARM LEVEL"
-            value={result.harm_level ? `${result.harm_level}${result.harm_score != null ? ` · ${result.harm_score}/10` : ""}` : "—"}
-            color={LEVEL_COLORS[result.harm_level] || "#8888A0"}
-          />
+          <Chip label="HARM LEVEL" value={result.harm_level || "—"} color={LEVEL_COLORS[result.harm_level] || "#8888A0"} />
           <Chip label="TIME" value={seconds} color="#F0F0F5" />
         </div>
 
@@ -168,7 +141,7 @@ export default function VerdictCard({ result, compact = false }) {
             className="m-0 text-[15px] leading-relaxed text-secondary"
             style={{
               background: "var(--bg-surface)",
-              borderLeft: "3px solid var(--accent-red)",
+              borderLeft: `3px solid ${unverified ? "#8888A0" : "var(--accent-red)"}`,
               padding: "16px 20px",
               borderRadius: "0 var(--radius-md) var(--radius-md) 0",
             }}
@@ -183,9 +156,11 @@ export default function VerdictCard({ result, compact = false }) {
                 <Zap size={11} /> ESCALATED TO ULTRA
               </span>
             )}
-            {result.cached_from && <span>FROM VERDICT CACHE</span>}
-            {result.harm_type && (
-              <span style={{ color: HARM_COLORS[result.harm_type] }}>HARM: {result.harm_type}</span>
+            {result.harm_type && <span style={{ color: HARM_COLORS[result.harm_type] }}>HARM: {result.harm_type}</span>}
+            {showRegistryLink && result.slug && result.is_public !== false && (
+              <Link href={`/v/${result.slug}`} className="flex items-center gap-1 text-secondary hover:text-primary">
+                PUBLIC RECORD /v/{result.slug} <ArrowUpRight size={11} />
+              </Link>
             )}
           </div>
         </div>
@@ -204,8 +179,10 @@ export default function VerdictCard({ result, compact = false }) {
           {result.harm_rationale && <p className="mt-3 text-[13.5px] text-secondary">⚠ {result.harm_rationale}</p>}
         </div>
 
+        {unverified && <HonestUncertainty result={result} prominent />}
+
         {result.reasoning_chain?.length > 0 && (
-          <Accordion title="Reasoning chain" count={result.reasoning_chain.length} countLabel="steps" defaultOpen={!compact}>
+          <Accordion title="Reasoning chain" count={result.reasoning_chain.length} countLabel="steps" defaultOpen={!compact && !unverified}>
             <ol className="relative m-0 flex list-none flex-col gap-4 p-0">
               {result.reasoning_chain.map((step, i) => (
                 <li key={i} className="relative flex gap-4">
@@ -251,6 +228,12 @@ export default function VerdictCard({ result, compact = false }) {
           </Accordion>
         )}
 
+        {!unverified && (result.evidence_gaps?.length > 0 || result.checks_to_do?.length > 0) && (
+          <Accordion title="What is still missing" count={result.evidence_gaps?.length || 0} countLabel="gaps">
+            <HonestUncertainty result={result} prominent={false} />
+          </Accordion>
+        )}
+
         {result.myth && result.fact && (
           <div>
             <SectionLabel>Myth vs fact</SectionLabel>
@@ -258,7 +241,28 @@ export default function VerdictCard({ result, compact = false }) {
           </div>
         )}
 
-        {result.whatsapp_reply && <WhatsAppReply text={result.whatsapp_reply} />}
+        {result.correction && (
+          <ShareCorrection
+            correction={result.correction}
+            localReply={result.whatsapp_reply}
+            localLanguage={result.language_name}
+            verdict={result.verdict}
+          />
+        )}
+
+        {!archive && (
+          <Accordion title="Details">
+            <DetailRow label="CONFIDENCE">{pct(result.confidence)}</DetailRow>
+            <DetailRow label="MODEL VERDICT">
+              {result.model_verdict || "—"} {result.model_confidence != null && `(${pct(result.model_confidence)})`}
+            </DetailRow>
+            {gated && <DetailRow label="GATED TO">UNVERIFIED by the evidence check</DetailRow>}
+            {result.harm_score != null && <DetailRow label="HARM SEVERITY">{result.harm_score} / 10</DetailRow>}
+            {result.version > 1 && <DetailRow label="VERSION">v{result.version}</DetailRow>}
+            {result.view_count != null && <DetailRow label="REGISTRY VIEWS">{result.view_count}</DetailRow>}
+            {models.length > 0 && <DetailRow label="MODELS">{models.join(" · ")}</DetailRow>}
+          </Accordion>
+        )}
       </div>
     </motion.article>
   );
