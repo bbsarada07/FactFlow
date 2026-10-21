@@ -1,4 +1,4 @@
-# NemesisAI
+# FactFlow
 
 > In April 2020, two sadhus and their driver were lynched by a mob in Palghar, Maharashtra, after child-kidnapping
 > rumours spread in the area ([source](https://en.wikipedia.org/wiki/2020_Palghar_mob_lynching)).
