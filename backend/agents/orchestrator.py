@@ -22,6 +22,7 @@ from database import connection
 from database.models import Claim, KnownPattern, Source, confidence_band, utcnow
 from services import input_service
 from services.event_bus import get_bus
+from services.safety import PRIVATE_PERSON_MESSAGE, WITHHELD_LABEL, check_sensitive
 from services.text_utils import input_hash, keyword_score, normalize, redact_pii, similarity, truncate
 
 AGENTS = [
@@ -255,6 +256,25 @@ async def _persist(ctx: PipelineContext, run: Run, raw_text: str) -> Claim:
         return claim
 
 
+async def _withhold(request_id: str, run: Run) -> None:
+    """Store the claim privately under a generic label (no input text kept) and end the stream
+    with the fixed message."""
+    async with connection.session_factory()() as s:
+        claim = await s.get(Claim, request_id)
+        claim.raw_input = WITHHELD_LABEL
+        claim.claim_text = WITHHELD_LABEL
+        claim.input_hash = ""
+        claim.normalized_text = None
+        claim.image_data = None
+        claim.source_url = None
+        claim.is_public = False
+        claim.status = "withheld"
+        claim.completed_at = utcnow()
+        claim.agent_log = []
+        await s.commit()
+    await run.emit({"type": "withheld", "message": PRIVATE_PERSON_MESSAGE})
+
+
 async def _mark_failed(request_id: str, run: Run, message: str) -> None:
     async with connection.session_factory()() as s:
         claim = await s.get(Claim, request_id)
@@ -292,6 +312,12 @@ async def _pipeline(request_id: str, run: Run) -> None:
     except input_service.InputError as exc:
         await run.set_agent(0, "failed", str(exc))
         raise PipelineError(str(exc)) from exc
+
+    # Private-person / self-harm rule for text extracted from a URL or image (text input is
+    # checked in api/verify.py before the pipeline starts). Runs before intake and search.
+    if check_sensitive(raw_text):
+        await _withhold(request_id, run)
+        return
 
     ctx = PipelineContext(
         request_id=request_id, raw_text=raw_text, input_type=input_type,

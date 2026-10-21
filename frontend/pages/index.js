@@ -124,6 +124,7 @@ export default function VerifyPage() {
   const [error, setError] = useState(null);
   const [avgSeconds, setAvgSeconds] = useState(null);
   const [cachedMatch, setCachedMatch] = useState(null);
+  const [withheldMessage, setWithheldMessage] = useState(null);
 
   const esRef = useRef(null);
   const timerRef = useRef(null);
@@ -156,6 +157,16 @@ export default function VerifyPage() {
       stopAll();
       setError(message);
       setPhase("error");
+    },
+    [stopAll]
+  );
+
+  // Private-person / self-harm rule: show only the fixed message from the server, no verdict.
+  const withhold = useCallback(
+    (message) => {
+      stopAll();
+      setWithheldMessage(message);
+      setPhase("withheld");
     },
     [stopAll]
   );
@@ -209,6 +220,7 @@ export default function VerifyPage() {
         if (typeof d.progress === "number") setProgress(d.progress);
       });
       es.addEventListener("result", (e) => finish(JSON.parse(e.data).result));
+      es.addEventListener("withheld", (e) => withhold(JSON.parse(e.data).message));
       es.addEventListener("error", (e) => {
         if (e.data) {
           fail(JSON.parse(e.data).message);
@@ -222,7 +234,7 @@ export default function VerifyPage() {
         }
       });
     },
-    [fail, finish, poll]
+    [fail, finish, poll, withhold]
   );
 
   const submit = useCallback(
@@ -251,7 +263,9 @@ export default function VerifyPage() {
         if (claimUrl) payload.url = claimUrl;
         if (image) payload.image_base64 = image.dataUrl;
         const started = await startVerification(payload);
-        if (started.cached) {
+        if (started.status === "withheld") {
+          withhold(started.message);
+        } else if (started.cached) {
           // Repeat claim: answered from the public registry, no new analysis.
           setCachedMatch({ slug: started.matched_slug, at: started.matched_at });
           const { data } = await getResult(started.request_id);
@@ -263,7 +277,7 @@ export default function VerifyPage() {
         fail(err.message);
       }
     },
-    [text, url, showUrl, image, language, listen, fail, finish, stopAll]
+    [text, url, showUrl, image, language, listen, fail, finish, stopAll, withhold]
   );
 
   // Deep link: /?claim=...&auto=true (used by the Incident Library)
@@ -436,7 +450,22 @@ export default function VerifyPage() {
         </div>
       </section>
 
-      {phase !== "idle" && (
+      {phase === "withheld" && (
+        <section className="mx-auto max-w-[880px] px-4 pb-24">
+          <motion.div
+            ref={trackerRef}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            role="status"
+            className="mt-6 rounded-md p-5 text-[15px] leading-relaxed text-primary"
+            style={{ background: "rgba(136,136,160,0.06)", border: "1px solid rgba(136,136,160,0.25)", scrollMarginTop: 72 }}
+          >
+            {withheldMessage}
+          </motion.div>
+        </section>
+      )}
+
+      {phase !== "idle" && phase !== "withheld" && (
         <section className="mx-auto max-w-[880px] px-4 pb-24">
           <div ref={trackerRef} style={{ scrollMarginTop: 72 }}>
             <AgentProgress agents={agents} progress={progress} elapsedMs={elapsed} phase={phase} />

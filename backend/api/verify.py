@@ -12,6 +12,7 @@ from config import settings
 from database.connection import get_session
 from database.models import Claim, iso, new_slug, registry_url
 from services.registry import is_fresh, lookup_repeat
+from services.safety import PRIVATE_PERSON_MESSAGE, WITHHELD_LABEL, check_sensitive
 from services.text_utils import input_hash, normalize, redact_pii
 from tasks.pipeline_task import dispatch
 
@@ -55,6 +56,7 @@ class VerifyResponse(BaseModel):
     registry_url: str | None = None
     stream_url: str
     result_url: str
+    message: str | None = None  # set when a claim is withheld (private-person / self-harm rule)
 
 
 class RateLimiter:
@@ -126,6 +128,32 @@ async def verify(
         input_type, source_url = "url", body.url
     else:
         input_type, source_url = "text", None
+
+    if check_sensitive(text):
+        # Private-person / self-harm rule: before any search, model call or public write.
+        # Only a generic label is stored; the input text is not kept anywhere.
+        withheld = Claim(
+            input_type=input_type,
+            raw_input=WITHHELD_LABEL,
+            claim_text=WITHHELD_LABEL,
+            input_hash="",
+            normalized_text=None,
+            status="withheld",
+            slug=new_slug(),
+            is_public=False,
+        )
+        session.add(withheld)
+        await session.commit()
+        response.status_code = status.HTTP_200_OK
+        return VerifyResponse(
+            request_id=withheld.id,
+            slug=withheld.slug,
+            status="withheld",
+            mode="withheld",
+            message=PRIVATE_PERSON_MESSAGE,
+            stream_url=f"/api/stream/{withheld.id}",
+            result_url=f"/api/result/{withheld.id}",
+        )
 
     normalized = normalize(text)
     previous: Claim | None = None

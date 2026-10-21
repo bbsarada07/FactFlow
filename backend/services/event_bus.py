@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator
 
 from config import settings
 
-TERMINAL = {"result", "error"}
+TERMINAL = {"result", "error", "withheld"}
 RETENTION_SECONDS = 3600
 
 
