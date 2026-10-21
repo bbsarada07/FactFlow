@@ -22,7 +22,10 @@ _STOPWORDS = {
     "the", "and", "for", "are", "was", "were", "with", "that", "this", "from", "has", "have", "been", "will",
     "on", "of", "in", "to", "a", "an", "is", "by", "at", "as", "or", "be", "it", "its", "their", "they",
     "fact", "check", "news", "official", "authority", "statement", "because", "single", "day", "one",
+    "january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+    "november", "december", "two", "three", "who", "what", "said", "says", "video", "shows",
 }
+_YEARLIKE = re.compile(r"^(19|20)\d{2}$")
 _WORD = re.compile(r"[a-z0-9]+(?:'[a-z]+)?")
 
 
@@ -48,9 +51,11 @@ def _find_terms(text: str) -> list[tuple[str, tuple[str, ...]]]:
 def variant_queries(query: str, limit: int = 2) -> list[str]:
     """Alternative spellings of `query`: each matched term swapped for its group alternatives."""
     out: list[str] = []
+    words = set(query.lower().split())
     for term, group in _find_terms(query):
         for alt in group:
-            if alt == term:
+            # Skip alternatives that would repeat a word already in the query ("mob mob attack").
+            if alt == term or set(alt.split()) & (words - set(term.split())):
                 continue
             candidate = re.sub(rf"\b{re.escape(term)}\b", alt, query, flags=re.IGNORECASE)
             if candidate.lower() != query.lower() and candidate.lower() not in (q.lower() for q in out):
@@ -83,6 +88,18 @@ def expand_queries(queries: list[str], claim: str, minimum: int = 3) -> list[str
     return out
 
 
+def keyword_query(text: str, max_terms: int = 4) -> str:
+    """Bare content keywords (no stopwords, months, years or short words), for databases such as
+    Google Fact Check that match best on a few distinctive terms."""
+    picked: list[str] = []
+    for word in _WORD.findall((text or "").lower()):
+        if len(word) >= 4 and word not in _STOPWORDS and not _YEARLIKE.match(word) and word not in picked:
+            picked.append(word)
+        if len(picked) >= max_terms:
+            break
+    return " ".join(picked)
+
+
 def gdelt_query(query: str, max_terms: int = 4) -> str:
     """GDELT DOC syntax: keywords ANDed, variant groups as quoted OR-groups in parentheses."""
     low = query.lower().replace("fact check", " ")
@@ -97,6 +114,6 @@ def gdelt_query(query: str, max_terms: int = 4) -> str:
     for word in _WORD.findall(low):
         if len(terms) >= max_terms:
             break
-        if len(word) >= 3 and word not in _STOPWORDS and not _group_for(word):
+        if len(word) >= 3 and word not in _STOPWORDS and not _group_for(word) and not _YEARLIKE.match(word):
             terms.append(word)
     return " ".join(terms[:max_terms])

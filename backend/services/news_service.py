@@ -70,8 +70,9 @@ async def search_newsapi(query: str, limit: int = 6, errors: list[str] | None = 
     ]
 
 
-async def search_gdelt(query: str, window_days: int | None, limit: int = 15, errors: list[str] | None = None) -> list[dict]:
-    """GDELT DOC 2.0 article search. `window_days=None` means no date filter (GDELT's full range).
+async def search_gdelt(query: str, date_params: dict, limit: int = 15, errors: list[str] | None = None) -> list[dict]:
+    """GDELT DOC 2.0 article search. `date_params` is {"timespan": "90d"} or
+    {"startdatetime": ..., "enddatetime": ...}; with neither, GDELT searches only ~3 months.
 
     Requests are spaced at least GDELT_MIN_INTERVAL apart within this process; a throttling
     reply is retried once after waiting.
@@ -80,8 +81,7 @@ async def search_gdelt(query: str, window_days: int | None, limit: int = 15, err
     if not settings.GDELT_ENABLED:
         return []
     params = {"query": query, "mode": "artlist", "format": "json", "maxrecords": limit, "sort": "hybridrel"}
-    if window_days:
-        params["timespan"] = f"{window_days}d"
+    params.update(date_params or {})
 
     async with _gdelt_lock:
         for attempt in range(2):

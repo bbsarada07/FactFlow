@@ -12,6 +12,7 @@ then scored. Uses the database and API keys from backend/.env.
 import argparse
 import asyncio
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -20,13 +21,40 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import delete  # noqa: E402
 
-from agents.grounding import uncited_sentences  # noqa: E402
+from agents.grounding import ABSENCE_PATTERN, split_sentences, uncited_sentences, valid_refs  # noqa: E402
 from agents.orchestrator import run_pipeline  # noqa: E402
 from database import connection  # noqa: E402
 from database.models import Claim, Source, new_slug  # noqa: E402
 from services.text_utils import input_hash, normalize, redact_pii  # noqa: E402
 
 BENCH = Path(__file__).resolve().parents[1] / "tests" / "bench" / "claims.json"
+
+
+def grounding_problems(c: Claim, n: int) -> list[str]:
+    """Every grounding-rule violation in a stored record (current code's rule):
+      * a sentence in summary / fact / reasons / contradictions without a valid [S#] (when n > 0);
+      * a 'sentence' that is only citations (its text was lost);
+      * an absence claim ("no official / announcement / evidence") without a valid citation,
+        anywhere, including the corrections and WhatsApp reply.
+    """
+    issues: list[str] = []
+    fields = {"summary": c.summary or "", "fact": c.fact or ""}
+    for i, r in enumerate(c.reasoning_chain or []):
+        fields[f"reason{i + 1}"] = r
+    for i, r in enumerate(x for x in (c.contradictions or []) if not x.startswith("Manipulation marker:")):
+        fields[f"contradiction{i + 1}"] = r
+    for name, text in fields.items():
+        for sent in split_sentences(text):
+            if not re.sub(r"\[S\d+\]|[\s.!?]", "", sent):
+                issues.append(f"{name}: citation-only sentence {sent!r}")
+        if n:
+            issues += [f"{name}: uncited {s!r}" for s in uncited_sentences(text, n)]
+    extra = [c.whatsapp_reply or ""] + [v for k, v in (c.correction or {}).items() if k.startswith("text_") and v]
+    for text in list(fields.values()) + extra:
+        for sent in split_sentences(text):
+            if ABSENCE_PATTERN.search(sent) and not valid_refs(sent, n):
+                issues.append(f"absence claim without citation {sent!r}")
+    return issues
 
 
 async def run_one(item: dict) -> dict:
@@ -49,7 +77,7 @@ async def run_one(item: dict) -> dict:
     async with factory() as s:
         c = await s.get(Claim, claim_id)
         n = len(c.sources)
-        ungrounded = len(uncited_sentences(c.summary or "", n)) if n else 0
+        problems = grounding_problems(c, n)
         return {
             "id": item["id"],
             "claim": item["claim"],
@@ -58,7 +86,8 @@ async def run_one(item: dict) -> dict:
             "sources": n,
             "strong": sum(1 for x in c.sources if x.tier in (1, 2)),
             "gaps": c.evidence_gaps or [],
-            "ungrounded": ungrounded,
+            "ungrounded": len(problems),
+            "grounding_problems": problems,
             "seconds": round(secs, 1),
             "claim_id": claim_id,
         }

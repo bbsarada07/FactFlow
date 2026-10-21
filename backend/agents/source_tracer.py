@@ -11,12 +11,12 @@ from datetime import date, timedelta
 
 from agents.context import HONESTY_RULE, VERDICTS, AgentOutput, PipelineContext, clamp, norm_verdict, str_list
 from agents.grounding import assign_refs, remap_candidate_citations
-from agents.query_variants import expand_queries, gdelt_query, variant_queries
+from agents.query_variants import expand_queries, gdelt_query, keyword_query, variant_queries
 from config import settings
 from models.groq_client import LLMJSONError, call_nano
 from services.factcheck_service import search_factchecks
 from services.news_service import search_duckduckgo, search_gdelt, search_newsapi
-from services.tiers import TIER_SCORE, tier_for
+from services.tiers import TIER_SCORE, domain_of, tier_for
 
 MAX_CANDIDATES = 16
 _YEAR = re.compile(r"\b(19\d{2}|20\d{2})\b")
@@ -58,14 +58,74 @@ Return JSON:
  "key_source": "name of the single most authoritative source used, or empty if none"}}"""
 
 
+_MONTHS = {m: i for i, m in enumerate(
+    ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"), 1
+)}
+_MONTH_YEAR = re.compile(r"\b(" + "|".join(_MONTHS) + r")\s+(19\d{2}|20\d{2})\b", re.IGNORECASE)
+
+
 def news_window(claim_text: str, today: str) -> int | None:
-    """Days of news history to search, or None (no date filter) when the claim names a year
-    that ended before the window began."""
+    """Days of recent news to search, or None when the claim is about an event that ended
+    before the window began (see gdelt_dates for how those are searched)."""
     start = date.fromisoformat(today) - timedelta(days=settings.NEWS_WINDOW_DAYS)
     years = [int(y) for y in _YEAR.findall(claim_text or "")]
     if years and min(years) < start.year:
         return None
     return settings.NEWS_WINDOW_DAYS
+
+
+def gdelt_dates(claim_text: str, today: str) -> tuple[dict | None, str]:
+    """GDELT date parameters and a label for the search log; params are None when the event
+    predates GDELT's archive (GDELT_ARCHIVE_START), in which case GDELT is not queried.
+
+    Recent claims search the last NEWS_WINDOW_DAYS. GDELT's default with no date at all is only
+    the last ~3 months, so a claim about an older event searches the period it names instead:
+    the named month (plus the following month, for follow-up coverage) or the whole named year,
+    clamped to the archive start.
+    """
+    window = news_window(claim_text, today)
+    if window:
+        return {"timespan": f"{window}d"}, f"last {window}d"
+    m = _MONTH_YEAR.search(claim_text or "")
+    if m:
+        month, year = _MONTHS[m.group(1).lower()], int(m.group(2))
+        end_month, end_year = (month + 2, year) if month <= 10 else (month + 2 - 12, year + 1)
+        start, end = date(year, month, 1), date(end_year, end_month, 1) - timedelta(days=1)
+    else:
+        year = min(int(y) for y in _YEAR.findall(claim_text))
+        start, end = date(year, 1, 1), date(year, 12, 31)
+    archive = date.fromisoformat(settings.GDELT_ARCHIVE_START)
+    if end < archive:
+        return None, f"skipped: event predates GDELT archive ({archive.year})"
+    start = max(start, archive)
+    params = {"startdatetime": start.strftime("%Y%m%d000000"), "enddatetime": end.strftime("%Y%m%d235959")}
+    return params, f"{start.isoformat()} to {end.isoformat()}"
+
+
+def _logged(ctx: PipelineContext, provider: str, query: str, fn, *args):
+    """Run one provider search and record provider, query, result count, top domains and error."""
+
+    async def run() -> list[dict]:
+        errs: list[str] = []
+        rows = await fn(*args, errors=errs)
+        ctx.search_log.append(
+            {
+                "provider": provider,
+                "query": query,
+                "results": len(rows),
+                "domains": [tier_domain(r["url"]) for r in rows[:8]],
+                "error": errs[0] if errs else None,
+            }
+        )
+        ctx.provider_errors.extend(errs)
+        return rows
+
+    return run()
+
+
+def tier_domain(url: str) -> str:
+    """'domain (tier N)' for the search log."""
+    return f"{domain_of(url)} (t{tier_for(url)})"
 
 
 async def _gather(ctx: PipelineContext) -> list[dict]:
@@ -74,19 +134,30 @@ async def _gather(ctx: PipelineContext) -> list[dict]:
     base = queries[0] if queries else ctx.claim[:100]
     stripped = base.lower().replace("fact check", "").strip()
     news_q = queries[1] if len(queries) > 1 else stripped
-    errors = ctx.provider_errors
+    dates, date_label = gdelt_dates(f"{ctx.claim} {ctx.raw_text}", ctx.today)
+    gq = gdelt_query(news_q) or gdelt_query(ctx.claim)
+    fc_q = ctx.fact_check_query or stripped
+    fc_keywords = keyword_query(ctx.claim)
 
-    tasks = [
-        search_gdelt(gdelt_query(news_q) or gdelt_query(ctx.claim), news_window(f"{ctx.claim} {ctx.raw_text}", ctx.today), errors=errors),
-        search_factchecks(ctx.fact_check_query or stripped, errors=errors),
-        search_newsapi(news_q, errors=errors),
-        search_duckduckgo(base, errors=errors),
+    tasks = []
+    if dates is None:
+        ctx.search_log.append({"provider": f"GDELT ({date_label})", "query": gq, "results": 0, "domains": [], "error": None})
+    else:
+        tasks.append(_logged(ctx, f"GDELT ({date_label})", gq, search_gdelt, gq, dates))
+    tasks += [
+        _logged(ctx, "Google Fact Check", fc_q, search_factchecks, fc_q),
+        _logged(ctx, "NewsAPI", news_q, search_newsapi, news_q),
+        _logged(ctx, "DuckDuckGo", base, search_duckduckgo, base),
     ]
-    if stripped != (ctx.fact_check_query or "").lower():
-        tasks.append(search_factchecks(stripped, errors=errors))
-    tasks += [search_newsapi(v, errors=errors) for v in variant_queries(news_q, limit=1)]
-    tasks += [search_duckduckgo(q, errors=errors) for q in queries[1:3]]
+    fc_seen = {fc_q.lower()}
+    for q in (stripped, fc_keywords):
+        if q and q.lower() not in fc_seen:
+            fc_seen.add(q.lower())
+            tasks.append(_logged(ctx, "Google Fact Check", q, search_factchecks, q))
+    tasks += [_logged(ctx, "NewsAPI", v, search_newsapi, v) for v in variant_queries(news_q, limit=1)]
+    tasks += [_logged(ctx, "DuckDuckGo", q, search_duckduckgo, q) for q in queries[1:3]]
     batches = await asyncio.gather(*tasks)
+    errors = ctx.provider_errors
 
     seen: set[str] = set()
     items: list[dict] = []

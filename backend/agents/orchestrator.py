@@ -204,6 +204,7 @@ async def _persist(ctx: PipelineContext, run: Run, raw_text: str) -> Claim:
         claim.agent_log = run.agents
         claim.platform = ctx.platform
         claim.pattern_matches = ctx.pattern_matches
+        claim.search_log = ctx.search_log
         claim.claim_text = ctx.claim
         claim.language = ctx.language
         claim.language_name = ctx.language_name

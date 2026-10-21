@@ -19,7 +19,7 @@ NO_SOURCES_SUMMARY = (
 
 _CITE = re.compile(r"\[S(\d+)\]")
 _CANDIDATE_CITE = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
-_ABSENCE = re.compile(r"\bno\s+(?:official|announcements?|evidence)\b", re.IGNORECASE)
+ABSENCE_PATTERN = re.compile(r"\bno\s+(?:official|announcements?|evidence)\b", re.IGNORECASE)
 _SENTENCE_END = re.compile(r"(?<=[.!?।])\s+")
 _SPACES = re.compile(r"[ \t]{2,}")
 
@@ -80,7 +80,9 @@ def ground_text(text: str, n_sources: int, strict: bool = True) -> str:
         cleaned = _CITE.sub(lambda m: m.group(0) if 1 <= int(m.group(1)) <= n_sources else "", sentence)
         cleaned = _SPACES.sub(" ", cleaned).strip()
         cited = bool(valid_refs(cleaned, n_sources))
-        if _ABSENCE.search(cleaned) and not cited:
+        if not _CITE.sub("", cleaned).strip(" .!?।"):
+            continue  # citations with no sentence text carry no information
+        if ABSENCE_PATTERN.search(cleaned) and not cited:
             continue
         if strict and not cited:
             continue

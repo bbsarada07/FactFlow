@@ -109,6 +109,7 @@ class Claim(Base):
     claim_type: Mapped[str | None] = mapped_column(String(32))
     urgency: Mapped[str | None] = mapped_column(String(16))
     pattern_matches: Mapped[list] = mapped_column(JSON, default=list)
+    search_log: Mapped[list] = mapped_column(JSON, default=list)  # provider, query, results, domains, error
 
     # Verdict
     verdict: Mapped[str | None] = mapped_column(String(16), index=True)
@@ -214,6 +215,7 @@ class Claim(Base):
             "language_name": self.language_name,
             "claim_type": self.claim_type,
             "pattern_matches": self.pattern_matches or [],
+            "search_log": self.search_log or [],
             "summary": self.summary,
             "summary_local": self.summary_local,
             "reasoning_chain": self.reasoning_chain or [],

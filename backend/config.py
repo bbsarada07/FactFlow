@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     TESSERACT_CMD: str = ""
     GDELT_ENABLED: bool = True
     GDELT_URL: str = "https://api.gdeltproject.org/api/v2/doc/doc"
+    GDELT_ARCHIVE_START: str = "2017-01-01"  # earliest date the DOC API accepts (verified 2026-10-21)
     # Search window for date-capable news sources (GDELT). Claims about events older than
     # this are searched without a date filter. NewsAPI keeps its free-plan window (~30 days).
     NEWS_WINDOW_DAYS: int = 90
@@ -38,7 +39,8 @@ class Settings(BaseSettings):
     TIER_1_DOMAINS: str = "aninews.in,pib.gov.in,ptinews.com,reuters.com,apnews.com,who.int,.gov.in,.nic.in"
     TIER_2_DOMAINS: str = (
         "siasat.com,telanganatoday.com,thehindu.com,timesofindia.indiatimes.com,indianexpress.com,"
-        "ndtv.com,news18.com,altnews.in,boomlive.in,factly.in"
+        "ndtv.com,news18.com,altnews.in,boomlive.in,factly.in,"
+        "afp.com,newschecker.in,thequint.com,snopes.com"
     )
     TIER_4_DOMAINS: str = (
         "facebook.com,twitter.com,x.com,instagram.com,youtube.com,tiktok.com,reddit.com,quora.com,medium.com,"
