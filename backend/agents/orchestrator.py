@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 from agents import deep_reasoning, explainer, harm_assessor, intake_agent, source_tracer
 from agents.context import AgentOutput, PipelineContext, clamp, norm_verdict
-from agents.grounding import ground_list
+from agents.grounding import drop_contradictions, ground_list
 from agents.uncertainty import build_checks, evidence_gaps, strong_source_count
 from config import settings
 from database import connection
@@ -80,6 +80,19 @@ def decide_verdict(evidence: list[dict], model_output: dict) -> dict:
     if reasons:
         return {"verdict": "UNVERIFIED", "confidence": None, "reasons": reasons}
     return {"verdict": verdict, "confidence": confidence, "reasons": []}
+
+
+def remove_contradicting_text(ctx: PipelineContext) -> None:
+    """Final post-check on displayed text: drop sentences whose wording contradicts the verdict
+    (see grounding.drop_contradictions) unless they cite a retrieved source. Covers the harm
+    rationale, which no other grounding step sees."""
+    n, verdict = len(ctx.evidence), ctx.verdict
+    ctx.summary = drop_contradictions(ctx.summary, verdict, n)
+    ctx.fact = drop_contradictions(ctx.fact, verdict, n)
+    ctx.whatsapp_reply = drop_contradictions(ctx.whatsapp_reply, verdict, n)
+    ctx.harm_rationale = drop_contradictions(ctx.harm_rationale, verdict, n)
+    ctx.reasoning_chain = [t for t in (drop_contradictions(i, verdict, n) for i in ctx.reasoning_chain) if t]
+    ctx.contradictions = [t for t in (drop_contradictions(i, verdict, n) for i in ctx.contradictions) if t]
 
 
 def apply_gate(ctx: PipelineContext) -> None:
@@ -369,6 +382,7 @@ async def _pipeline(request_id: str, run: Run) -> None:
         explainer.fallback(ctx)
     if not harm_ok:
         harm_assessor.fallback(ctx)
+    remove_contradicting_text(ctx)
 
     stored = await _persist(ctx, run, raw_text)
     await run.emit({"type": "result", "progress": 100, "result": stored.to_result()})

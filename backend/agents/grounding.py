@@ -134,6 +134,20 @@ def require_named_sources(text: str, evidence: list[dict]) -> str:
     return " ".join(kept)
 
 
+# Words that call the claim false. Shown next to a TRUE verdict they contradict it.
+CONTRADICTS_TRUE = re.compile(r"\b(?:false(?:ly)?|rumou?r(?:s|ed)?|hoax(?:es)?|fake[sd]?)\b", re.IGNORECASE)
+
+
+def drop_contradictions(text: str, verdict: str, n_sources: int) -> str:
+    """Remove sentences whose wording contradicts the verdict ("likely false", "rumor", "hoax",
+    "fake" next to TRUE) unless they cite a retrieved source. Other verdicts are left unchanged."""
+    if verdict != "TRUE" or not text:
+        return text
+    return " ".join(
+        s for s in split_sentences(text) if not (CONTRADICTS_TRUE.search(s) and not valid_refs(s, n_sources))
+    )
+
+
 def ground_list(items: list[str], n_sources: int, strict: bool = True) -> list[str]:
     """Ground each item of a list (reasoning steps, contradictions); drop items left empty."""
     return [g for g in (ground_text(i, n_sources, strict) for i in items) if g]
