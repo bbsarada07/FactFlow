@@ -7,6 +7,7 @@ from agents.grounding import (
     ground_list,
     ground_text,
     remap_candidate_citations,
+    require_named_sources,
     uncited_sentences,
 )
 
@@ -35,6 +36,40 @@ def test_citations_after_the_full_stop_belong_to_that_sentence():
     out = ground_text(text, n_sources=3)
     assert out == text
     assert uncited_sentences(out, 3) == []
+
+
+TOI = {"name": "timesofindia.indiatimes.com", "url": "https://timesofindia.indiatimes.com/x.cms", "ref": "S1",
+       "tier": 2, "credibility": 0.8}
+TT = {"name": "telanganatoday.com", "url": "https://telanganatoday.com/x", "ref": "S2", "tier": 2, "credibility": 0.8}
+
+
+def test_reporting_claim_without_a_named_source_is_rejected():
+    text = "Several reputable news outlets reported the closure [S1]."
+    assert require_named_sources(text, [TOI, TT]) == ""
+
+
+def test_reporting_claim_naming_a_retrieved_source_is_kept():
+    text = "Telangana Today reported the closure on 25 September [S2]. The Times of India confirmed it [S1]."
+    assert require_named_sources(text, [TOI, TT]) == text
+
+
+def test_named_but_uncited_reporting_claim_is_rejected():
+    assert require_named_sources("Telangana Today reported the closure.", [TOI, TT]) == ""
+
+
+def test_non_reporting_sentences_are_left_alone():
+    text = "Schools were closed on 25 September for the immersion [S1]."
+    assert require_named_sources(text, [TOI]) == text
+
+
+def test_explainer_summary_drops_unnamed_reporting():
+    from agents.explainer import _named_summary
+
+    ctx = PipelineContext(request_id="x", raw_text="r")
+    ctx.evidence = [TOI, TT]
+    out = _named_summary("This closure was reported by several reputable news outlets. [S1][S2] "
+                         "Telangana Today reported the holiday [S2].", ctx)
+    assert out == "Telangana Today reported the holiday [S2]."
 
 
 def test_citations_to_unretrieved_sources_are_invalid():

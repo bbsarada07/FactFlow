@@ -9,11 +9,12 @@ called and the output says "No sources found yet."
 import re
 
 from agents.context import AgentOutput, PipelineContext
-from agents.grounding import NO_SOURCES, NO_SOURCES_SUMMARY, ground_text
+from agents.grounding import NO_SOURCES, NO_SOURCES_SUMMARY, ground_text, require_named_sources
 from agents.uncertainty import STRONG_TIERS
 from database.models import registry_url
 from models.groq_client import call_nano
 from services.text_utils import fit_words, truncate
+from services.tiers import domain_of
 
 POST_LIMIT = 280
 NO_SOURCE = "No verified source yet"
@@ -32,7 +33,7 @@ BEST SOURCE: {source}
 TARGET LANGUAGE: {language} (code: {code})
 
 Return JSON:
-{{"simple_summary": "2-3 sentences in plain English (max 60 words) explaining what we found; end EVERY sentence with its source ID(s) like [S1]",
+{{"simple_summary": "2-3 sentences in plain English (max 60 words) explaining what we found; end EVERY sentence with its source ID(s) like [S1]. Any sentence saying something was reported or confirmed must name the outlet as listed in SOURCES (e.g. 'Times of India reported ... [S1]'); never write 'several outlets' or 'reputable news outlets'",
  "local_summary": "the same explanation written natively in {language}, keeping the same [S#] IDs after every sentence; if {language} is English repeat simple_summary",
  "myth": "the claim as people are sharing it, max 20 words, in English",
  "fact": "what the evidence shows, max 35 words, in English, ending with its source ID(s) like [S1]",
@@ -111,6 +112,18 @@ def build_correction(ctx: PipelineContext, model: dict | None) -> dict:
     return {**texts, "source_label": source, "registry_url": url}
 
 
+def _named_summary(text: str, ctx: PipelineContext) -> str:
+    """Summary sentences that cite a retrieved source, minus any reporting claim that does not
+    name the outlet (e.g. "several outlets reported ...")."""
+    return require_named_sources(ground_text(text, len(ctx.evidence)), ctx.evidence)
+
+
+def _source_line(ctx: PipelineContext) -> str:
+    """Last-resort summary that only states which retrieved source is strongest, by name and ID."""
+    top = max(ctx.evidence, key=lambda e: e.get("credibility", 0))
+    return f"The strongest source retrieved for this claim is {top['name']} [{top['ref']}]."
+
+
 def _grounded(text: str, n: int, fallback: str) -> str:
     """Strictly grounded text, or `fallback` when no sentence survives."""
     return ground_text(text, n) or fallback
@@ -132,7 +145,7 @@ async def run(ctx: PipelineContext) -> AgentOutput:
             verdict=ctx.verdict,
             summary=ctx.summary or "(none)",
             fact=ctx.fact or "(not established)",
-            sources="; ".join(f"[{e['ref']}] {e['name']}" for e in ctx.evidence),
+            sources="; ".join(f"[{e['ref']}] {e['name']} ({domain_of(e.get('url', ''))})" for e in ctx.evidence),
             source=source,
             language=ctx.output_language_name,
             code=ctx.output_language,
@@ -142,8 +155,8 @@ async def run(ctx: PipelineContext) -> AgentOutput:
     )
     d = res.data
 
-    base_summary = ground_text(ctx.summary, n)
-    ctx.summary = _grounded(str(d.get("simple_summary") or ""), n, base_summary or NO_SOURCES_SUMMARY)
+    base_summary = _named_summary(ctx.summary, ctx)
+    ctx.summary = _named_summary(str(d.get("simple_summary") or ""), ctx) or base_summary or _source_line(ctx)
     ctx.summary_local = _grounded(str(d.get("local_summary") or ""), n, ctx.summary)
     ctx.myth = truncate(str(d.get("myth") or ctx.claim), 220)
     ctx.fact = truncate(_grounded(str(d.get("fact") or ""), n, ground_text(ctx.fact, n) or NO_SOURCES), 320)
@@ -169,7 +182,7 @@ def fallback(ctx: PipelineContext) -> None:
         ctx.summary = NO_SOURCES_SUMMARY
         ctx.fact = NO_SOURCES
     else:
-        ctx.summary = ground_text(ctx.summary, n) or NO_SOURCES_SUMMARY
+        ctx.summary = _named_summary(ctx.summary, ctx) or _source_line(ctx)
         ctx.fact = ground_text(ctx.fact, n) or NO_SOURCES
     ctx.summary_local = ctx.summary
     ctx.myth = truncate(ctx.claim, 220)

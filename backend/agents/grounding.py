@@ -90,6 +90,50 @@ def ground_text(text: str, n_sources: int, strict: bool = True) -> str:
     return " ".join(kept)
 
 
+_REPORTING = re.compile(
+    r"\b(?:report(?:ed|s|ing)?|according to|confirmed by|cited by|outlets?|media|publications?"
+    r"|news (?:sites?|reports?|organi[sz]ations?))\b",
+    re.IGNORECASE,
+)
+_NON_ALNUM = re.compile(r"[^a-z0-9]")
+
+
+def source_aliases(evidence: list[dict]) -> set[str]:
+    """Lower-case, space-free names a sentence may use for a retrieved source:
+    its listed name (without a leading 'The'), its domain and the domain's first label
+    (e.g. 'telanganatoday' matches 'Telangana Today')."""
+    from urllib.parse import urlparse
+
+    aliases: set[str] = set()
+    for e in evidence:
+        name = re.sub(r"^the\s+", "", (e.get("name") or "").lower())
+        host = urlparse(e.get("url") or "").netloc.lower().removeprefix("www.")
+        for alias in (name, host, host.split(".")[0] if host else ""):
+            compact = _NON_ALNUM.sub("", alias)
+            if len(compact) >= 4:
+                aliases.add(compact)
+    return aliases
+
+
+def names_a_source(sentence: str, evidence: list[dict]) -> bool:
+    """True if the sentence names at least one retrieved source."""
+    compact = _NON_ALNUM.sub("", sentence.lower())
+    return any(alias in compact for alias in source_aliases(evidence))
+
+
+def require_named_sources(text: str, evidence: list[dict]) -> str:
+    """Drop sentences that claim reporting ("reported", "according to", "outlets", ...) unless they
+    name a retrieved source AND cite a valid source ID. Other sentences are left unchanged."""
+    kept = []
+    for sentence in split_sentences(text):
+        if _REPORTING.search(sentence) and not (
+            names_a_source(sentence, evidence) and valid_refs(sentence, len(evidence))
+        ):
+            continue
+        kept.append(sentence)
+    return " ".join(kept)
+
+
 def ground_list(items: list[str], n_sources: int, strict: bool = True) -> list[str]:
     """Ground each item of a list (reasoning steps, contradictions); drop items left empty."""
     return [g for g in (ground_text(i, n_sources, strict) for i in items) if g]
