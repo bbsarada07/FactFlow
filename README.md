@@ -1,12 +1,12 @@
 # NemesisAI
 
-> In 2020, 3 people were lynched in Palghar because of one WhatsApp forward.
-> Traditional fact-checkers took 4 days to respond.
-> **NemesisAI responds in 60 seconds.**
+> In April 2020, two sadhus and their driver were lynched by a mob in Palghar, Maharashtra, after child-kidnapping
+> rumours spread in the area ([source](https://en.wikipedia.org/wiki/2020_Palghar_mob_lynching)).
+> **NemesisAI checks a forward like that one against published sources, live, and says plainly when it cannot tell.**
 
 NemesisAI is a multi-agent misinformation forensics system for India. Paste a WhatsApp forward, tweet, headline, link
 or screenshot, and six AI agents trace the evidence, reason over it, and return a verdict you can understand, share and
-forward back into the chat. All of this happens live, in about 10 seconds for a typical claim.
+forward back into the chat. Each step streams live while it runs.
 
 ![Stack](https://img.shields.io/badge/backend-FastAPI-009688) ![Stack](https://img.shields.io/badge/frontend-Next.js%2014-black) ![Stack](https://img.shields.io/badge/inference-Groq-f55036) ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -212,8 +212,8 @@ markup and may need selector updates when those sites change.
 | Platforms & telcos | Annual trust & safety licence | Rumour alerts by region, language and harm type |
 | Government & NGOs | Programme contracts | Election-integrity and public-health early warning |
 
-Team planning estimates: TAM ₹3,960 Cr/yr (400M Indian WhatsApp users × ₹99), SAM ₹396 Cr (10% who regularly share
-news forwards), SOM ₹7.9 Cr (2% of SAM within three years).
+Market size (TAM: Indian WhatsApp users × ₹99/yr; SAM: those who regularly forward news; SOM: the share reachable
+within three years): estimate, source to be added. No figure is given until it has a cited source.
 
 ## 8. Future scope
 

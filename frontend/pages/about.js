@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import ArchitectureDiagram from "@/components/ArchitectureDiagram";
-import InViewCount from "@/components/InViewCount";
 import { api } from "@/lib/api";
 import { EASE } from "@/lib/theme";
 
@@ -46,7 +45,7 @@ const REVENUE = [
     color: "#2979FF",
     title: "Newsrooms & fact-checkers",
     price: "Usage-based API",
-    body: "A triage queue that surfaces viral, harm-scored claims first, with evidence already gathered — hours saved per debunk.",
+    body: "A triage queue that surfaces viral, harm-scored claims first, with evidence already gathered before a person starts the debunk.",
   },
   {
     icon: Building2,
@@ -64,10 +63,11 @@ const REVENUE = [
   },
 ];
 
+// Market sizes are planning estimates; no figure is shown until it has a cited source.
 const MARKET = [
-  { tag: "TAM", value: 3960, label: "₹ crore / year", basis: "400M Indian WhatsApp users × ₹99/yr" },
-  { tag: "SAM", value: 396, label: "₹ crore / year", basis: "10% who regularly share news forwards" },
-  { tag: "SOM", value: 7.9, decimals: 1, label: "₹ crore / year", basis: "2% of SAM within three years" },
+  { tag: "TAM", basis: "Indian WhatsApp users × the ₹99/yr Family Shield plan" },
+  { tag: "SAM", basis: "The share of those users who regularly forward news" },
+  { tag: "SOM", basis: "The share of SAM we could reach within three years" },
 ];
 
 export default function AboutPage() {
@@ -128,8 +128,7 @@ export default function AboutPage() {
             THE PROBLEM
           </motion.div>
           <div className="font-display font-bold leading-none tracking-[-0.04em] text-primary" style={{ fontSize: "clamp(44px, 11vw, 132px)", textShadow: "0 0 60px rgba(255,45,45,0.25)" }}>
-            <InViewCount end={400000000} duration={2.6} />
-            <span className="text-red">+</span>
+            One forward<span className="text-red">.</span>
           </div>
           <motion.p
             initial={{ opacity: 0, y: 12 }}
@@ -137,7 +136,7 @@ export default function AboutPage() {
             transition={{ delay: 0.8, duration: 0.6 }}
             className="mx-auto mt-8 max-w-xl text-[18px] leading-relaxed text-secondary sm:text-[20px]"
           >
-            WhatsApp users in India who could be reached by a single false forward — long before a fact-check is published.
+            A single false forward can spread through WhatsApp groups long before a fact-check is published.
           </motion.p>
         </div>
       </section>
@@ -250,16 +249,12 @@ export default function AboutPage() {
               className="glass rounded-lg p-6"
             >
               <div className="mono text-[11px] tracking-[3px] text-red">{m.tag}</div>
-              <div className="mt-2 font-display text-[40px] font-bold leading-none">
-                ₹<InViewCount end={m.value} decimals={m.decimals || 0} />
-                <span className="ml-1 text-[16px] font-medium text-secondary">Cr</span>
-              </div>
-              <div className="mono mt-1 text-[11px] text-muted">{m.label}</div>
-              <p className="mb-0 mt-4 text-[13px] text-secondary">{m.basis}</p>
+              <p className="mb-0 mt-3 text-[14px] text-secondary">{m.basis}</p>
+              <div className="mono mt-4 text-[11px] text-muted">Estimate, source to be added</div>
             </motion.div>
           ))}
         </div>
-        <p className="mono mt-4 text-[11px] text-muted">Market sizes are team planning estimates derived from the stated assumptions.</p>
+        <p className="mono mt-4 text-[11px] text-muted">No market figure is shown until it has a cited source.</p>
 
         <div className="mt-20 flex flex-col items-center gap-5 text-center">
           <h3 className="m-0 font-display text-[28px] font-semibold">See it work on a real forward.</h3>
