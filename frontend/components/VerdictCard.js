@@ -5,6 +5,7 @@ import Link from "next/link";
 import Accordion from "@/components/Accordion";
 import ConfidenceBand from "@/components/ConfidenceBand";
 import { StanceBadge, TierBadge } from "@/components/HarmBadge";
+import { stanceDisagreement } from "@/lib/stance.mjs";
 import HonestUncertainty from "@/components/HonestUncertainty";
 import MythVsFact from "@/components/MythVsFact";
 import ShareCorrection from "@/components/ShareCorrection";
@@ -109,6 +110,7 @@ export default function VerdictCard({ result, compact = false, showRegistryLink 
   const showLocal = result.summary_local && result.summary_local !== result.summary;
   const models = [...new Set((result.agents || []).map((a) => a.model).filter(Boolean))];
   const gated = unverified && result.model_verdict && result.model_verdict !== "UNVERIFIED";
+  const disagreement = stanceDisagreement(result.sources);
 
   return (
     <motion.article
@@ -230,6 +232,12 @@ export default function VerdictCard({ result, compact = false, showRegistryLink 
               </div>
             )}
           </Accordion>
+        )}
+
+        {disagreement && (
+          <p className="mono m-0 rounded-md border border-subtle bg-surface px-4 py-2.5 text-[12px] text-secondary">
+            <span style={{ color: "#00E676" }}>●</span> <span style={{ color: "#FF2D2D" }}>●</span> {disagreement}
+          </p>
         )}
 
         {result.sources?.length > 0 && (
