@@ -14,8 +14,8 @@ forward back into the chat. Each step streams live while it runs.
 
 ## 1. What NemesisAI does
 
-- **Verifies any input:** pasted text, a URL (the article is fetched and read), or an image (Tesseract OCR, with a
-  vision-model fallback).
+- **Verifies any input:** pasted text, a URL (the article is fetched and read), or a PNG/JPG screenshot up to 5 MB
+  (Gemma 4 reads the text; Tesseract OCR is the fallback).
 - **Streams the investigation live:** each agent's progress arrives over Server-Sent Events, so users watch the evidence
   being gathered instead of staring at a spinner.
 - **Produces a Truth Autopsy Report:** verdict (FALSE / TRUE / MISLEADING / UNVERIFIED / SATIRE), calibrated
@@ -26,16 +26,28 @@ forward back into the chat. Each step streams live while it runs.
 - **Meets people where rumours spread:** a Chrome extension (right-click, keyboard shortcut and inline buttons on
   WhatsApp Web, X and Instagram) and an Android overlay prototype.
 
-## 2. Inference: two tiers on Groq
+## 2. Who decides what
 
-All model calls go through the `openai` Python client pointed at Groq's OpenAI-compatible endpoint
+In plain words:
+
+- **Groq (GPT-OSS models) makes every verdict.** Claim reading, source checking, reasoning, the explanation and the
+  harm rating all run on Groq (`REASONING_PROVIDER=groq`, the only allowed value).
+- **Gemma 4, through the Gemini API, only reads screenshots** (`VISION_PROVIDER=gemini`). It returns the text it can
+  see and up to four short visible cues (for example "no source named"). The text goes into the normal Groq pipeline.
+  The cues are shown on the card but never sent to the reasoning models. If Gemma replies with a verdict or a
+  confidence, it is thrown away.
+- **The verdict gate is code, not model output.** `decide_verdict` in `backend/agents/orchestrator.py` turns the
+  model's verdict into UNVERIFIED unless there are at least 2 tier 1–2 sources, confidence is at least 0.6, and the
+  model did not report missing context without a contradiction.
+
+All Groq calls go through the `openai` Python client pointed at Groq's OpenAI-compatible endpoint
 (`https://api.groq.com/openai/v1/`). Keys are loaded from `backend/.env` with `python-dotenv` / `pydantic-settings`.
 
 | Tier | Model (default) | Used by | Why |
 |---|---|---|---|
 | **Nano** (fast) | `openai/gpt-oss-20b` | Intake, Source Tracer, Explainer, Harm Assessor | ~0.5–1.5 s structured-JSON calls keep the pipeline fast |
 | **Ultra** (deep) | `openai/gpt-oss-120b` | Deep Reasoning | Multi-hop reasoning, only when it can change the outcome |
-| Vision | `qwen/qwen3.8-27b` | Screenshot text extraction | Fallback when Tesseract finds no text |
+| Screenshots | `gemma-4-26b-a4b-it` via the Gemini API | Reading text from screenshots only | Tesseract is used when Gemma is unavailable; the card then says "Image read without AI" |
 
 The Ultra tier is **escalated only when needed**: when the Source Tracer's confidence is below 85%
 (`DEEP_REASONING_THRESHOLD`) or Intake marks the claim **CRITICAL** (imminent risk of violence or physical harm).
@@ -135,6 +147,7 @@ npm run dev                           # http://localhost:3000
 | `GROQ_API_KEY` | https://console.groq.com/keys | All agents (required) |
 | `NEWS_API_KEY` | https://newsapi.org/register | News evidence (free: 100 req/day) |
 | `GOOGLE_FACT_CHECK_API_KEY` | Google Cloud Console → enable *Fact Check Tools API* | Fact-check evidence |
+| `GEMINI_API_KEY` | https://aistudio.google.com/apikey | Reading screenshots with Gemma 4 (optional; Tesseract otherwise) |
 
 DuckDuckGo search needs no key.
 
@@ -153,7 +166,8 @@ DuckDuckGo search needs no key.
 | `GET` | `/api/history?limit=20` | Recent completed verifications |
 | `GET` | `/api/incidents` | Incident library with each incident's latest live run |
 | `GET` | `/api/stats` | Totals, verdict breakdown, harm categories, average time |
-| `GET` | `/health` | DB / cache / model / evidence-source status |
+| `GET` | `/api/accuracy` | Last complete bench run from `backend/tests/bench/results/latest.json`, or "No complete run yet" |
+| `GET` | `/health` | Build commit, providers, models, whether each key is set (true/false only), DB and Redis status |
 
 ```bash
 # Verify text (language: auto | en | hi | mr | bn | ta | te | gu | kn | ml | pa | ur)
@@ -164,7 +178,7 @@ curl -X POST http://localhost:8000/api/verify \
 # Verify a URL or an image
 curl -X POST http://localhost:8000/api/verify -H "Content-Type: application/json" -d '{"url": "https://example.com/article"}'
 curl -X POST http://localhost:8000/api/verify -H "Content-Type: application/json" -d '{"image_url": "https://example.com/forward.png"}'
-#   or {"image_base64": "data:image/png;base64,..."}
+#   or {"image_base64": "data:image/png;base64,..."}   (PNG or JPG only, up to 5 MB; anything else gets a 422)
 
 # Watch the agents live
 curl -N http://localhost:8000/api/stream/<request_id>
@@ -228,26 +242,24 @@ within three years): estimate, source to be added. No figure is given until it h
 ## Best Use of Gemma 4
 
 NemesisAI calls **Gemma 4** through the **Gemini API**, using the `google-genai` Python SDK
-(`backend/models/gemini_client.py`).
+(`backend/models/gemini_client.py`). Gemma 4 reads screenshots. It does not decide verdicts.
 
 | Setting | Value |
 |---|---|
 | Model identifier | `gemma-4-26b-a4b-it` (`GEMMA_MODEL`). Confirmed on 2026-10-21 from the Gemini API models list, which showed `gemma-4-26b-a4b-it` and `gemma-4-31b-it`. `gemma-4-31b-it` returned 503/500 errors in testing that day, so the 26B model is the default. |
-| Provider switch | `MODEL_PROVIDER=gemini` or `groq`. If unset, Gemma is used only when `GEMINI_API_KEY` is set. |
-| Key handling | `GEMINI_API_KEY` is read from the environment / `backend/.env`. Provider errors are re-raised with the key masked, and the key is never logged. |
+| Provider settings | `REASONING_PROVIDER=groq` (fixed). `VISION_PROVIDER=gemini` (default), `groq` or `none`. Gemma is used only when `VISION_PROVIDER=gemini` and `GEMINI_API_KEY` is set. |
+| Key handling | `GEMINI_API_KEY` is read from the environment / `backend/.env`. Provider errors are re-raised with the key masked, and the key is never logged. `/health` only says whether it is set. |
 
-**Steps that use Gemma 4** (when the provider is `gemini`):
+**What happens to a screenshot:**
 
-1. **Screenshot claim extraction.** A PNG or JPG up to 5 MB is sent to Gemma 4 with the same
-   extraction instruction used elsewhere: transcribe all text, then describe the image in one line.
-   If Gemma fails, Tesseract OCR is the fallback.
-2. **Deep Reasoning (agent 3).** Multi-hop reasoning over the retrieved evidence. It runs only when
-   the Source Tracer's confidence is below 0.85 or the claim is CRITICAL, so a clear-cut claim may
-   finish without calling Gemma. The output is the same JSON shape the Groq path produces, so the
-   verdict gate treats both identically.
-
-Intake, Source Tracer, Explainer and Harm Assessor stay on Groq (`NANO_MODEL`). `/health` and
-`/api/config` (shown in the site footer) report which reasoning model is in use.
+1. The upload is checked: PNG or JPG (by the file's bytes, not its name), up to 5 MB. Anything else is rejected with
+   "Only PNG or JPG screenshots up to 5 MB are supported."
+2. Gemma 4 reads it with a fixed instruction: copy every piece of text, list up to four visible cues, and do not say
+   whether the content is true. Only the text and the cues are kept from the reply.
+3. If Gemma is unavailable or fails, Tesseract OCR reads the image instead.
+4. If no text is found, the check stops with "No text found in this image." and no reasoning model is called.
+5. Otherwise the text runs through the normal Groq pipeline and verdict gate. The card shows a badge, "Text read by
+   Gemma 4" or "Image read without AI", and lists the cues, marked as not used for the verdict.
 
 ## Limitations
 
@@ -263,12 +275,17 @@ Intake, Source Tracer, Explainer and Harm Assessor stay on Groq (`NANO_MODEL`). 
   record, but fewer sources can mean UNVERIFIED instead of a definite verdict.
 - **Groq's free tier** has a daily token limit (200,000 tokens/day for `openai/gpt-oss-20b` at the
   time of testing). A full 30-claim bench run needs more than that.
-- **The verdict gate is code, not model output.** `decide_verdict` in `agents/orchestrator.py`
-  returns UNVERIFIED with fewer than 2 tier 1–2 sources, confidence below 0.6, or missing context
-  with no contradiction, whatever the model says.
-  - The gate counts tier 1–2 sources regardless of their stance, so a TRUE verdict can rest on
-    strong sources labelled REFUTES (seen on the Palghar event claim).
-  - Source tiers come from fixed domain lists, so some official sites (e.g. `rbi.org.in`) are tier 3.
+- **Source stance is not yet part of the verdict gate.** The gate counts tier 1–2 sources whatever
+  their stance, so a TRUE verdict can rest on strong sources labelled REFUTES (seen on the Palghar
+  event claim). Cards show each source's stance and say "Sources disagree: X support, Y refute."
+  when both appear, but that line is for display only. A stance-aware gate has been proposed but
+  is not applied.
+- **Some official sites are tier 3.** Tiers come from fixed domain lists. `.gov.in` and `.nic.in`
+  sites (such as `sebi.gov.in` and `mohfw.gov.in`) are tier 1, but `rbi.org.in` is not yet listed.
+- **A screenshot read correctly can still be UNVERIFIED.** Reading the text well does not create
+  evidence. If too few strong sources are found, the gate still returns UNVERIFIED.
+- **Screenshots must be PNG or JPG up to 5 MB.** Other formats (for example WebP images saved from
+  WhatsApp) are rejected rather than converted.
 
 ## Pre-existing work
 
@@ -285,6 +302,7 @@ Every commit below predates the Hacktoberfest Hack Day (25 October 2026). Dates 
 | `869f341`–`b3af000` | 2026-10-21 | Spelling variants, named-source summaries, sourced homepage line, `/health` build commit |
 | `62d03ba` | 2026-10-21 | Private-person and self-harm rule |
 | `c27dba5` | 2026-10-21 | Gemma 4 via the Gemini API |
+| `0f05b6c`–`284fc28` | 2026-10-21 | Split routing (Groq verdicts, Gemma 4 screenshots only), screenshot checks, stance disagreement line, unsourced figures removed, `/health` key flags, `/accuracy` page |
 
 **Added during the Hack Day:** nothing yet. Any commits dated 25 October 2026 belong here.
 
