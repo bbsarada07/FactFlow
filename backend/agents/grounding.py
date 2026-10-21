@@ -24,9 +24,27 @@ _SENTENCE_END = re.compile(r"(?<=[.!?।])\s+")
 _SPACES = re.compile(r"[ \t]{2,}")
 
 
+_LEADING_CITES = re.compile(r"^((?:\[S\d+\]\s*)+)(.*)$", re.DOTALL)
+
+
 def split_sentences(text: str) -> list[str]:
-    """Split text into sentences (English and Devanagari full stops)."""
-    return [s.strip() for s in _SENTENCE_END.split((text or "").strip()) if s.strip()]
+    """Split text into sentences (English and Devanagari full stops).
+
+    Models often place citations after the full stop ("...on 25 September. [S1][S2] Next...");
+    citations at the start of a fragment belong to the sentence before it.
+    """
+    out: list[str] = []
+    for part in (s.strip() for s in _SENTENCE_END.split((text or "").strip())):
+        if not part:
+            continue
+        m = _LEADING_CITES.match(part)
+        if out and m:
+            out[-1] = f"{out[-1]} {m.group(1).strip()}"
+            part = m.group(2).strip()
+            if not part:
+                continue
+        out.append(part)
+    return out
 
 
 def assign_refs(evidence: list[dict]) -> dict[int, str]:

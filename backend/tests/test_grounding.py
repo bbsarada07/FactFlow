@@ -28,6 +28,15 @@ def test_strict_mode_drops_every_uncited_sentence():
     assert uncited_sentences(out, 1) == []
 
 
+def test_citations_after_the_full_stop_belong_to_that_sentence():
+    # Regression: the Hyderabad re-run produced "... September 25. [S1][S2]" and the sentence
+    # text was dropped as uncited, leaving only "[S1][S2]".
+    text = "Telangana closed schools on 25 September. [S1][S2] Offices also shut. [S3]"
+    out = ground_text(text, n_sources=3)
+    assert out == text
+    assert uncited_sentences(out, 3) == []
+
+
 def test_citations_to_unretrieved_sources_are_invalid():
     # [S5] does not exist when only 2 sources were retrieved.
     assert ground_text("A holiday was declared [S5].", n_sources=2) == ""
