@@ -13,6 +13,7 @@ from sqlalchemy import text
 from api import history, incidents, public_config, registry, result, stats, stream, verify
 from config import settings
 from database import connection
+from models.gemini_client import provider
 from services.cache_service import redis_ping
 
 logger.remove()
@@ -83,7 +84,13 @@ async def health():
         "database_ok": db_ok,
         "redis": await redis_status(),
         "llm_configured": bool(settings.GROQ_API_KEY),
-        "models": {"nano": settings.NANO_MODEL, "ultra": settings.ULTRA_MODEL, "vision": settings.VISION_MODEL},
+        "model_provider": provider(),
+        "models": {
+            "nano": settings.NANO_MODEL,
+            "reasoning": settings.GEMMA_MODEL if provider() == "gemini" else settings.ULTRA_MODEL,
+            "ultra": settings.GEMMA_MODEL if provider() == "gemini" else settings.ULTRA_MODEL,  # read by the About page
+            "vision": settings.GEMMA_MODEL if provider() == "gemini" else settings.VISION_MODEL,
+        },
         "queue": "celery" if settings.USE_CELERY else "inprocess",
         "evidence_sources": {
             "newsapi": bool(settings.NEWS_API_KEY),

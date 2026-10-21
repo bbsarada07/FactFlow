@@ -9,7 +9,8 @@ from bs4 import BeautifulSoup
 from loguru import logger
 
 from config import settings
-from models.groq_client import call_vision
+from models.gemini_client import call_gemma_vision, provider
+from models.groq_client import VISION_PROMPT, call_vision
 
 USER_AGENT = "Mozilla/5.0 (compatible; NemesisAI/1.0; +https://github.com/nemesisai)"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -89,10 +90,26 @@ def _ocr_sync(image_b64: str) -> str:
     return pytesseract.image_to_string(img, lang=langs).strip()
 
 
+GEMMA_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg"}
+
+
 async def image_to_text(image_b64: str, mime: str) -> tuple[str, str]:
-    """Returns (text, method). Tries Tesseract first, then the vision model."""
-    if len(image_b64) * 3 / 4 > MAX_IMAGE_BYTES:
+    """Returns (text, method).
+
+    Provider gemini: PNG/JPG up to GEMMA_MAX_IMAGE_BYTES go to Gemma 4 first with the shared
+    claim-extraction instruction; if Gemma fails, Tesseract, then the Groq vision model.
+    Provider groq: Tesseract first, then the Groq vision model (unchanged).
+    """
+    size = len(image_b64) * 3 / 4
+    if size > MAX_IMAGE_BYTES:
         raise InputError("Image is larger than 8 MB")
+    if provider() == "gemini" and mime.lower() in GEMMA_IMAGE_TYPES and size <= settings.GEMMA_MAX_IMAGE_BYTES:
+        try:
+            text = await call_gemma_vision(image_b64, mime, VISION_PROMPT)
+            if len(text) >= 5:
+                return text, "gemma"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Gemma image extraction failed; falling back to Tesseract ({type(exc).__name__})")
     if _tesseract_available():
         try:
             text = await asyncio.to_thread(_ocr_sync, image_b64)

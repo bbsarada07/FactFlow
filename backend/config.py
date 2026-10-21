@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     NANO_MODEL: str = "openai/gpt-oss-20b"
     ULTRA_MODEL: str = "openai/gpt-oss-120b"
     VISION_MODEL: str = "qwen/qwen3.8-27b"
+    # Gemma 4 through the Gemini API. MODEL_PROVIDER: "gemini" or "groq"; blank means
+    # "gemini" when GEMINI_API_KEY is set, else "groq". With "gemini", deep reasoning and
+    # screenshot extraction use GEMMA_MODEL; the other agents stay on Groq.
+    MODEL_PROVIDER: str = ""
+    GEMINI_API_KEY: str = ""
+    GEMMA_MODEL: str = "gemma-4-26b-a4b-it"  # listed by the Gemini API models endpoint, 2026-10-21
+    GEMMA_MAX_IMAGE_BYTES: int = 5 * 1024 * 1024
     # Sent only to models that accept it (gpt-oss family); blank disables.
     NANO_REASONING_EFFORT: str = "low"
     ULTRA_REASONING_EFFORT: str = "medium"

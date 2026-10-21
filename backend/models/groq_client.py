@@ -23,6 +23,13 @@ from config import settings
 
 _client: AsyncOpenAI | None = None
 
+# Claim-extraction instruction for screenshots (shared with the Gemma client).
+VISION_PROMPT = (
+    "Transcribe every piece of readable text in this image exactly, in its "
+    "original language. Then, on a new line starting with 'IMAGE:', describe "
+    "in one sentence what the image shows. Output nothing else."
+)
+
 RETRYABLE = (
     openai.RateLimitError,
     openai.APIConnectionError,
@@ -178,11 +185,7 @@ async def call_vision(image_b64: str, mime: str = "image/png") -> str:
                 "content": [
                     {
                         "type": "text",
-                        "text": (
-                            "Transcribe every piece of readable text in this image exactly, in its "
-                            "original language. Then, on a new line starting with 'IMAGE:', describe "
-                            "in one sentence what the image shows. Output nothing else."
-                        ),
+                        "text": VISION_PROMPT,
                     },
                     {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
                 ],
