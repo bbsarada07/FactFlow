@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from sqlalchemy import text
 
-from api import history, incidents, public_config, registry, result, stats, stream, verify
+from api import accuracy, history, incidents, public_config, registry, result, stats, stream, verify
 from config import settings
 from database import connection
 from models.gemini_client import vision_available
@@ -46,7 +46,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (verify, stream, result, history, incidents, stats, registry, public_config):
+for module in (verify, stream, result, history, incidents, stats, registry, public_config, accuracy):
     app.include_router(module.router)
 
 
@@ -84,6 +84,12 @@ async def health():
         "database_ok": db_ok,
         "redis": await redis_status(),
         "llm_configured": bool(settings.GROQ_API_KEY),
+        "keys_configured": {  # true/false only; key values are never reported
+            "groq": bool(settings.GROQ_API_KEY),
+            "gemini": bool(settings.GEMINI_API_KEY),
+            "news_api": bool(settings.NEWS_API_KEY),
+            "google_fact_check": bool(settings.GOOGLE_FACT_CHECK_API_KEY),
+        },
         "reasoning_provider": settings.REASONING_PROVIDER,
         "vision_provider": settings.VISION_PROVIDER if vision_available() or settings.VISION_PROVIDER != "gemini" else "tesseract (no GEMINI_API_KEY)",
         "models": {

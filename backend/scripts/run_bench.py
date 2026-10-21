@@ -5,6 +5,9 @@ Usage (from backend/):
     python scripts/run_bench.py --ids T01 F02   # a subset
     python scripts/run_bench.py --keep          # keep the (private) bench records afterwards
 
+A full run (no --ids) that finishes with no errors is also saved to tests/bench/results/latest.json,
+which the /accuracy page reads. Partial or failed runs never overwrite it.
+
 Each claim is stored as a PRIVATE claim (never in the public registry), run through the same
 orchestrator the API uses (repeat detection is bypassed so every claim is analysed fresh),
 then scored. Uses the database and API keys from backend/.env.
@@ -15,6 +18,7 @@ import json
 import re
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -23,11 +27,14 @@ from sqlalchemy import delete  # noqa: E402
 
 from agents.grounding import ABSENCE_PATTERN, split_sentences, uncited_sentences, valid_refs  # noqa: E402
 from agents.orchestrator import run_pipeline  # noqa: E402
+from config import settings  # noqa: E402
+from models.gemini_client import vision_available  # noqa: E402
 from database import connection  # noqa: E402
 from database.models import Claim, Source, new_slug  # noqa: E402
 from services.text_utils import input_hash, normalize, redact_pii  # noqa: E402
 
 BENCH = Path(__file__).resolve().parents[1] / "tests" / "bench" / "claims.json"
+LATEST = BENCH.parent / "results" / "latest.json"
 
 
 def grounding_problems(c: Claim, n: int) -> list[str]:
@@ -131,6 +138,7 @@ async def main() -> None:
         items = [i for i in items if i["id"] in set(args.ids)]
 
     await connection.init_db()
+    run_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     rows = []
     try:
         for n, item in enumerate(items, 1):
@@ -156,6 +164,19 @@ async def main() -> None:
         print(f"{k:<22} {v}")
     if args.json:
         args.json.write_text(json.dumps({"rows": rows, "counts": counts}, indent=1, ensure_ascii=False), encoding="utf-8")
+    if not args.ids and rows and len(rows) == len(items) and counts["errors"] == 0:
+        run = {
+            "run_at": run_at,
+            "models": {"nano": settings.NANO_MODEL, "ultra": settings.ULTRA_MODEL,
+                       "vision": settings.GEMMA_MODEL if vision_available() else None},
+            "counts": counts,
+            "rows": [{k: v for k, v in r.items() if k != "claim_id"} for r in rows],
+        }
+        LATEST.parent.mkdir(parents=True, exist_ok=True)
+        LATEST.write_text(json.dumps(run, indent=1, ensure_ascii=False), encoding="utf-8")
+        print(f"Saved complete run to {LATEST}")
+    else:
+        print("Not saved as the latest complete run (subset, interrupted or had errors).")
 
 
 if __name__ == "__main__":

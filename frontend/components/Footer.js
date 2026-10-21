@@ -36,6 +36,9 @@ export default function Footer() {
           <Link href="/about" className="hover:text-primary">
             How it works
           </Link>
+          <Link href="/accuracy" className="hover:text-primary">
+            Accuracy
+          </Link>
           <span>MIT License</span>
         </nav>
       </div>

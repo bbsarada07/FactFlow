@@ -38,6 +38,7 @@ export const getHistory = (limit = 20) => api(`/api/history?limit=${limit}`).the
 export const getStats = () => api("/api/stats").then((r) => r.data);
 export const getIncidents = () => api("/api/incidents").then((r) => r.data);
 export const getPublicConfig = () => api("/api/config").then((r) => r.data);
+export const getAccuracy = () => api("/api/accuracy").then((r) => r.data);
 export const searchRegistry = (q = "", limit = 30) =>
   api(`/api/registry?q=${encodeURIComponent(q)}&limit=${limit}`).then((r) => r.data);
 export const streamUrl = (id) => `${API_URL}/api/stream/${id}`;
