@@ -12,7 +12,7 @@ from loguru import logger
 
 from config import settings
 
-DUMMY_KEY = "AIzaFAKEKEYfortests000000000000000000"
+DUMMY_KEY = "test-key-not-a-secret"
 REASONING_JSON = {
     "sub_claims": [{"text": "Schools closed on 25 September", "assessment": "supported"}],
     "reasoning_chain": ["Times of India reports the 25 September holiday [S1]."],

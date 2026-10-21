@@ -17,7 +17,7 @@ from PIL import Image
 
 from config import settings
 
-DUMMY_KEY = "AIzaROUTINGTESTKEY0000000000000000000"
+DUMMY_KEY = "test-key-not-a-secret"
 GEMMA_SAYS = {
     "text": "RBI will ban all 10 rupee coins from tomorrow",
     "cues": ["no source named", "caption says share now"],

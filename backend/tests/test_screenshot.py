@@ -79,7 +79,7 @@ def test_no_readable_text_shows_no_text_found_without_reasoning(env, monkeypatch
     from services import input_service
 
     monkeypatch.setattr(settings, "VISION_PROVIDER", "gemini")
-    monkeypatch.setattr(settings, "GEMINI_API_KEY", "AIzaSCREENSHOTTESTKEY000000000000000000")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key-not-a-secret")
 
     class Blank:
         async def generate_content(self, **kwargs):
