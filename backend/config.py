@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
     # Source credibility tiers: fixed allow-lists (comma-separated domains), never model-assigned.
     # Suffix entries starting with "." match any domain ending in them.
-    TIER_1_DOMAINS: str = "aninews.in,pib.gov.in,ptinews.com,reuters.com,apnews.com,who.int,.gov.in,.nic.in"
+    TIER_1_DOMAINS: str = "aninews.in,pib.gov.in,ptinews.com,reuters.com,apnews.com,who.int,rbi.org.in,.gov.in,.nic.in"
     TIER_2_DOMAINS: str = (
         "siasat.com,telanganatoday.com,thehindu.com,timesofindia.indiatimes.com,indianexpress.com,"
         "ndtv.com,news18.com,altnews.in,boomlive.in,factly.in,"

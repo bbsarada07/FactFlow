@@ -107,3 +107,18 @@ def test_provider_failures_become_evidence_gaps_first():
     gaps = evidence_gaps([], ["no primary source found"] * 1, "text", ["DuckDuckGo search unavailable (timed out)"])
     assert gaps[0] == "DuckDuckGo search unavailable (timed out)"
     assert "No relevant source found" in gaps
+
+
+@pytest.mark.parametrize(
+    "url,tier",
+    [
+        ("https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx", 1),
+        ("https://website.rbi.org.in/web/rbi/press-releases", 1),
+        ("https://www.sebi.gov.in/media/press-releases", 1),  # covered by .gov.in
+        ("https://www.mohfw.gov.in/", 1),  # covered by .gov.in
+        ("https://rbi.org.in.example.com/x", 3),  # look-alike host is not official
+        ("https://fakerbi.org.in/x", 3),
+    ],
+)
+def test_official_regulator_sites_are_tier_1(url, tier):
+    assert tier_for(url) == tier

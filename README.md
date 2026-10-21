@@ -280,8 +280,9 @@ NemesisAI calls **Gemma 4** through the **Gemini API**, using the `google-genai`
   event claim). Cards show each source's stance and say "Sources disagree: X support, Y refute."
   when both appear, but that line is for display only. A stance-aware gate has been proposed but
   is not applied.
-- **Some official sites are tier 3.** Tiers come from fixed domain lists. `.gov.in` and `.nic.in`
-  sites (such as `sebi.gov.in` and `mohfw.gov.in`) are tier 1, but `rbi.org.in` is not yet listed.
+- **Some official sites may still be tier 3.** Tiers come from fixed domain lists. `.gov.in` and
+  `.nic.in` sites (such as `sebi.gov.in` and `mohfw.gov.in`) and `rbi.org.in` are tier 1; an official
+  body on any other domain is tier 3 until it is added to `TIER_1_DOMAINS`.
 - **A screenshot read correctly can still be UNVERIFIED.** Reading the text well does not create
   evidence. If too few strong sources are found, the gate still returns UNVERIFIED.
 - **Screenshots must be PNG or JPG up to 5 MB.** Other formats (for example WebP images saved from
