@@ -1,0 +1,37 @@
+{
+  "description": "Labelled regression bench. Every source URL was fetched on 2026-10-21 and checked (HTTP 200 + a key phrase on the page) before being listed. UNVERIFIED claims are vague or unverifiable by design and carry no source.",
+  "claims": [
+    {"id": "T01", "claim": "Schools in Hyderabad were closed on a single day because of Ganesh Nimarjan", "expected": "TRUE", "source_url": "https://timesofindia.indiatimes.com/education/news/telangana-schools-colleges-to-remain-closed-tomorrow-september-25-for-ganesh-immersion-check-details/articleshow/134454773.cms", "note": "Telangana declared 25 September 2026 a holiday for schools and colleges for Ganesh idol immersion."},
+    {"id": "T02", "claim": "India's Chandrayaan-3 lander touched down near the Moon's south pole on 23 August 2023", "expected": "TRUE", "source_url": "https://en.wikipedia.org/wiki/Chandrayaan-3", "note": ""},
+    {"id": "T03", "claim": "Neeraj Chopra won the gold medal in men's javelin throw at the Tokyo Olympics", "expected": "TRUE", "source_url": "https://en.wikipedia.org/wiki/Neeraj_Chopra", "note": ""},
+    {"id": "T04", "claim": "ISRO launched the Aditya-L1 solar mission on 2 September 2023", "expected": "TRUE", "source_url": "https://en.wikipedia.org/wiki/Aditya-L1", "note": ""},
+    {"id": "T05", "claim": "India won the 2024 ICC Men's T20 World Cup", "expected": "TRUE", "source_url": "https://en.wikipedia.org/wiki/2024_ICC_Men%27s_T20_World_Cup", "note": ""},
+    {"id": "T06", "claim": "In May 2023 the RBI announced it would withdraw the 2000 rupee note from circulation", "expected": "TRUE", "source_url": "https://en.wikipedia.org/wiki/Indian_2000-rupee_note", "note": ""},
+    {"id": "T07", "claim": "The special status of Jammu and Kashmir under Article 370 was revoked on 5 August 2019", "expected": "TRUE", "source_url": "https://en.wikipedia.org/wiki/Revocation_of_the_special_status_of_Jammu_and_Kashmir", "note": ""},
+    {"id": "T08", "claim": "India hosted the G20 leaders' summit in New Delhi in September 2023", "expected": "TRUE", "source_url": "https://en.wikipedia.org/wiki/2023_G20_New_Delhi_summit", "note": ""},
+    {"id": "T09", "claim": "Two sadhus and their driver were lynched by a mob in Palghar, Maharashtra in April 2020", "expected": "TRUE", "source_url": "https://en.wikipedia.org/wiki/2020_Palghar_mob_lynching", "note": ""},
+    {"id": "T10", "claim": "UPI, the Unified Payments Interface, was launched by NPCI in 2016", "expected": "TRUE", "source_url": "https://en.wikipedia.org/wiki/Unified_Payments_Interface", "note": ""},
+
+    {"id": "F01", "claim": "ALERT!! Gangs of child kidnappers are moving in villages at night dressed as sadhus and police. They take children and remove their kidneys. Forward to all groups!", "expected": "FALSE", "source_url": "https://en.wikipedia.org/wiki/2020_Palghar_mob_lynching", "note": "The organ-harvesting child-thief rumour that preceded the Palghar lynching."},
+    {"id": "F02", "claim": "Drinking cow urine cures COVID-19", "expected": "FALSE", "source_url": "https://www.thequint.com/fit/fit-webqoof/fact-check-of-cow-dung-and-cow-urine-as-covid-cure", "note": ""},
+    {"id": "F03", "claim": "RBI will ban all 10 rupee coins from tomorrow, spend them today", "expected": "FALSE", "source_url": "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=42887", "note": "RBI press release on the validity of 10 rupee coins."},
+    {"id": "F04", "claim": "The new 2000 rupee note has a nano GPS chip for tracking", "expected": "FALSE", "source_url": "https://www.indiatoday.in/technology/features/story/no-rs-2000-note-wont-have-nano-gps-for-tracking-but-it-may-have-rfid-351039-2016-11-10", "note": ""},
+    {"id": "F05", "claim": "5G mobile networks spread COVID-19", "expected": "FALSE", "source_url": "https://www.who.int/emergencies/diseases/novel-coronavirus-2019/advice-for-public/myth-busters", "note": ""},
+    {"id": "F06", "claim": "Drinking water every 15 minutes washes the coronavirus into the stomach and kills it", "expected": "FALSE", "source_url": "https://www.snopes.com/fact-check/drinking-water-prevent-coronavirus/", "note": ""},
+    {"id": "F07", "claim": "A viral video shows two young men from Kawal village being lynched in Muzaffarnagar", "expected": "FALSE", "source_url": "https://en.wikipedia.org/wiki/2013_Muzaffarnagar_riots", "note": "The video was older footage of unrelated violence in Pakistan."},
+    {"id": "F08", "claim": "A viral video shows PM Narendra Modi dancing garba", "expected": "FALSE", "source_url": "https://www.boomlive.in/fact-check/narendra-modi-doing-garba-lookalike-vikas-mahante-fact-check-23560", "note": "The man is a lookalike, Vikas Mahante. A MISLEADING verdict is also acceptable to a human reviewer; the bench counts only FALSE as a match."},
+    {"id": "F09", "claim": "Chandrayaan-3's lander crashed on the Moon in August 2023", "expected": "FALSE", "source_url": "https://en.wikipedia.org/wiki/Chandrayaan-3", "note": "Fabricated for the bench: the lander made a soft landing."},
+    {"id": "F10", "claim": "India lost the 2024 T20 World Cup final to South Africa", "expected": "FALSE", "source_url": "https://en.wikipedia.org/wiki/2024_ICC_Men%27s_T20_World_Cup", "note": "Fabricated for the bench: India won the final."},
+
+    {"id": "U01", "claim": "Something big is going to happen in the city next week. Everyone is talking about it.", "expected": "UNVERIFIED", "source_url": null, "note": "Vague by design."},
+    {"id": "U02", "claim": "A famous actor will announce his retirement tomorrow, sources say", "expected": "UNVERIFIED", "source_url": null, "note": "No named person or source."},
+    {"id": "U03", "claim": "Vegetable prices will double next month, insiders say", "expected": "UNVERIFIED", "source_url": null, "note": "Unfalsifiable prediction."},
+    {"id": "U04", "claim": "A new virus is spreading in a nearby village, stay indoors", "expected": "UNVERIFIED", "source_url": null, "note": "No place or date named."},
+    {"id": "U05", "claim": "Officials are hiding the truth about the water supply", "expected": "UNVERIFIED", "source_url": null, "note": "No place, officials or facts named."},
+    {"id": "U06", "claim": "My cousin's friend saw a leopard near the school last night", "expected": "UNVERIFIED", "source_url": null, "note": "Second-hand, unlocated."},
+    {"id": "U07", "claim": "Banks may close for a few days soon", "expected": "UNVERIFIED", "source_url": null, "note": "Vague by design."},
+    {"id": "U08", "claim": "A big company will start hiring thousands of people next month", "expected": "UNVERIFIED", "source_url": null, "note": "No company named."},
+    {"id": "U09", "claim": "There will be heavy traffic tomorrow because of an event", "expected": "UNVERIFIED", "source_url": null, "note": "No place or event named."},
+    {"id": "U10", "claim": "A local leader said something shocking at a meeting yesterday", "expected": "UNVERIFIED", "source_url": null, "note": "No person or statement named."}
+  ]
+}

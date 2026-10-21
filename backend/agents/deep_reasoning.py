@@ -37,6 +37,9 @@ Perform multi-hop analysis:
 4. Look for manipulation markers: emotional urgency, "forward to all", fake authority, recycled media, missing dates, impossible numbers.
 5. Decide the final verdict ({verdicts}). Overrule the preliminary verdict if the reasoning demands it.
    Rely on the evidence listed, not on memory. If it cannot settle the claim, return UNVERIFIED and name what is missing.
+6. Citations: end every factual sentence in "summary", "reasoning_chain", "contradictions_found" and "fact" with the
+   ID(s) of the evidence that supports it, e.g. [S1] or [S1][S3]. Never state what an authority or outlet did or did
+   NOT say unless a cited evidence item shows it.
 
 Return JSON:
 {{"sub_claims": [{{"text": "...", "assessment": "supported | refuted | unsupported"}}],

@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 from agents import deep_reasoning, explainer, harm_assessor, intake_agent, source_tracer
 from agents.context import AgentOutput, PipelineContext, clamp, norm_verdict
+from agents.grounding import ground_list
 from agents.uncertainty import build_checks, evidence_gaps, strong_source_count
 from config import settings
 from database import connection
@@ -96,7 +97,9 @@ def apply_gate(ctx: PipelineContext) -> None:
     ctx.verdict = decision["verdict"]
     ctx.confidence = decision["confidence"]
     ctx.gate_reasons = decision["reasons"]
-    ctx.evidence_gaps = evidence_gaps(ctx.evidence, ctx.model_gaps + ctx.missing_context, ctx.input_type)
+    ctx.evidence_gaps = evidence_gaps(
+        ctx.evidence, ctx.model_gaps + ctx.missing_context, ctx.input_type, ctx.provider_errors
+    )
     ctx.checks_to_do = build_checks(ctx.claim, ctx.raw_text, ctx.input_type, ctx.claim_type)
 
 
@@ -241,6 +244,7 @@ async def _persist(ctx: PipelineContext, run: Run, raw_text: str) -> Claim:
                     tier=e["tier"],
                     credibility=e["credibility"],
                     stance=e.get("stance", "NEUTRAL"),
+                    ref=e.get("ref"),
                     rating=e.get("rating"),
                     published_at=e.get("published_at"),
                 )
@@ -307,20 +311,23 @@ async def _pipeline(request_id: str, run: Run) -> None:
     tracer_ok = await run.step(2, source_tracer.run, ctx, "Searching fact-checks, news and the open web")
 
     # ── Agent 3: deep reasoning (conditional) ─────────────────────────
-    if not tracer_ok or deep_reasoning.should_run(ctx):
-        reason = (
-            "source tracer failed" if not tracer_ok
-            else "claim is CRITICAL" if ctx.urgency == "CRITICAL"
-            else f"confidence {ctx.confidence:.0%} below threshold"
-        )
-        deep_ok = await run.step(3, deep_reasoning.run, ctx, f"Escalated to Ultra: {reason}")
-        if not deep_ok and not tracer_ok:
-            raise PipelineError("Could not reach a verdict: evidence and reasoning agents both failed")
+    if not ctx.evidence:
+        # Zero relevant sources: UNVERIFIED regardless of any model output; nothing to reason over.
+        if not tracer_ok:
+            ctx.provider_errors.append("Evidence assessment unavailable (model error)")
+        ctx.verdict, ctx.confidence = "UNVERIFIED", 0.0
+        ctx.summary, ctx.fact, ctx.reasoning_chain, ctx.contradictions = "", "", [], []
+        await run.set_agent(3, "skipped", "No relevant sources to reason over")
+    elif deep_reasoning.should_run(ctx):
+        reason = "claim is CRITICAL" if ctx.urgency == "CRITICAL" else f"confidence {ctx.confidence:.0%} below threshold"
+        await run.step(3, deep_reasoning.run, ctx, f"Escalated to Ultra: {reason}")
     else:
         await run.set_agent(3, "skipped", f"Not needed — confidence {ctx.confidence:.0%} and urgency {ctx.urgency}")
 
-    # ── Honest-uncertainty gate ───────────────────────────────────────
+    # ── Honest-uncertainty gate, then the grounding rule for displayed reasons ──
     apply_gate(ctx)
+    ctx.reasoning_chain = ground_list(ctx.reasoning_chain, len(ctx.evidence))
+    ctx.contradictions = ground_list(ctx.contradictions, len(ctx.evidence))
 
     # ── Agents 4 & 5 in parallel ──────────────────────────────────────
     explain_ok, harm_ok = await asyncio.gather(

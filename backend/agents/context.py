@@ -99,6 +99,7 @@ class PipelineContext:
     # Source tracer
     evidence: list[dict] = field(default_factory=list)
     scanned_count: int = 0
+    provider_errors: list[str] = field(default_factory=list)
 
     # Verdict (tracer preliminary, possibly replaced by deep reasoning)
     verdict: str = "UNVERIFIED"
@@ -156,7 +157,7 @@ class PipelineContext:
             stance = f" | stance: {e.get('stance', 'NEUTRAL')}" if with_stance else ""
             date_ = f" | date: {e['published_at'][:10]}" if e.get("published_at") else ""
             lines.append(
-                f"[{i}] {e['name']} (tier {e['tier']}, {e['origin']}{date_}{rating}{stance})\n"
+                f"[{e.get('ref') or i}] {e['name']} (tier {e['tier']}, {e['origin']}{date_}{rating}{stance})\n"
                 f"    title: {e.get('title') or ''}\n    snippet: {(e.get('snippet') or '')[:240]}"
             )
         return "\n".join(lines)

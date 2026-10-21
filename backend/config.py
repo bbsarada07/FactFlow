@@ -27,6 +27,23 @@ class Settings(BaseSettings):
     NEWS_API_KEY: str = ""
     GOOGLE_FACT_CHECK_API_KEY: str = ""
     TESSERACT_CMD: str = ""
+    GDELT_ENABLED: bool = True
+    GDELT_URL: str = "https://api.gdeltproject.org/api/v2/doc/doc"
+    # Search window for date-capable news sources (GDELT). Claims about events older than
+    # this are searched without a date filter. NewsAPI keeps its free-plan window (~30 days).
+    NEWS_WINDOW_DAYS: int = 90
+
+    # Source credibility tiers: fixed allow-lists (comma-separated domains), never model-assigned.
+    # Suffix entries starting with "." match any domain ending in them.
+    TIER_1_DOMAINS: str = "aninews.in,pib.gov.in,ptinews.com,reuters.com,apnews.com,who.int,.gov.in,.nic.in"
+    TIER_2_DOMAINS: str = (
+        "siasat.com,telanganatoday.com,thehindu.com,timesofindia.indiatimes.com,indianexpress.com,"
+        "ndtv.com,news18.com,altnews.in,boomlive.in,factly.in"
+    )
+    TIER_4_DOMAINS: str = (
+        "facebook.com,twitter.com,x.com,instagram.com,youtube.com,tiktok.com,reddit.com,quora.com,medium.com,"
+        "blogspot.com,wordpress.com,sharechat.com,t.me,telegram.me,whatsapp.com,pinterest.com,substack.com,kooapp.com"
+    )
 
     # Storage
     ASYNC_DATABASE_URL: str = f"sqlite+aiosqlite:///{(BASE_DIR / 'nemesisai.db').as_posix()}"

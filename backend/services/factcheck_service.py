@@ -1,13 +1,15 @@
 """Google Fact Check Tools API (claims:search)."""
 import httpx
-from loguru import logger
 
 from config import settings
+from services.news_service import record_failure, failure_reason
 
 FACTCHECK_URL = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
 
 
-async def search_factchecks(query: str, limit: int = 8, language: str | None = None) -> list[dict]:
+async def search_factchecks(query: str, limit: int = 8, language: str | None = None,
+                            errors: list[str] | None = None) -> list[dict]:
+    """Published fact-checks matching the query. Failures are appended to `errors`."""
     if not settings.GOOGLE_FACT_CHECK_API_KEY:
         return []
     params = {"query": query, "pageSize": limit, "key": settings.GOOGLE_FACT_CHECK_API_KEY}
@@ -19,7 +21,7 @@ async def search_factchecks(query: str, limit: int = 8, language: str | None = N
         resp.raise_for_status()
         claims = resp.json().get("claims", [])
     except Exception as exc:  # noqa: BLE001
-        logger.warning(f"Fact Check API failed for {query!r}: {exc}")
+        record_failure(errors, "Google Fact Check", failure_reason(exc))
         return []
 
     results = []

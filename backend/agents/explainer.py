@@ -1,9 +1,15 @@
 """Agent 4 — Explainer (Nano): plain-language verdict, translation, myth vs fact, and the
 "correction in place": a short, sourced reply in English, Hindi and Telugu that links the
-public registry page and fits a single post (280 characters including the link)."""
+public registry page and fits a single post (280 characters including the link).
+
+Grounding: the explanation and fact must cite retrieved sources as [S#]; code post-checks
+drop sentences that don't (see agents/grounding.py). With zero relevant sources no model is
+called and the output says "No sources found yet."
+"""
 import re
 
 from agents.context import AgentOutput, PipelineContext
+from agents.grounding import NO_SOURCES, NO_SOURCES_SUMMARY, ground_text
 from agents.uncertainty import STRONG_TIERS
 from database.models import registry_url
 from models.groq_client import call_nano
@@ -14,37 +20,45 @@ NO_SOURCE = "No verified source yet"
 
 SYSTEM = """You are the Explainer agent of NemesisAI. You turn forensic verdicts into short, kind, plain-language
 messages that ordinary people, including elderly relatives in family WhatsApp groups, will read and trust.
-Never shame or insult the sender. Use only the facts and source names given to you.
+Never shame or insult the sender. Use only the facts, citations and source names given to you.
 Return ONLY valid JSON, no preamble, no markdown backticks."""
 
 PROMPT = """CLAIM: {claim}
 VERDICT: {verdict}
-FINDINGS: {summary}
+FINDINGS (with source IDs): {summary}
 WHAT THE EVIDENCE SHOWS: {fact}
+SOURCES: {sources}
 BEST SOURCE: {source}
 TARGET LANGUAGE: {language} (code: {code})
 
 Return JSON:
-{{"simple_summary": "2-3 sentences in plain English (max 60 words) explaining what we found",
- "local_summary": "the same explanation written natively in {language}; if {language} is English repeat simple_summary",
+{{"simple_summary": "2-3 sentences in plain English (max 60 words) explaining what we found; end EVERY sentence with its source ID(s) like [S1]",
+ "local_summary": "the same explanation written natively in {language}, keeping the same [S#] IDs after every sentence; if {language} is English repeat simple_summary",
  "myth": "the claim as people are sharing it, max 20 words, in English",
- "fact": "what the evidence shows, max 35 words, in English",
- "whatsapp_reply": "a ready-to-send reply to the forward, in {language}, max 70 words, warm and respectful, stating the verdict and the evidence, asking people not to forward it further, ending with: — Checked with NemesisAI",
- "correction_en": "a post-length correction in English, max {budget} characters, no URL: name the claim, give the verdict, and one fact attributed to {source}",
- "correction_hi": "the same correction in Hindi, max {budget} characters, no URL",
- "correction_te": "the same correction in Telugu, max {budget} characters, no URL"}}
+ "fact": "what the evidence shows, max 35 words, in English, ending with its source ID(s) like [S1]",
+ "whatsapp_reply": "a ready-to-send reply to the forward, in {language}, max 70 words, warm and respectful, stating the verdict and the evidence with the source name, asking people not to forward it further, ending with: — Checked with NemesisAI",
+ "correction_en": "a post-length correction in English, max {budget} characters, no URL: name the claim, give the verdict, and one fact attributed by name to {source}",
+ "correction_hi": "the same correction in Hindi, max {budget} characters, no URL, naming {source}",
+ "correction_te": "the same correction in Telugu, max {budget} characters, no URL, naming {source}"}}
 
 Rules: no insults, no hashtags, no emojis in the corrections. If the verdict is TRUE, "myth" restates the claim and the
-corrections confirm it. Never name a source other than {source}."""
+corrections confirm it. Never name a source other than those listed. Never say what an authority did NOT announce or
+that there is "no evidence" unless a listed source shows it."""
 
 # For UNVERIFIED we never let the model word the correction: it must not imply the claim is false.
 UNVERIFIED_TEMPLATES = {
-    "text_en": 'We could not verify this yet: "{claim}". No reliable source confirms or denies it so far. Please don\'t forward it until it is checked.',
-    "text_hi": 'हम अभी इसकी पुष्टि नहीं कर सके: "{claim}"। अब तक कोई भरोसेमंद स्रोत इसकी पुष्टि या खंडन नहीं करता। जाँच होने तक इसे आगे न भेजें।',
-    "text_te": 'మేము దీనిని ఇంకా ధృవీకరించలేకపోయాము: "{claim}". ఇప్పటివరకు నమ్మదగిన మూలం దీనిని నిర్ధారించలేదు లేదా ఖండించలేదు. తనిఖీ అయ్యే వరకు దీనిని ఫార్వర్డ్ చేయవద్దు.',
+    "text_en": 'We could not verify this yet: "{claim}". The sources found so far are not enough to confirm or deny it. Please don\'t forward it until it is checked.',
+    "text_hi": 'हम अभी इसकी पुष्टि नहीं कर सके: "{claim}"। अब तक मिले स्रोत इसकी पुष्टि या खंडन के लिए पर्याप्त नहीं हैं। जाँच होने तक इसे आगे न भेजें।',
+    "text_te": 'మేము దీనిని ఇంకా ధృవీకరించలేకపోయాము: "{claim}". ఇప్పటివరకు లభించిన మూలాలు దీనిని నిర్ధారించడానికి లేదా ఖండించడానికి సరిపోవు. తనిఖీ అయ్యే వరకు దీనిని ఫార్వర్డ్ చేయవద్దు.',
+}
+NO_SOURCE_TEMPLATES = {
+    "text_en": 'We could not verify this yet: "{claim}". No sources found yet. Please don\'t forward it until it is checked.',
+    "text_hi": 'हम अभी इसकी पुष्टि नहीं कर सके: "{claim}"। अभी तक कोई स्रोत नहीं मिला। जाँच होने तक इसे आगे न भेजें।',
+    "text_te": 'మేము దీనిని ఇంకా ధృవీకరించలేకపోయాము: "{claim}". ఇంకా ఎటువంటి మూలాలు లభించలేదు. తనిఖీ అయ్యే వరకు దీనిని ఫార్వర్డ్ చేయవద్దు.',
 }
 FALLBACK_EN = 'Fact check: "{claim}" is {verdict}. {fact} Source: {source}.'
 _DEFINITIVE_WORDS = re.compile(r"\b(false|fake|hoax|untrue|debunk\w*|lie|lies|wrong)\b|झूठ|फर्जी|फेक|నకిలీ|అబద్ధ", re.IGNORECASE)
+_CITATIONS = re.compile(r"\s*\[S\d+\]")
 
 
 def best_source(ctx: PipelineContext) -> str:
@@ -66,32 +80,49 @@ def _with_link(text: str, url: str | None) -> str:
 
 def _template(template: str, ctx: PipelineContext, url: str | None) -> str:
     """Render a fixed template, shortening the quoted claim so the whole post fits."""
-    room = POST_LIMIT - (len(url) + 1 if url else 0) - len(template.format(claim="", verdict=ctx.verdict, fact="", source=""))
+    fact = _CITATIONS.sub("", ctx.fact or "")
+    room = POST_LIMIT - (len(url) + 1 if url else 0) - len(template.format(claim="", verdict=ctx.verdict, fact=fact, source=best_source(ctx)))
     claim = fit_words(ctx.claim, max(40, room))
-    return _with_link(template.format(claim=claim, verdict=ctx.verdict, fact=ctx.fact, source=best_source(ctx)), url)
+    return _with_link(template.format(claim=claim, verdict=ctx.verdict, fact=fact, source=best_source(ctx)), url)
 
 
 def build_correction(ctx: PipelineContext, model: dict | None) -> dict:
-    """Assemble the correction object. Deterministic for UNVERIFIED and when the model output is missing."""
+    """Assemble the correction object. Deterministic for UNVERIFIED and when the model output is missing.
+
+    Definite-verdict corrections must name their source; absence claims ("no evidence") are removed.
+    """
     url = registry_url(ctx.slug)
     source = best_source(ctx)
     if ctx.verdict == "UNVERIFIED":
-        texts = {k: _template(t, ctx, url) for k, t in UNVERIFIED_TEMPLATES.items()}
+        templates = NO_SOURCE_TEMPLATES if not ctx.evidence else UNVERIFIED_TEMPLATES
+        texts = {k: _template(t, ctx, url) for k, t in templates.items()}
         return {**texts, "source_label": NO_SOURCE, "registry_url": url}
 
     model = model or {}
     texts = {}
     for key, field_name in (("text_en", "correction_en"), ("text_hi", "correction_hi"), ("text_te", "correction_te")):
-        raw = str(model.get(field_name) or "").strip()
-        raw = re.sub(r"https?://\S+", "", raw).strip()
+        raw = re.sub(r"https?://\S+", "", str(model.get(field_name) or "")).strip()
+        raw = ground_text(raw, len(ctx.evidence), strict=False)
+        if raw and source.lower() not in raw.lower():
+            raw = f"{raw.rstrip()} ({source})"
         texts[key] = _with_link(raw, url) if raw else None
     if not texts["text_en"]:
         texts["text_en"] = _template(FALLBACK_EN, ctx, url)
     return {**texts, "source_label": source, "registry_url": url}
 
 
+def _grounded(text: str, n: int, fallback: str) -> str:
+    """Strictly grounded text, or `fallback` when no sentence survives."""
+    return ground_text(text, n) or fallback
+
+
 async def run(ctx: PipelineContext) -> AgentOutput:
     """Write the explanation, myth/fact card, WhatsApp reply and multilingual correction."""
+    if not ctx.evidence:
+        fallback(ctx)
+        return AgentOutput(preview="No sources found yet · uncertainty notice ready in EN / HI / TE")
+
+    n = len(ctx.evidence)
     source = best_source(ctx)
     budget = POST_LIMIT - len(registry_url(ctx.slug) or "") - 1
     res = await call_nano(
@@ -101,6 +132,7 @@ async def run(ctx: PipelineContext) -> AgentOutput:
             verdict=ctx.verdict,
             summary=ctx.summary or "(none)",
             fact=ctx.fact or "(not established)",
+            sources="; ".join(f"[{e['ref']}] {e['name']}" for e in ctx.evidence),
             source=source,
             language=ctx.output_language_name,
             code=ctx.output_language,
@@ -110,18 +142,17 @@ async def run(ctx: PipelineContext) -> AgentOutput:
     )
     d = res.data
 
-    simple = str(d.get("simple_summary") or "").strip()
-    if simple:
-        ctx.summary = simple
-    ctx.summary_local = str(d.get("local_summary") or ctx.summary).strip()
+    base_summary = ground_text(ctx.summary, n)
+    ctx.summary = _grounded(str(d.get("simple_summary") or ""), n, base_summary or NO_SOURCES_SUMMARY)
+    ctx.summary_local = _grounded(str(d.get("local_summary") or ""), n, ctx.summary)
     ctx.myth = truncate(str(d.get("myth") or ctx.claim), 220)
-    ctx.fact = truncate(str(d.get("fact") or ctx.fact), 320)
+    ctx.fact = truncate(_grounded(str(d.get("fact") or ""), n, ground_text(ctx.fact, n) or NO_SOURCES), 320)
     ctx.fact_source = source
-    ctx.whatsapp_reply = str(d.get("whatsapp_reply") or "").strip()
+    ctx.whatsapp_reply = ground_text(str(d.get("whatsapp_reply") or ""), n, strict=False)
     ctx.correction = build_correction(ctx, d)
-    if ctx.verdict == "UNVERIFIED":
+    if ctx.verdict == "UNVERIFIED" or not ctx.whatsapp_reply:
         local_key = {"en": "text_en", "hi": "text_hi", "te": "text_te"}.get(ctx.output_language)
-        if local_key or _DEFINITIVE_WORDS.search(ctx.whatsapp_reply):
+        if local_key or not ctx.whatsapp_reply or _DEFINITIVE_WORDS.search(ctx.whatsapp_reply):
             ctx.whatsapp_reply = ctx.correction[local_key or "text_en"]
 
     return AgentOutput(
@@ -132,10 +163,16 @@ async def run(ctx: PipelineContext) -> AgentOutput:
 
 
 def fallback(ctx: PipelineContext) -> None:
-    """Deterministic output used if the Explainer call fails."""
+    """Deterministic output used when there is no evidence or the Explainer call fails."""
+    n = len(ctx.evidence)
+    if not n:
+        ctx.summary = NO_SOURCES_SUMMARY
+        ctx.fact = NO_SOURCES
+    else:
+        ctx.summary = ground_text(ctx.summary, n) or NO_SOURCES_SUMMARY
+        ctx.fact = ground_text(ctx.fact, n) or NO_SOURCES
     ctx.summary_local = ctx.summary
     ctx.myth = truncate(ctx.claim, 220)
-    ctx.fact = ctx.fact or ctx.summary
     ctx.fact_source = best_source(ctx)
     ctx.correction = build_correction(ctx, None)
     ctx.whatsapp_reply = ctx.correction["text_en"]

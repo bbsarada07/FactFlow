@@ -88,8 +88,14 @@ def build_checks(claim: str, raw_text: str, input_type: str, claim_type: str) ->
     return checks
 
 
-def evidence_gaps(evidence: list[dict], model_gaps: list[str], input_type: str) -> list[str]:
-    """Combine the model's stated gaps with gaps we can detect from the evidence itself."""
+def evidence_gaps(evidence: list[dict], model_gaps: list[str], input_type: str,
+                  provider_errors: list[str] | None = None) -> list[str]:
+    """Combine detected gaps, search-provider failures and the model's stated gaps.
+
+    Provider failures come first and are never truncated away: a search that could not run
+    is the most important thing a reader needs to know about missing evidence.
+    """
+    failures = list(dict.fromkeys(provider_errors or []))
     gaps: list[str] = []
     if not evidence:
         gaps.append("No relevant source found")
@@ -109,4 +115,4 @@ def evidence_gaps(evidence: list[dict], model_gaps: list[str], input_type: str) 
             seen.add(key)
             text = g.rstrip(".")
             unique.append(text[:1].upper() + text[1:])
-    return unique[:6]
+    return failures + unique[: max(0, 6 - len(failures))]

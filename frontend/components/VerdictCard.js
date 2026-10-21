@@ -56,6 +56,7 @@ function SourceCard({ s }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
+            {s.ref && <span className="mono text-[11px] font-medium text-red">[{s.ref}]</span>}
             <span className="truncate font-semibold text-primary">{s.name}</span>
             <TierBadge tier={s.tier} />
             {s.rating && (

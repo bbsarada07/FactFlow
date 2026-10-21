@@ -141,7 +141,7 @@ class Claim(Base):
     harm_rationale: Mapped[str | None] = mapped_column(Text)
 
     sources: Mapped[list["Source"]] = relationship(
-        back_populates="claim", cascade="all, delete-orphan", lazy="selectin", order_by="Source.credibility.desc()"
+        back_populates="claim", cascade="all, delete-orphan", lazy="selectin", order_by="Source.id"
     )
 
     def to_summary(self) -> dict:
@@ -246,11 +246,13 @@ class Source(Base):
     stance: Mapped[str] = mapped_column(String(16), default="NEUTRAL")  # SUPPORTS | REFUTES | NEUTRAL
     rating: Mapped[str | None] = mapped_column(String(255))  # fact-check textual rating
     published_at: Mapped[str | None] = mapped_column(String(64))
+    ref: Mapped[str | None] = mapped_column(String(8))  # citation ID (S1, S2, ...) used in the verdict text
 
     claim: Mapped[Claim] = relationship(back_populates="sources")
 
     def to_dict(self) -> dict:
         return {
+            "ref": self.ref,
             "name": self.name,
             "url": self.url,
             "title": self.title,

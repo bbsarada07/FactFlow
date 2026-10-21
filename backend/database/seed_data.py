@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Claim, Incident, KnownPattern, Source, new_slug
+from services.tiers import TIER_SCORE, tier_for
 from services.text_utils import input_hash, normalize
 
 INCIDENTS = [
@@ -342,7 +343,9 @@ async def seed(session: AsyncSession) -> None:
             session.add(claim)
         _apply_seed_claim(claim, inc)
         await session.flush()
-        if not any(s.url == inc["source_url"] for s in claim.sources):
+        tier = tier_for(inc["source_url"])
+        existing = next((s for s in claim.sources if s.url == inc["source_url"]), None)
+        if existing is None:
             claim.sources.append(
                 Source(
                     name=inc["source_label"],
@@ -350,11 +353,14 @@ async def seed(session: AsyncSession) -> None:
                     title=inc["name"],
                     snippet=inc["what_was_true"],
                     origin="archive",
-                    tier=1,
-                    credibility=0.9,
+                    tier=tier,
+                    credibility=TIER_SCORE[tier],
+                    ref="S1",
                     stance="REFUTES",
                 )
             )
+        else:
+            existing.tier, existing.credibility, existing.ref = tier, TIER_SCORE[tier], "S1"
 
     for pat in KNOWN_PATTERNS:
         if pat["slug"] not in patterns:
