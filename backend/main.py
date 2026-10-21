@@ -49,8 +49,27 @@ for module in (verify, stream, result, history, incidents, stats, registry, publ
     app.include_router(module.router)
 
 
+def redis_configured() -> bool:
+    """True only if REDIS_URL was explicitly set (environment or .env), not just defaulted."""
+    return "REDIS_URL" in settings.model_fields_set
+
+
+async def redis_status() -> dict:
+    """Plain-language Redis status. Redis is only required for the Celery queue (USE_CELERY);
+    the default in-process pipeline runs without it. The URL itself is never reported."""
+    required = settings.USE_CELERY
+    note = "required by USE_CELERY" if required else "not required; the pipeline runs without Redis"
+    if not redis_configured():
+        return {"configured": False, "reachable": False, "required": required,
+                "status": f"not configured (REDIS_URL not set) - {note}"}
+    reachable = await redis_ping()
+    return {"configured": True, "reachable": reachable, "required": required,
+            "status": "connected" if reachable else f"configured but unreachable - {note}"}
+
+
 @app.get("/health", tags=["health"])
 async def health():
+    """Service health: database, Redis, models, evidence sources and the running build commit."""
     db_ok = True
     try:
         async with connection.session_factory()() as s:
@@ -59,9 +78,10 @@ async def health():
         db_ok = False
     return {
         "status": "ok" if db_ok else "degraded",
+        "build_commit": settings.BUILD_COMMIT or "unknown (BUILD_COMMIT not set)",
         "database": connection.engine.dialect.name if connection.engine else None,
         "database_ok": db_ok,
-        "redis": await redis_ping(),
+        "redis": await redis_status(),
         "llm_configured": bool(settings.GROQ_API_KEY),
         "models": {"nano": settings.NANO_MODEL, "ultra": settings.ULTRA_MODEL, "vision": settings.VISION_MODEL},
         "queue": "celery" if settings.USE_CELERY else "inprocess",

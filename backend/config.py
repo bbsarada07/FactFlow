@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     USE_CELERY: bool = False
 
     # App
+    BUILD_COMMIT: str = ""  # git commit of the running build, reported by /health
     SECRET_KEY: str = ""
     FRONTEND_URL: str = "http://localhost:3000"
     BACKEND_URL: str = "http://localhost:8000"
