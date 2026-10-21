@@ -8,7 +8,7 @@ import main
 from config import settings
 
 DUMMY_KEYS = {
-    "GROQ_API_KEY": "gsk_HEALTHTESTKEY0000000000000000",
+    "GROQ_API_KEY": "test-groq-key-not-a-secret",
     "GEMINI_API_KEY": "test-gemini-key-not-a-secret",
     "NEWS_API_KEY": "newsapiHEALTHTESTKEY000000",
     "GOOGLE_FACT_CHECK_API_KEY": "test-factcheck-key-not-a-secret",
