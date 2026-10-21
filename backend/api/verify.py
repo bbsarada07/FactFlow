@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from database.connection import get_session
 from database.models import Claim, iso, new_slug, registry_url
+from services.input_service import InputError, validate_screenshot
 from services.registry import is_fresh, lookup_repeat
 from services.safety import PRIVATE_PERSON_MESSAGE, WITHHELD_LABEL, check_sensitive
 from services.text_utils import input_hash, normalize, redact_pii
@@ -119,6 +120,12 @@ async def verify(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Provide text, url, image_base64 or image_url")
     if text and not (body.url or body.image_base64 or body.image_url) and len(text) < 8:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Claim is too short to verify")
+
+    if body.image_base64:
+        try:
+            validate_screenshot(body.image_base64)
+        except InputError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
 
     limiter.check(request.client.host if request.client else "unknown")
 

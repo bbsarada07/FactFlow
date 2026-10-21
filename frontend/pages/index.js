@@ -12,7 +12,9 @@ import VerdictCard from "@/components/VerdictCard";
 import { getIncidents, getResult, getStats, startVerification, streamUrl } from "@/lib/api";
 import { EASE, LANGUAGES } from "@/lib/theme";
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const IMAGE_TYPES = ["image/png", "image/jpeg"];
+const SCREENSHOT_RULE = "Only PNG or JPG screenshots up to 5 MB are supported.";
 
 const HEADLINE = [
   { text: "Misinformation", color: "var(--text-primary)" },
@@ -296,8 +298,7 @@ export default function VerifyPage() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) return toast.error("Please choose an image file");
-    if (file.size > MAX_IMAGE_BYTES) return toast.error("Image must be under 8 MB");
+    if (!IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_BYTES) return toast.error(SCREENSHOT_RULE);
     const reader = new FileReader();
     reader.onload = () => setImage({ dataUrl: reader.result, name: file.name });
     reader.readAsDataURL(file);
@@ -418,7 +419,7 @@ export default function VerifyPage() {
                 <button type="button" className="btn-ghost" data-active={!!image} onClick={() => fileRef.current?.click()} disabled={running}>
                   <ImageIcon size={14} /> Image
                 </button>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+                <input ref={fileRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={onFile} />
                 <button type="button" className="btn-ghost" data-active={showUrl} onClick={() => setShowUrl((s) => !s)} disabled={running}>
                   <Link2 size={14} /> URL
                 </button>

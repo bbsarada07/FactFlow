@@ -54,10 +54,36 @@ async def download_image(url: str) -> tuple[str, str]:
         resp.raise_for_status()
     except Exception as exc:  # noqa: BLE001
         raise InputError(f"Could not download image: {exc}") from exc
-    if len(resp.content) > MAX_IMAGE_BYTES:
-        raise InputError("Image is larger than 8 MB")
-    mime = resp.headers.get("content-type", "image/png").split(";")[0]
+    mime = screenshot_type(resp.content)
     return base64.b64encode(resp.content).decode(), mime
+
+
+SCREENSHOT_RULE = "Only PNG or JPG screenshots up to 5 MB are supported."
+NO_TEXT_FOUND = "No text found in this image."
+_MAGIC = ((b"\x89PNG\r\n\x1a\n", "image/png"), (b"\xff\xd8\xff", "image/jpeg"))
+
+
+def screenshot_type(raw: bytes) -> str:
+    """Mime type of a PNG/JPG screenshot up to GEMMA_MAX_IMAGE_BYTES, judged by its bytes (not its
+    declared type). Anything else raises InputError(SCREENSHOT_RULE)."""
+    if not raw or len(raw) > settings.GEMMA_MAX_IMAGE_BYTES:
+        raise InputError(SCREENSHOT_RULE)
+    for magic, mime in _MAGIC:
+        if raw.startswith(magic):
+            return mime
+    raise InputError(SCREENSHOT_RULE)
+
+
+def validate_screenshot(data: str) -> tuple[str, str]:
+    """Check an uploaded screenshot (data URL or bare base64). Returns (base64, mime)."""
+    payload, _declared = split_data_url(data)
+    if len(payload) * 3 / 4 > settings.GEMMA_MAX_IMAGE_BYTES + 3:
+        raise InputError(SCREENSHOT_RULE)
+    try:
+        raw = base64.b64decode(payload, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise InputError(SCREENSHOT_RULE) from exc
+    return payload, screenshot_type(raw)
 
 
 def split_data_url(data: str) -> tuple[str, str]:
@@ -144,12 +170,12 @@ async def read_image(image_b64: str, mime: str) -> ImageRead:
         except Exception as exc:  # noqa: BLE001
             raise InputError(f"Could not read text from image: {exc}") from exc
         if len(text) < 5:
-            raise InputError("No readable text found in image")
+            raise InputError(NO_TEXT_FOUND)
         return ImageRead(text, "vision", f"Text read by {settings.VISION_MODEL}", cues)
 
     text = await _tesseract(image_b64, min_chars=5)
     if not text:
-        raise InputError("No readable text found in image")
+        raise InputError(NO_TEXT_FOUND)
     return ImageRead(text, "tesseract", READER_LABELS["tesseract"])
 
 

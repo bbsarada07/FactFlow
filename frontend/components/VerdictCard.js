@@ -158,12 +158,25 @@ export default function VerdictCard({ result, compact = false, showRegistryLink 
               </span>
             )}
             {result.harm_type && <span style={{ color: HARM_COLORS[result.harm_type] }}>HARM: {result.harm_type}</span>}
+            {result.image_info?.label && (
+              <span className="rounded border border-subtle px-1.5 text-secondary">{result.image_info.label.toUpperCase()}</span>
+            )}
             {showRegistryLink && result.slug && result.is_public !== false && (
               <Link href={`/v/${result.slug}`} className="flex items-center gap-1 text-secondary hover:text-primary">
                 PUBLIC RECORD /v/{result.slug} <ArrowUpRight size={11} />
               </Link>
             )}
           </div>
+          {result.image_info?.cues?.length > 0 && (
+            <div className="mt-3 text-[12.5px] text-secondary">
+              <span className="mono text-[10px] tracking-[2px] text-muted">VISIBLE IN THE SCREENSHOT (NOT USED FOR THE VERDICT)</span>
+              <ul className="m-0 mt-1 list-disc pl-5">
+                {result.image_info.cues.map((cue) => (
+                  <li key={cue}>{cue}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div>

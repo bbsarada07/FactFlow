@@ -174,7 +174,7 @@ async def _prepare_input(claim: Claim) -> tuple[str, str, dict | None]:
     note = claim.raw_input.strip()
     if claim.input_type == "image":
         if claim.image_data:
-            b64, mime = input_service.split_data_url(claim.image_data)
+            b64, mime = input_service.validate_screenshot(claim.image_data)
         elif claim.source_url:
             b64, mime = await input_service.download_image(claim.source_url)
         else:
