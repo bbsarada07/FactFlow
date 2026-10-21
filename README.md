@@ -225,6 +225,69 @@ news forwards), SOM ₹7.9 Cr (2% of SAM within three years).
 - Regional early-warning dashboard for police and district administrations when CRITICAL claims spike.
 - Human-in-the-loop review queue for partner fact-checkers, with their verdicts fed back as Tier-1 evidence.
 
+## Best Use of Gemma 4
+
+NemesisAI calls **Gemma 4** through the **Gemini API**, using the `google-genai` Python SDK
+(`backend/models/gemini_client.py`).
+
+| Setting | Value |
+|---|---|
+| Model identifier | `gemma-4-26b-a4b-it` (`GEMMA_MODEL`). Confirmed on 2026-10-21 from the Gemini API models list, which showed `gemma-4-26b-a4b-it` and `gemma-4-31b-it`. `gemma-4-31b-it` returned 503/500 errors in testing that day, so the 26B model is the default. |
+| Provider switch | `MODEL_PROVIDER=gemini` or `groq`. If unset, Gemma is used only when `GEMINI_API_KEY` is set. |
+| Key handling | `GEMINI_API_KEY` is read from the environment / `backend/.env`. Provider errors are re-raised with the key masked, and the key is never logged. |
+
+**Steps that use Gemma 4** (when the provider is `gemini`):
+
+1. **Screenshot claim extraction.** A PNG or JPG up to 5 MB is sent to Gemma 4 with the same
+   extraction instruction used elsewhere: transcribe all text, then describe the image in one line.
+   If Gemma fails, Tesseract OCR is the fallback.
+2. **Deep Reasoning (agent 3).** Multi-hop reasoning over the retrieved evidence. It runs only when
+   the Source Tracer's confidence is below 0.85 or the claim is CRITICAL, so a clear-cut claim may
+   finish without calling Gemma. The output is the same JSON shape the Groq path produces, so the
+   verdict gate treats both identically.
+
+Intake, Source Tracer, Explainer and Harm Assessor stay on Groq (`NANO_MODEL`). `/health` and
+`/api/config` (shown in the site footer) report which reasoning model is in use.
+
+## Limitations
+
+- **Private-person and self-harm rule is a keyword check, not a classifier.**
+  - It withholds suicide, self-harm and sexual-violence claims, and harm or death stories that name
+    a person or give an age, unless a public role (minister, MLA, actor…) is mentioned.
+  - It can miss unfamiliar phrasings, names written in lowercase, and names in non-Latin scripts.
+  - It withholds some claims it didn't need to, such as a public figure's suicide.
+  - For screenshots it runs after text extraction, so the extraction model sees the image.
+  - The browser extension doesn't yet show the withheld message.
+- **Throttling.** GDELT allows one request per 5 seconds per IP and often refuses requests.
+  DuckDuckGo can time out from cloud hosts. A failed provider is recorded as an evidence gap in the
+  record, but fewer sources can mean UNVERIFIED instead of a definite verdict.
+- **Groq's free tier** has a daily token limit (200,000 tokens/day for `openai/gpt-oss-20b` at the
+  time of testing). A full 30-claim bench run needs more than that.
+- **The verdict gate is code, not model output.** `decide_verdict` in `agents/orchestrator.py`
+  returns UNVERIFIED with fewer than 2 tier 1–2 sources, confidence below 0.6, or missing context
+  with no contradiction, whatever the model says.
+  - The gate counts tier 1–2 sources regardless of their stance, so a TRUE verdict can rest on
+    strong sources labelled REFUTES (seen on the Palghar event claim).
+  - Source tiers come from fixed domain lists, so some official sites (e.g. `rbi.org.in`) are tier 3.
+
+## Pre-existing work
+
+Every commit below predates the Hacktoberfest Hack Day (25 October 2026). Dates are taken from
+`git log` (IST).
+
+| Commit | Date | Work |
+|---|---|---|
+| `1620623` | 2026-10-19 | First commit: six-agent pipeline, FastAPI backend, Next.js frontend, Chrome extension, Android mockup |
+| `6e3d216` | 2026-10-20 | Public verdict registry, honest-uncertainty gate, corrections in EN/HI/TE |
+| `698036d`, `3b35caa` | 2026-10-20 | Frontend v2: public verdict pages, registry, share buttons |
+| `5a1908d`, `3f0f721`, `f371e5b` | 2026-10-20 | Public record fields, repeat-detection fix, extension options page |
+| `6e9e1d9`, `5e761f8`, `91b4198` | 2026-10-21 | GDELT source, source tiers, grounding rule, 30-claim bench |
+| `869f341`–`b3af000` | 2026-10-21 | Spelling variants, named-source summaries, sourced homepage line, `/health` build commit |
+| `62d03ba` | 2026-10-21 | Private-person and self-harm rule |
+| `c27dba5` | 2026-10-21 | Gemma 4 via the Gemini API |
+
+**Added during the Hack Day:** nothing yet. Any commits dated 25 October 2026 belong here.
+
 ## Project structure
 
 ```
