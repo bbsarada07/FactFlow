@@ -25,9 +25,11 @@ _client: AsyncOpenAI | None = None
 
 # Claim-extraction instruction for screenshots (shared with the Gemma client).
 VISION_PROMPT = (
-    "Transcribe every piece of readable text in this image exactly, in its "
-    "original language. Then, on a new line starting with 'IMAGE:', describe "
-    "in one sentence what the image shows. Output nothing else."
+    "Read this screenshot. Reply in exactly this format and nothing else:\n"
+    "TEXT:\n<every piece of readable text, exactly, in its original language>\n"
+    "CUES:\n- <up to 4 short visible cues about how the post looks, e.g. \"no source named\", "
+    "\"caption says share now\", \"image appears edited\"; write \"none\" if there are none>\n"
+    "Do not say whether the content is true or false."
 )
 
 RETRYABLE = (

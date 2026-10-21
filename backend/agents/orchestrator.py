@@ -168,8 +168,9 @@ async def match_patterns(text: str) -> list[dict]:
     return sorted(scored, key=lambda x: -x["score"])[:2]
 
 
-async def _prepare_input(claim: Claim) -> tuple[str, str]:
-    """Returns (text_to_analyse, routing_note)."""
+async def _prepare_input(claim: Claim) -> tuple[str, str, dict | None]:
+    """Returns (text_to_analyse, routing_note, image_info). For screenshots, only the extracted
+    text goes on to the reasoning agents; the reader label and visible cues are display-only."""
     note = claim.raw_input.strip()
     if claim.input_type == "image":
         if claim.image_data:
@@ -178,17 +179,18 @@ async def _prepare_input(claim: Claim) -> tuple[str, str]:
             b64, mime = await input_service.download_image(claim.source_url)
         else:
             raise input_service.InputError("Image input has no data")
-        text, method = await input_service.image_to_text(b64, mime)
-        text = redact_pii(text)
+        read = await input_service.read_image(b64, mime)
+        text = redact_pii(read.text)
+        image_info = {"reader": read.reader, "label": read.label, "cues": [redact_pii(c) for c in read.cues]}
         combined = f"{text}\n\nUser note: {note}" if note else text
-        return combined, f"Image → text via {method} ({len(text)} chars)"
+        return combined, f"Image → text via {read.reader} ({len(text)} chars)", image_info
     if claim.input_type == "url" and claim.source_url:
         text = redact_pii(await input_service.fetch_url_text(claim.source_url))
         combined = f"{text}\n\nUser note: {note}" if note else text
-        return combined, f"URL fetched ({len(text)} chars)"
+        return combined, f"URL fetched ({len(text)} chars)", None
     if not note:
         raise input_service.InputError("No text to analyse")
-    return note, f"Text input ({len(note)} chars)"
+    return note, f"Text input ({len(note)} chars)", None
 
 
 async def _persist(ctx: PipelineContext, run: Run, raw_text: str) -> Claim:
@@ -206,6 +208,7 @@ async def _persist(ctx: PipelineContext, run: Run, raw_text: str) -> Claim:
         claim.platform = ctx.platform
         claim.pattern_matches = ctx.pattern_matches
         claim.search_log = ctx.search_log
+        claim.image_info = ctx.image_info
         claim.claim_text = ctx.claim
         claim.language = ctx.language
         claim.language_name = ctx.language_name
@@ -308,7 +311,7 @@ async def _pipeline(request_id: str, run: Run) -> None:
     # ── Agent 0: routing ──────────────────────────────────────────────
     await run.set_agent(0, "running", f"Routing {input_type} input")
     try:
-        raw_text, route_note = await _prepare_input(snapshot)
+        raw_text, route_note, image_info = await _prepare_input(snapshot)
     except input_service.InputError as exc:
         await run.set_agent(0, "failed", str(exc))
         raise PipelineError(str(exc)) from exc
@@ -322,6 +325,7 @@ async def _pipeline(request_id: str, run: Run) -> None:
     ctx = PipelineContext(
         request_id=request_id, raw_text=raw_text, input_type=input_type,
         requested_language=language or "auto", platform=platform or "web", slug=slug,
+        image_info=image_info,
     )
     ctx.pattern_matches = await match_patterns(raw_text)
 

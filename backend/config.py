@@ -1,5 +1,6 @@
 """Central configuration, loaded from backend/.env."""
 from functools import lru_cache
+from typing import Literal
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,10 +19,12 @@ class Settings(BaseSettings):
     NANO_MODEL: str = "openai/gpt-oss-20b"
     ULTRA_MODEL: str = "openai/gpt-oss-120b"
     VISION_MODEL: str = "qwen/qwen3.8-27b"
-    # Gemma 4 through the Gemini API. MODEL_PROVIDER: "gemini" or "groq"; blank means
-    # "gemini" when GEMINI_API_KEY is set, else "groq". With "gemini", deep reasoning and
-    # screenshot extraction use GEMMA_MODEL; the other agents stay on Groq.
-    MODEL_PROVIDER: str = ""
+    # Provider routing. Every verdict, reason, correction and harm score comes from the reasoning
+    # provider, which can only be Groq. Gemma 4 (Gemini API) only reads screenshots: it returns
+    # the visible text and a few visible cues, never a verdict. VISION_PROVIDER "gemini" falls
+    # back to Tesseract when the key is missing or Gemma fails; "none" means Tesseract only.
+    REASONING_PROVIDER: Literal["groq"] = "groq"
+    VISION_PROVIDER: Literal["gemini", "groq", "none"] = "gemini"
     GEMINI_API_KEY: str = ""
     GEMMA_MODEL: str = "gemma-4-26b-a4b-it"  # listed by the Gemini API models endpoint, 2026-10-21
     GEMMA_MAX_IMAGE_BYTES: int = 5 * 1024 * 1024

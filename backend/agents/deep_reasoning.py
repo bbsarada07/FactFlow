@@ -6,7 +6,6 @@ surfaces contradictions and manipulation markers.
 """
 from agents.context import HONESTY_RULE, VERDICTS, AgentOutput, PipelineContext, clamp, norm_verdict, str_list
 from config import settings
-from models.gemini_client import call_gemma, provider
 from models.groq_client import call_ultra
 
 SYSTEM = """You are the Deep Reasoning agent of NemesisAI — a senior forensic fact-checker who has investigated
@@ -60,9 +59,8 @@ def should_run(ctx: PipelineContext) -> bool:
 
 
 async def run(ctx: PipelineContext) -> AgentOutput:
-    # Gemma 4 via the Gemini API when MODEL_PROVIDER is gemini; Groq's ULTRA_MODEL otherwise.
-    reason = call_gemma if provider() == "gemini" else call_ultra
-    res = await reason(
+    # Verdicts come only from the reasoning provider (Groq); Gemma never reasons about claims.
+    res = await call_ultra(
         SYSTEM,
         PROMPT.format(
             today=ctx.today,

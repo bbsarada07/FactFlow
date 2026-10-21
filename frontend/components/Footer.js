@@ -13,7 +13,14 @@ export default function Footer() {
           {config && !config.unavailable ? (
             <>
               Models: <span className="text-secondary">{config.models.nano}</span> /{" "}
-              <span className="text-secondary">{config.models.ultra}</span> via {config.provider}. Sources:{" "}
+              <span className="text-secondary">{config.models.ultra}</span> via {config.provider} (all verdicts).
+              {config.vision && (
+                <>
+                  {" "}Screenshots read by <span className="text-secondary">{config.vision.model}</span> via{" "}
+                  {config.vision.provider}.
+                </>
+              )}{" "}
+              Sources:{" "}
               {config.evidence_sources.join(", ")}.
             </>
           ) : config?.unavailable ? (

@@ -101,6 +101,7 @@ class PipelineContext:
     scanned_count: int = 0
     provider_errors: list[str] = field(default_factory=list)
     search_log: list[dict] = field(default_factory=list)
+    image_info: dict | None = None  # screenshot reader + cues; never sent to a reasoning model
 
     # Verdict (tracer preliminary, possibly replaced by deep reasoning)
     verdict: str = "UNVERIFIED"

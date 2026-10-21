@@ -1,8 +1,8 @@
-"""Gemma 4 through the Gemini API (google-genai SDK).
+"""Gemma 4 through the Gemini API (google-genai SDK) — screenshot reading only.
 
-call_gemma        -> JSON reasoning call (same LLMResult shape as the Groq client)
-call_gemma_vision -> text + description extracted from a screenshot
-provider()        -> "gemini" or "groq" (MODEL_PROVIDER, else gemini only if a key is set)
+read_screenshot -> the visible text and a short list of visible cues. Gemma never produces a
+verdict, a confidence or a correction: every reply goes through parse_vision_output, which
+keeps only text and cues.
 
 The API key is read from settings (environment / backend .env) and never appears in logs or
 in raised exceptions: provider errors are re-raised as LLMError with the key masked and the
@@ -11,26 +11,32 @@ original exception chain suppressed.
 import asyncio
 import base64
 import re
-import time
+from dataclasses import dataclass, field
 
 from google import genai
 from google.genai import types
 from loguru import logger
 
 from config import settings
-from models.groq_client import LLMError, LLMJSONError, LLMResult, parse_json
+from models.groq_client import VISION_PROMPT, LLMError
+from models.vision_output import parse_vision_output
 
 _KEY_PATTERN = re.compile(r"AIza[0-9A-Za-z_\-]{20,}")
 _TRANSIENT = ("429", "500", "503", "UNAVAILABLE", "INTERNAL", "RESOURCE_EXHAUSTED", "DEADLINE")
 _genai_client: genai.Client | None = None
 
 
-def provider() -> str:
-    """Active provider for the Gemma-capable steps: MODEL_PROVIDER if set, else by key presence."""
-    chosen = (settings.MODEL_PROVIDER or "").strip().lower()
-    if chosen in ("gemini", "groq"):
-        return chosen
-    return "gemini" if settings.GEMINI_API_KEY else "groq"
+@dataclass
+class VisionRead:
+    """What a vision model may return: the visible text and visible cues. Nothing else."""
+
+    text: str
+    cues: list[str] = field(default_factory=list)
+
+
+def vision_available() -> bool:
+    """True when screenshots should go to Gemma: VISION_PROVIDER is gemini and a key is set."""
+    return settings.VISION_PROVIDER == "gemini" and bool(settings.GEMINI_API_KEY)
 
 
 def _client() -> genai.Client:
@@ -69,33 +75,9 @@ async def _generate(contents, config: types.GenerateContentConfig):
     raise LLMError("Gemma call failed after retries")
 
 
-async def call_gemma(system: str, user: str, max_tokens: int = 3000, temperature: float = 0.2) -> LLMResult:
-    """JSON-mode reasoning call to GEMMA_MODEL; returns the same LLMResult as the Groq client."""
-    config = types.GenerateContentConfig(
-        system_instruction=system,
-        response_mime_type="application/json",
-        temperature=temperature,
-        max_output_tokens=max_tokens,
-    )
-    t0 = time.perf_counter()
-    for attempt in range(2):
-        resp = await _generate(user, config)
-        try:
-            data = parse_json(resp.text or "")
-            break
-        except LLMJSONError:
-            if attempt == 1:
-                raise
-            logger.debug(f"{settings.GEMMA_MODEL} returned malformed JSON; retrying once")
-    ms = int((time.perf_counter() - t0) * 1000)
-    usage = getattr(resp, "usage_metadata", None)
-    tokens = getattr(usage, "total_token_count", 0) or 0
-    logger.debug(f"{settings.GEMMA_MODEL} {ms}ms {tokens}tok")
-    return LLMResult(data=data, model=settings.GEMMA_MODEL, ms=ms, tokens=tokens)
-
-
-async def call_gemma_vision(image_b64: str, mime: str, prompt: str) -> str:
-    """Send an image plus the claim-extraction instruction to GEMMA_MODEL; returns its text."""
+async def read_screenshot(image_b64: str, mime: str) -> VisionRead:
+    """Send a screenshot with the shared VISION_PROMPT to GEMMA_MODEL; keep only text and cues."""
     part = types.Part.from_bytes(data=base64.b64decode(image_b64), mime_type=mime)
-    resp = await _generate([part, prompt], types.GenerateContentConfig(temperature=0, max_output_tokens=1200))
-    return (resp.text or "").strip()
+    resp = await _generate([part, VISION_PROMPT], types.GenerateContentConfig(temperature=0, max_output_tokens=1200))
+    text, cues = parse_vision_output(resp.text or "")
+    return VisionRead(text=text, cues=cues)

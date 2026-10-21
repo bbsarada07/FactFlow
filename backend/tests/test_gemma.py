@@ -1,4 +1,4 @@
-"""Gemma 4 via the Gemini API (written before the implementation).
+"""Gemma 4 via the Gemini API: screenshot reading only (updated for split provider routing).
 
 No network: the google-genai client is replaced with a fake. The key used here is a dummy.
 """
@@ -50,17 +50,17 @@ def install_fake(monkeypatch, fake):
 
 
 def test_client_sends_gemma_model(monkeypatch):
-    from models.gemini_client import call_gemma
+    from models.gemini_client import read_screenshot
 
-    fake = FakeModels(text=json.dumps({"ok": True}))
+    fake = FakeModels(text="TEXT:\nRBI will ban 10 rupee coins\nCUES:\n- no source named")
     install_fake(monkeypatch, fake)
-    result = asyncio.run(call_gemma("Return ONLY valid JSON.", 'Reply {"ok": true}'))
+    result = asyncio.run(read_screenshot(PNG, "image/png"))
     assert fake.calls[0]["model"] == settings.GEMMA_MODEL
-    assert result.data == {"ok": True} and result.model == settings.GEMMA_MODEL
+    assert result.text == "RBI will ban 10 rupee coins" and result.cues == ["no source named"]
 
 
 def test_key_never_appears_in_exceptions_or_logs(monkeypatch):
-    from models.gemini_client import call_gemma
+    from models.gemini_client import read_screenshot
 
     fake = FakeModels(error=RuntimeError(f"400 API key not valid: key={DUMMY_KEY}"))
     install_fake(monkeypatch, fake)
@@ -68,7 +68,7 @@ def test_key_never_appears_in_exceptions_or_logs(monkeypatch):
     sink = logger.add(lambda m: logs.append(str(m)), level="DEBUG")
     try:
         with pytest.raises(Exception) as exc:
-            asyncio.run(call_gemma("sys", "user"))
+            asyncio.run(read_screenshot(PNG, "image/png"))
     finally:
         logger.remove(sink)
     assert DUMMY_KEY not in str(exc.value) and DUMMY_KEY not in repr(exc.value)
@@ -76,16 +76,16 @@ def test_key_never_appears_in_exceptions_or_logs(monkeypatch):
     assert DUMMY_KEY not in "\n".join(logs)
 
 
-def test_provider_defaults_to_gemini_only_when_key_set(monkeypatch):
-    from models.gemini_client import provider
+def test_vision_uses_gemma_only_when_provider_gemini_and_key_set(monkeypatch):
+    from models.gemini_client import vision_available
 
-    monkeypatch.setattr(settings, "MODEL_PROVIDER", "")
+    monkeypatch.setattr(settings, "VISION_PROVIDER", "gemini")
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
-    assert provider() == "groq"
+    assert vision_available() is False
     monkeypatch.setattr(settings, "GEMINI_API_KEY", DUMMY_KEY)
-    assert provider() == "gemini"
-    monkeypatch.setattr(settings, "MODEL_PROVIDER", "groq")
-    assert provider() == "groq"
+    assert vision_available() is True
+    monkeypatch.setattr(settings, "VISION_PROVIDER", "none")
+    assert vision_available() is False
 
 
 def _ctx():
@@ -102,23 +102,23 @@ def _ctx():
     return ctx
 
 
-def test_deep_reasoning_routes_to_gemma_and_output_passes_the_gate(monkeypatch):
+def test_deep_reasoning_never_uses_gemma(monkeypatch):
+    """Split routing: verdicts come only from Groq, even with a Gemini key and VISION_PROVIDER=gemini."""
     from agents import deep_reasoning
     from agents.orchestrator import decide_verdict
+    from models.groq_client import LLMResult
 
-    monkeypatch.setattr(settings, "MODEL_PROVIDER", "gemini")
-    fake = FakeModels(text=json.dumps(REASONING_JSON))
+    monkeypatch.setattr(settings, "VISION_PROVIDER", "gemini")
+    fake = FakeModels(error=AssertionError("Gemma called for reasoning"))
     install_fake(monkeypatch, fake)
 
-    async def groq_must_not_run(*a, **k):
-        raise AssertionError("Groq ultra called while provider is gemini")
+    async def ultra(system, user, **k):
+        return LLMResult(data=REASONING_JSON, model=settings.ULTRA_MODEL, ms=1, tokens=1)
 
-    monkeypatch.setattr(deep_reasoning, "call_ultra", groq_must_not_run)
+    monkeypatch.setattr(deep_reasoning, "call_ultra", ultra)
     ctx = _ctx()
     out = asyncio.run(deep_reasoning.run(ctx))
-    assert fake.calls and fake.calls[0]["model"] == settings.GEMMA_MODEL
-    assert out.model == settings.GEMMA_MODEL
-    assert ctx.verdict == "TRUE" and ctx.confidence == 0.9 and ctx.reasoning_chain
+    assert out.model == settings.ULTRA_MODEL and not fake.calls
     decision = decide_verdict(ctx.evidence, {
         "verdict": ctx.verdict, "confidence": ctx.confidence,
         "contradictions_found": ctx.contradictions, "missing_context": ctx.missing_context,
@@ -130,7 +130,6 @@ def test_groq_path_unchanged_when_provider_groq(monkeypatch):
     from agents import deep_reasoning
     from models.groq_client import LLMResult
 
-    monkeypatch.setattr(settings, "MODEL_PROVIDER", "groq")
     fake = FakeModels(error=AssertionError("Gemma called while provider is groq"))
     install_fake(monkeypatch, fake)
 
@@ -148,7 +147,7 @@ PNG = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * 100).decode()
 def test_screenshot_goes_to_gemma_first(monkeypatch):
     from services import input_service
 
-    monkeypatch.setattr(settings, "MODEL_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "VISION_PROVIDER", "gemini")
     fake = FakeModels(text="RBI will ban all 10 rupee coins from tomorrow")
     install_fake(monkeypatch, fake)
     monkeypatch.setattr(input_service, "_ocr_sync", lambda b64: (_ for _ in ()).throw(AssertionError("tesseract first")))
@@ -160,7 +159,7 @@ def test_screenshot_goes_to_gemma_first(monkeypatch):
 def test_screenshot_falls_back_to_tesseract_when_gemma_fails(monkeypatch):
     from services import input_service
 
-    monkeypatch.setattr(settings, "MODEL_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "VISION_PROVIDER", "gemini")
     install_fake(monkeypatch, FakeModels(error=RuntimeError("503 UNAVAILABLE")))
     monkeypatch.setattr(input_service, "_tesseract_available", lambda: True)
     monkeypatch.setattr(input_service, "_ocr_sync", lambda b64: "RBI will ban all 10 rupee coins from tomorrow")
@@ -171,7 +170,7 @@ def test_screenshot_falls_back_to_tesseract_when_gemma_fails(monkeypatch):
 def test_screenshot_over_5mb_or_wrong_type_skips_gemma(monkeypatch):
     from services import input_service
 
-    monkeypatch.setattr(settings, "MODEL_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "VISION_PROVIDER", "gemini")
     fake = FakeModels(text="should not be used")
     install_fake(monkeypatch, fake)
     monkeypatch.setattr(input_service, "_tesseract_available", lambda: True)
@@ -190,10 +189,13 @@ def test_public_config_and_health_name_the_model_in_use(monkeypatch):
     import main
 
     client = TestClient(main.app)
-    monkeypatch.setattr(settings, "MODEL_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "VISION_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", DUMMY_KEY)
     cfg = client.get("/api/config").json()
-    assert cfg["models"]["ultra"] == settings.GEMMA_MODEL and "Gemini API" in cfg["provider"]
+    assert cfg["models"]["ultra"] == settings.ULTRA_MODEL
+    assert cfg["vision"] == {"model": settings.GEMMA_MODEL, "provider": "Gemini API"}
     health = client.get("/health").json()
-    assert health["model_provider"] == "gemini" and health["models"]["reasoning"] == settings.GEMMA_MODEL
-    monkeypatch.setattr(settings, "MODEL_PROVIDER", "groq")
-    assert client.get("/api/config").json()["models"]["ultra"] == settings.ULTRA_MODEL
+    assert health["reasoning_provider"] == "groq" and health["models"]["reasoning"] == settings.ULTRA_MODEL
+    assert health["models"]["vision"] == settings.GEMMA_MODEL
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+    assert client.get("/api/config").json()["vision"] is None

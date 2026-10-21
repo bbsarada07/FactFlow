@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 
 from config import settings
-from models.gemini_client import provider
+from models.gemini_client import vision_available
 
 router = APIRouter(prefix="/api", tags=["config"])
 
@@ -15,10 +15,11 @@ async def public_config():
         sources.insert(0, "Google Fact Check")
     if settings.NEWS_API_KEY:
         sources.insert(0, "NewsAPI")
-    gemma = provider() == "gemini"
+    gemma = vision_available()
     return {
-        "provider": f"{settings.INFERENCE_PROVIDER} + Gemini API" if gemma else settings.INFERENCE_PROVIDER,
-        "models": {"nano": settings.NANO_MODEL, "ultra": settings.GEMMA_MODEL if gemma else settings.ULTRA_MODEL},
+        "provider": settings.INFERENCE_PROVIDER,
+        "models": {"nano": settings.NANO_MODEL, "ultra": settings.ULTRA_MODEL},
+        "vision": {"model": settings.GEMMA_MODEL, "provider": "Gemini API"} if gemma else None,
         "evidence_sources": sources,
         "frontend_url": settings.FRONTEND_URL.rstrip("/"),
         "max_claim_chars": settings.MAX_CLAIM_CHARS,

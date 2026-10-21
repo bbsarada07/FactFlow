@@ -110,6 +110,7 @@ class Claim(Base):
     urgency: Mapped[str | None] = mapped_column(String(16))
     pattern_matches: Mapped[list] = mapped_column(JSON, default=list)
     search_log: Mapped[list] = mapped_column(JSON, default=list)  # provider, query, results, domains, error
+    image_info: Mapped[dict | None] = mapped_column(JSON)  # screenshot reader, label and visible cues (display only)
 
     # Verdict
     verdict: Mapped[str | None] = mapped_column(String(16), index=True)
@@ -216,6 +217,7 @@ class Claim(Base):
             "claim_type": self.claim_type,
             "pattern_matches": self.pattern_matches or [],
             "search_log": self.search_log or [],
+            "image_info": self.image_info,
             "summary": self.summary,
             "summary_local": self.summary_local,
             "reasoning_chain": self.reasoning_chain or [],
