@@ -6,18 +6,41 @@ that a search engine should treat as equivalent.
 """
 import re
 
-VARIANT_GROUPS: list[tuple[str, ...]] = [
+# Different spellings / transliterations of the SAME thing. For search, every member is first
+# rewritten to the group's first (canonical) term, so "Ganesh Nimarjan" and "Ganesh Nimajjanam"
+# generate identical queries. The claim text the user typed is never changed.
+SPELLING_GROUPS: list[tuple[str, ...]] = [
     ("immersion", "nimajjanam", "nimarjan", "visarjan", "nimajjan"),
     ("chaturthi", "chavithi", "chathurthi"),
+    ("cow urine", "gaumutra", "gomutra"),
+]
+# Rarer spellings that are only rewritten to the canonical term (not searched separately).
+SPELLING_ALIASES: dict[str, str] = {"nimajanam": "immersion", "nimarjanam": "immersion"}
+# Related but distinct words: used to widen searches, never merged into one spelling.
+SYNONYM_GROUPS: list[tuple[str, ...]] = [
     ("holiday", "closed", "closure", "shut"),
     ("coronavirus", "covid", "corona"),
-    ("cow urine", "gaumutra", "gomutra"),
     ("kidnappers", "child lifters", "bachcha chor"),
     ("rbi", "reserve bank"),
     ("lynching", "mob attack"),
     ("vaccine", "vaccination", "jab"),
     ("evm", "voting machine"),
 ]
+VARIANT_GROUPS: list[tuple[str, ...]] = SPELLING_GROUPS + SYNONYM_GROUPS
+_SPELLING_RE = [
+    (re.compile(rf"\b{re.escape(term)}\b", re.IGNORECASE), group[0])
+    for group in SPELLING_GROUPS
+    for term in group[1:]
+] + [(re.compile(rf"\b{re.escape(alias)}\b", re.IGNORECASE), canonical) for alias, canonical in SPELLING_ALIASES.items()]
+
+
+def canonical_spelling(text: str) -> str:
+    """Rewrite spelling/transliteration variants to one canonical term, for search only."""
+    for pattern, canonical in _SPELLING_RE:
+        text = pattern.sub(canonical, text)
+    return text
+
+
 _STOPWORDS = {
     "the", "and", "for", "are", "was", "were", "with", "that", "this", "from", "has", "have", "been", "will",
     "on", "of", "in", "to", "a", "an", "is", "by", "at", "as", "or", "be", "it", "its", "their", "they",
@@ -49,8 +72,16 @@ def _find_terms(text: str) -> list[tuple[str, tuple[str, ...]]]:
 
 
 def variant_queries(query: str, limit: int = 2) -> list[str]:
-    """Alternative spellings of `query`: each matched term swapped for its group alternatives."""
-    out: list[str] = []
+    """Alternative spellings of `query`: each matched term swapped for its group alternatives.
+
+    The query is first put in canonical spelling, so any two spellings of the same term yield
+    the same variants.
+    """
+    canonical = canonical_spelling(query)
+    out: list[str] = [canonical] if canonical.lower() != query.lower() else []
+    if len(out) >= limit:
+        return out
+    query = canonical
     words = set(query.lower().split())
     for term, group in _find_terms(query):
         for alt in group:
@@ -77,12 +108,12 @@ def expand_queries(queries: list[str], claim: str, minimum: int = 3) -> list[str
             out.append(q.strip())
 
     for q in queries:
-        add(q)
+        add(canonical_spelling(q))
     for q in list(out):
         for v in variant_queries(q, limit=1):
             add(v)
     if len(out) < minimum and claim:
-        add(claim[:120])
+        add(canonical_spelling(claim[:120]))
         for v in variant_queries(claim[:120], limit=minimum):
             add(v)
     return out
