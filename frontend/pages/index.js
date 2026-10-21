@@ -4,12 +4,12 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import CountUp from "react-countup";
+
 import toast from "react-hot-toast";
 
 import AgentProgress, { AGENT_DEFAULTS } from "@/components/AgentProgress";
 import VerdictCard from "@/components/VerdictCard";
-import { getResult, getStats, startVerification, streamUrl } from "@/lib/api";
+import { getIncidents, getResult, getStats, startVerification, streamUrl } from "@/lib/api";
 import { EASE, LANGUAGES } from "@/lib/theme";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -20,33 +20,31 @@ const HEADLINE = [
   { text: "Nemesis.", color: "var(--accent-red)", italic: true },
 ];
 
-function StatBar() {
-  const items = [
-    { n: 3, label: "deaths" },
-    { n: 1, label: "WhatsApp forward" },
-    { n: 4, label: "days for fact-checkers" },
-    { n: 60, label: "seconds", prefix: "We respond in " },
-  ];
+/** Sourced incident line: every figure comes from the incidents table, shown with its source link. */
+function IncidentLine() {
+  const [incident, setIncident] = useState(null);
+
+  useEffect(() => {
+    getIncidents()
+      .then((d) => setIncident(d.items.find((i) => i.slug === "palghar-2020") || null))
+      .catch(() => setIncident(null));
+  }, []);
+
+  if (!incident) return null;
+  const when = new Date(incident.date).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
   return (
-    <motion.div
+    <motion.p
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ delay: 0.9, duration: 0.6 }}
-      className="mono mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[12px] text-secondary sm:text-[13px]"
+      transition={{ duration: 0.6 }}
+      className="mono mt-8 text-center text-[12px] text-secondary sm:text-[13px]"
     >
-      {items.map((it, i) => (
-        <span key={it.label} className="flex items-center gap-3">
-          {i > 0 && <span className="hidden text-red sm:inline">·</span>}
-          <span>
-            {it.prefix}
-            <span className="text-primary">
-              <CountUp end={it.n} duration={1.6} delay={0.9} />
-            </span>{" "}
-            {it.label}
-          </span>
-        </span>
-      ))}
-    </motion.div>
+      In {when}, <span className="text-primary">{incident.deaths} people</span> were lynched in Palghar after a WhatsApp
+      rumour.{" "}
+      <a href={incident.source.url} target="_blank" rel="noopener noreferrer" className="text-red hover:underline">
+        {incident.source.confirmed ? "Source" : "Find source"}
+      </a>
+    </motion.p>
   );
 }
 
@@ -346,7 +344,7 @@ export default function VerifyPage() {
             ))}
           </h1>
 
-          <StatBar />
+          <IncidentLine />
 
           <motion.form
             initial={{ opacity: 0, y: 24 }}
@@ -432,7 +430,7 @@ export default function VerifyPage() {
             transition={{ delay: 1.1 }}
             className="mono mt-4 text-[12px] text-muted"
           >
-            {avgSeconds ? `Average analysis time: ${Math.round(avgSeconds)} seconds` : "Six agents · live evidence · verdict in under a minute"}
+            {avgSeconds ? `Average analysis time: ${Math.round(avgSeconds)} seconds` : "Six agents · live evidence"}
             <span className="hidden sm:inline"> · Ctrl+Enter to verify</span>
           </motion.p>
         </div>
