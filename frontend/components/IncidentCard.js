@@ -79,7 +79,7 @@ export default function IncidentCard({ incident, index }) {
             </a>
           </div>
           <div className="rounded-md border border-subtle bg-surface p-4 md:min-w-[260px]">
-            <div className="mono mb-2 text-[10.5px] tracking-[2px] text-secondary">NEMESISAI VERDICT</div>
+            <div className="mono mb-2 text-[10.5px] tracking-[2px] text-secondary">FACTFLOW VERDICT</div>
             <VerdictBadge verdict={run?.verdict || incident.verdict} size="lg" />
             <div className="mono mt-3 text-[12px] leading-relaxed text-secondary">
               {run ? (

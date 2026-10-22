@@ -27,7 +27,7 @@ export default function AccuracyPage() {
   return (
     <>
       <Head>
-        <title>Accuracy — NemesisAI</title>
+        <title>Accuracy — FactFlow</title>
       </Head>
       <header className="mx-auto max-w-4xl px-4 pb-8 pt-20 text-center">
         <div className="mono mb-5 text-[11px] tracking-[3px] text-red">BENCH ACCURACY</div>

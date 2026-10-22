@@ -29,7 +29,7 @@ export default function RegistryPage() {
   return (
     <>
       <Head>
-        <title>Verdict Registry — NemesisAI</title>
+        <title>Verdict Registry — FactFlow</title>
       </Head>
       <header className="mx-auto max-w-3xl px-4 pb-8 pt-20 text-center">
         <div className="mono mb-5 text-[11px] tracking-[3px] text-red">PUBLIC VERDICT REGISTRY</div>

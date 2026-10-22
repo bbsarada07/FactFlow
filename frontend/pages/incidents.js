@@ -21,7 +21,7 @@ export default function IncidentsPage() {
   return (
     <>
       <Head>
-        <title>Incident Library — NemesisAI</title>
+        <title>Incident Library — FactFlow</title>
       </Head>
       <header className="relative overflow-hidden" style={{ background: "radial-gradient(ellipse 70% 100% at 50% 0%, rgba(255,45,45,0.06), transparent)" }}>
         <div className="mx-auto max-w-4xl px-4 pb-12 pt-20 text-center sm:pt-24">

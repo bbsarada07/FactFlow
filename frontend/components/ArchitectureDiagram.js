@@ -70,7 +70,7 @@ function Diagram({ layout, active }) {
   const isActive = (id) => active.includes(id) || active.includes(Number(id));
 
   return (
-    <svg viewBox={L.viewBox} className="h-auto w-full" role="img" aria-label="NemesisAI six-agent pipeline">
+    <svg viewBox={L.viewBox} className="h-auto w-full" role="img" aria-label="FactFlow six-agent pipeline">
       <defs>
         <filter id={`glow-${layout}`} x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="8" result="b" />

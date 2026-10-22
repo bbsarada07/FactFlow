@@ -106,7 +106,7 @@ export default function MythVsFact({ result }) {
       });
       const a = document.createElement("a");
       a.href = canvas.toDataURL("image/png");
-      a.download = `nemesisai-${result.verdict.toLowerCase()}-${result.request_id.slice(0, 8)}.png`;
+      a.download = `factflow-${result.verdict.toLowerCase()}-${result.request_id.slice(0, 8)}.png`;
       a.click();
       toast.success("Card downloaded");
     } catch (err) {

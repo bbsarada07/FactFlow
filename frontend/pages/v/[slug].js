@@ -41,7 +41,7 @@ export default function PublicVerdictPage({ record, pageUrl, error }) {
     return (
       <div className="mx-auto max-w-xl px-4 py-32 text-center">
         <Head>
-          <title>Verdict unavailable — NemesisAI</title>
+          <title>Verdict unavailable — FactFlow</title>
         </Head>
         <p className="text-secondary">{error}</p>
       </div>
@@ -57,11 +57,11 @@ export default function PublicVerdictPage({ record, pageUrl, error }) {
   return (
     <>
       <Head>
-        <title>{`${title} — NemesisAI`}</title>
+        <title>{`${title} — FactFlow`}</title>
         <meta name="description" content={description} />
         <link rel="canonical" href={pageUrl} />
         <meta property="og:type" content="article" />
-        <meta property="og:site_name" content="NemesisAI" />
+        <meta property="og:site_name" content="FactFlow" />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
         <meta property="og:url" content={pageUrl} />

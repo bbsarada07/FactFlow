@@ -131,7 +131,7 @@ export default function TrackerPage() {
   return (
     <>
       <Head>
-        <title>Live Tracker — NemesisAI</title>
+        <title>Live Tracker — FactFlow</title>
       </Head>
       <StatsBar stats={stats} />
 

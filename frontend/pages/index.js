@@ -17,9 +17,9 @@ const IMAGE_TYPES = ["image/png", "image/jpeg"];
 const SCREENSHOT_RULE = "Only PNG or JPG screenshots up to 5 MB are supported.";
 
 const HEADLINE = [
-  { text: "Misinformation", color: "var(--text-primary)" },
-  { text: "meets its", color: "var(--text-secondary)" },
-  { text: "Nemesis.", color: "var(--accent-red)", italic: true },
+  { text: "Rumours spread.", color: "var(--text-primary)" },
+  { text: "Facts", color: "var(--text-secondary)" },
+  { text: "flow.", color: "var(--accent-red)", italic: true },
 ];
 
 /** Sourced incident line: every figure comes from the incidents table, shown with its source link. */
@@ -319,7 +319,7 @@ export default function VerifyPage() {
   return (
     <>
       <Head>
-        <title>Verify — NemesisAI</title>
+        <title>Verify — FactFlow</title>
       </Head>
 
       <section className="relative overflow-hidden">

@@ -14,7 +14,7 @@ export default function App({ Component, pageProps }) {
   return (
     <ConfigProvider>
       <Head>
-        <title>NemesisAI — Misinformation meets its Nemesis</title>
+        <title>FactFlow — Rumours spread. Facts flow.</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <Navbar />

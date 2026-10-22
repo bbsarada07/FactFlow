@@ -115,7 +115,7 @@ export default function AboutPage() {
   return (
     <>
       <Head>
-        <title>How it works — NemesisAI</title>
+        <title>How it works — FactFlow</title>
       </Head>
 
       {/* 1 — The problem */}

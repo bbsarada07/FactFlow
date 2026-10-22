@@ -18,7 +18,7 @@ export async function api(path, options = {}) {
       headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     });
   } catch {
-    throw new ApiError(`Can't reach the NemesisAI backend at ${API_URL}. Is it running?`, 0);
+    throw new ApiError(`Can't reach the FactFlow backend at ${API_URL}. Is it running?`, 0);
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {

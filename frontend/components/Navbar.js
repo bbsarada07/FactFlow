@@ -24,9 +24,9 @@ export default function Navbar() {
         borderBottom: "1px solid var(--border-subtle)",
       }}
     >
-      <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="NemesisAI home">
+      <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="FactFlow home">
         <Logo size={28} />
-        <span className="hidden font-display text-[17px] font-bold tracking-tight sm:inline">NemesisAI</span>
+        <span className="hidden font-display text-[17px] font-bold tracking-tight sm:inline">FactFlow</span>
         <span className="ml-1 hidden items-center gap-1.5 sm:flex">
           <span className="live-dot" />
           <span className="mono text-[10px] font-medium tracking-[1.5px] text-red">LIVE</span>

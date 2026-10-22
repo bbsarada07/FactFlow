@@ -8,7 +8,7 @@ export default function Document() {
         <meta name="theme-color" content="#040407" />
         <meta
           name="description"
-          content="NemesisAI — multi-agent forensic verification for WhatsApp forwards, tweets and headlines."
+          content="FactFlow — multi-agent forensic verification for WhatsApp forwards, tweets and headlines."
         />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
