@@ -14,7 +14,7 @@ from models.gemini_client import read_screenshot, vision_available
 from models.groq_client import call_vision
 from models.vision_output import parse_vision_output
 
-USER_AGENT = "Mozilla/5.0 (compatible; NemesisAI/1.0; +https://github.com/nemesisai)"
+USER_AGENT = "Mozilla/5.0 (compatible; FactFlow/1.0; +https://github.com/bbsarada07/FactFlow)"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 

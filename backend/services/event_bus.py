@@ -63,7 +63,7 @@ class MemoryBus:
 
 
 class RedisBus:
-    KEY = "nemesis:events:"
+    KEY = "factflow:events:"
 
     def __init__(self) -> None:
         import redis.asyncio as aioredis

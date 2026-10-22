@@ -21,7 +21,7 @@ from services.tiers import TIER_SCORE, domain_of, tier_for
 MAX_CANDIDATES = 16
 _YEAR = re.compile(r"\b(19\d{2}|20\d{2})\b")
 
-SYSTEM = """You are the Source Tracer agent of NemesisAI, a misinformation forensics system.
+SYSTEM = """You are the Source Tracer agent of FactFlow, a misinformation forensics system.
 You judge evidence against a claim with the rigour of a professional fact-checker.
 """ + HONESTY_RULE
 

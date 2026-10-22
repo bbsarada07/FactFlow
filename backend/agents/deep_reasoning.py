@@ -8,7 +8,7 @@ from agents.context import HONESTY_RULE, VERDICTS, AgentOutput, PipelineContext,
 from config import settings
 from models.groq_client import call_ultra
 
-SYSTEM = """You are the Deep Reasoning agent of NemesisAI — a senior forensic fact-checker who has investigated
+SYSTEM = """You are the Deep Reasoning agent of FactFlow — a senior forensic fact-checker who has investigated
 viral misinformation in India for years. You reason step by step, separate what the evidence shows from
 assumptions, and never overstate certainty.
 """ + HONESTY_RULE

@@ -1,4 +1,4 @@
-"""NemesisAI API — multi-agent misinformation forensics.
+"""FactFlow API — multi-agent misinformation forensics.
 
 Run:  uvicorn main:app --reload --port 8000
 """
@@ -25,13 +25,13 @@ async def lifespan(app: FastAPI):
     dialect = await connection.init_db()
     if not settings.GROQ_API_KEY:
         logger.error("GROQ_API_KEY missing — verifications will fail until it is set in backend/.env")
-    logger.info(f"NemesisAI ready · db={dialect} · nano={settings.NANO_MODEL} · ultra={settings.ULTRA_MODEL}")
+    logger.info(f"FactFlow ready · db={dialect} · nano={settings.NANO_MODEL} · ultra={settings.ULTRA_MODEL}")
     yield
     await connection.close_db()
 
 
 app = FastAPI(
-    title="NemesisAI",
+    title="FactFlow",
     description="Multi-agent misinformation detection: intake, source tracing, deep reasoning, explanation and harm assessment.",
     version="1.0.0",
     lifespan=lifespan,

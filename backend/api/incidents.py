@@ -1,4 +1,4 @@
-"""GET /api/incidents — documented incidents, with NemesisAI's latest live run of each forward."""
+"""GET /api/incidents — documented incidents, with FactFlow's latest live run of each forward."""
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

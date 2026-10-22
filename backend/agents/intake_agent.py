@@ -3,7 +3,7 @@ from agents.context import CLAIM_TYPES, LANGUAGE_NAMES, URGENCY, AgentOutput, Pi
 from models.groq_client import call_nano
 from services.text_utils import truncate
 
-SYSTEM = """You are the Intake & Triage agent of NemesisAI, a misinformation forensics system focused on India.
+SYSTEM = """You are the Intake & Triage agent of FactFlow, a misinformation forensics system focused on India.
 You receive raw content (a WhatsApp forward, tweet, headline, OCR text or article) and prepare it for fact-checking.
 Respond with a single JSON object and nothing else."""
 

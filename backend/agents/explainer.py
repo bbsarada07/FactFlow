@@ -19,7 +19,7 @@ from services.tiers import domain_of
 POST_LIMIT = 280
 NO_SOURCE = "No verified source yet"
 
-SYSTEM = """You are the Explainer agent of NemesisAI. You turn forensic verdicts into short, kind, plain-language
+SYSTEM = """You are the Explainer agent of FactFlow. You turn forensic verdicts into short, kind, plain-language
 messages that ordinary people, including elderly relatives in family WhatsApp groups, will read and trust.
 Never shame or insult the sender. Use only the facts, citations and source names given to you.
 Return ONLY valid JSON, no preamble, no markdown backticks."""
@@ -37,7 +37,7 @@ Return JSON:
  "local_summary": "the same explanation written natively in {language}, keeping the same [S#] IDs after every sentence; if {language} is English repeat simple_summary",
  "myth": "the claim as people are sharing it, max 20 words, in English",
  "fact": "what the evidence shows, max 35 words, in English, ending with its source ID(s) like [S1]",
- "whatsapp_reply": "a ready-to-send reply to the forward, in {language}, max 70 words, warm and respectful, stating the verdict and the evidence with the source name, asking people not to forward it further, ending with: — Checked with NemesisAI",
+ "whatsapp_reply": "a ready-to-send reply to the forward, in {language}, max 70 words, warm and respectful, stating the verdict and the evidence with the source name, asking people not to forward it further, ending with: — Checked with FactFlow",
  "correction_en": "a post-length correction in English, max {budget} characters, no URL: name the claim, give the verdict, and one fact attributed by name to {source}",
  "correction_hi": "the same correction in Hindi, max {budget} characters, no URL, naming {source}",
  "correction_te": "the same correction in Telugu, max {budget} characters, no URL, naming {source}"}}

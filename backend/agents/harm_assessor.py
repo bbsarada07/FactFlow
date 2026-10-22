@@ -14,7 +14,7 @@ def level_for(score: float) -> str:
         return "MEDIUM"
     return "LOW"
 
-SYSTEM = """You are the Harm Assessor agent of NemesisAI. You estimate the real-world damage a piece of content
+SYSTEM = """You are the Harm Assessor agent of FactFlow. You estimate the real-world damage a piece of content
 could cause if it keeps spreading in India, drawing on documented cases (mob lynchings after child-lifter
 rumours, communal riots after recycled videos, deaths from fake cures). Respond with a single JSON object only."""
 

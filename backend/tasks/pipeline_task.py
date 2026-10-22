@@ -11,7 +11,7 @@ from loguru import logger
 from config import settings
 
 celery_app = Celery(
-    "nemesisai",
+    "factflow",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
 )
@@ -40,7 +40,7 @@ async def _run_in_worker(request_id: str) -> None:
         await connection.close_db()
 
 
-@celery_app.task(name="nemesisai.run_pipeline")
+@celery_app.task(name="factflow.run_pipeline")
 def run_pipeline_task(request_id: str) -> str:
     asyncio.run(_run_in_worker(request_id))
     return request_id

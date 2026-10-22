@@ -90,7 +90,7 @@ async def search_gdelt(query: str, date_params: dict, limit: int = 15, errors: l
                 await asyncio.sleep(wait)
             _gdelt_last = time.monotonic()
             try:
-                async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "NemesisAI/1.0"}) as http:
+                async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "FactFlow/1.0"}) as http:
                     resp = await http.get(settings.GDELT_URL, params=params)
                 if resp.status_code != 429:
                     resp.raise_for_status()
