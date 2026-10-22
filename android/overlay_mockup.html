@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>NemesisAI Android Overlay — Prototype</title>
+<title>FactFlow Android Overlay — Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
@@ -46,7 +46,7 @@
   .composer .box { flex: 1; height: 40px; border-radius: 20px; background: var(--wa-header); color: var(--wa-meta); font-size: 14px; display: flex; align-items: center; padding: 0 16px; }
   .composer .mic { width: 42px; height: 42px; border-radius: 50%; background: #00A884; display: grid; place-items: center; }
 
-  /* NemesisAI overlay */
+  /* FactFlow overlay */
   .bubble {
     position: absolute; right: 14px; top: 46%; width: 54px; height: 54px; border-radius: 50%; z-index: 20; cursor: pointer;
     background: radial-gradient(circle at 35% 30%, #ff6b6b, var(--red) 60%); border: 2px solid rgba(255,255,255,.18);
@@ -100,7 +100,7 @@
 </style>
 </head>
 <body>
-  <div class="caption">NEMESISAI · ANDROID OVERLAY PROTOTYPE</div>
+  <div class="caption">FACTFLOW · ANDROID OVERLAY PROTOTYPE</div>
 
   <div class="phone" id="phone">
     <div class="notch"></div>
@@ -117,14 +117,14 @@
       <div class="msg in" data-verdict="FALSE" data-conf="96"
            data-claim="Gangs disguised as sadhus kidnap children and remove kidneys"
            data-fact="No such gang exists. Police across states have repeatedly debunked child-kidnapping rumours; similar forwards led to mob lynchings."
-           data-reply="This message is false 🙏 Police have confirmed there is no such gang. Rumours like this have led to innocent people being attacked. Please don't forward it. — Checked with NemesisAI">
+           data-reply="This message is false 🙏 Police have confirmed there is no such gang. Rumours like this have led to innocent people being attacked. Please don't forward it. — Checked with FactFlow">
         <div class="who">Chachu</div><div class="fwd">↪ Forwarded many times</div>
         ALERT!! Gangs of child kidnappers dressed as sadhus are moving in villages at night. They remove kidneys. Stop every outside vehicle. Forward to all groups!<span class="time">8:14</span></div>
       <div class="msg out">Is this true? 😟<span class="time">8:15</span></div>
       <div class="msg in" data-verdict="FALSE" data-conf="95"
            data-claim="Drinking hot water every 15 minutes kills coronavirus"
            data-fact="Hot water does not kill viruses in the body. AP, AFP and BBC fact-checks found no evidence for this claim."
-           data-reply="Hot water is good for you, but it can't kill viruses in your throat — fact-checkers and doctors confirm this. Please follow official health advice instead. — Checked with NemesisAI">
+           data-reply="Hot water is good for you, but it can't kill viruses in your throat — fact-checkers and doctors confirm this. Please follow official health advice instead. — Checked with FactFlow">
         <div class="who">Mummy</div><div class="fwd">↪ Forwarded</div>
         Japanese doctor says drink hot water every 15 minutes, it kills corona in the throat before it reaches lungs!!<span class="time">8:31</span></div>
       <div class="msg in"><div class="who">Riya</div>Lunch at 1 on Sunday? 🍛<span class="time">8:40</span></div>
@@ -135,7 +135,7 @@
     <div class="dim" id="dim"></div>
     <div class="rect" id="rect"></div>
     <div class="hint" id="hint">✍ DRAW A RECTANGLE AROUND THE MESSAGE</div>
-    <div class="bubble" id="bubble" title="NemesisAI">V</div>
+    <div class="bubble" id="bubble" title="FactFlow">V</div>
 
     <div class="sheet" id="sheet"><div class="grab"></div><div id="sheetBody"></div></div>
   </div>
@@ -145,7 +145,7 @@
     <button id="resetBtn">Reset</button>
   </div>
   <p class="note">Tap the red V bubble, then drag a rectangle over a forwarded message. Prototype: the screen region would be
-    OCR'd on-device and sent to the NemesisAI API; verdicts here are pre-filled from real pipeline runs.</p>
+    OCR'd on-device and sent to the FactFlow API; verdicts here are pre-filled from real pipeline runs.</p>
 
 <script>
 (() => {

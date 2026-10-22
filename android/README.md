@@ -1,7 +1,7 @@
-# NemesisAI for Android: floating overlay
+# FactFlow for Android: floating overlay
 
 Most misinformation in India travels inside WhatsApp, which no browser extension can reach on a phone. The Android client
-puts a NemesisAI bubble on top of **any** app, so a user can check a forward without copying, switching apps or
+puts a FactFlow bubble on top of **any** app, so a user can check a forward without copying, switching apps or
 leaving the chat.
 
 > **Status:** design prototype. `overlay_mockup.html` is an interactive mock of the full flow, used for the demo video.
@@ -44,5 +44,5 @@ Open `overlay_mockup.html` in any browser (no server needed).
 - Or press **▶ Auto demo** for a scripted run that is easy to screen-record.
 - **Reply in chat** posts the generated correction into the mock chat.
 
-The verdicts in the mockup are pre-filled from real NemesisAI pipeline runs on the same text. They are not computed
+The verdicts in the mockup are pre-filled from real FactFlow pipeline runs on the same text. They are not computed
 live in the page.
