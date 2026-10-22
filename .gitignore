@@ -1,13 +1,25 @@
 # Python
 venv/
+.venv/
+**/venv/
+**/.venv/
 __pycache__/
 *.pyc
 *.egg-info/
-backend/*.db
+.pytest_cache/
+**/.pytest_cache/
 
-# Secrets
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets and environment
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.key
 
 # Node / Next.js
 node_modules/
@@ -18,6 +30,18 @@ dist/
 # OS / logs
 .DS_Store
 Thumbs.db
+logs/
 *.log
 
+# Reference materials
 _reference/
+
+# Local runtime data and outputs
+backend/data/local/
+
+# Local tunnels
+.cloudflared/
+*.tunnel
+cloudflared.exe
+ngrok.exe
+ngrok.yml
