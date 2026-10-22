@@ -1,0 +1,21 @@
+From: CBI Officer <cbi@delhi-police.example>
+To: User <user@home.example>
+Subject: =?utf-8?b?4KS44KWA4KSs4KWA4KSG4KSIIOCklOCksCDgpKrgpYHgpLLgpL/gpLg=?=
+ - =?utf-8?b?4KSh4KS/4KSc4KS/4KSf4KSyIOCkheCksOClh+CkuOCljeCknyDgpLXgpL4=?=
+ =?utf-8?b?4KSw4KSC4KSf?=
+Date: Thu, 22 Oct 2026 12:47:00 +0530
+Message-ID: <bench-047@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=delhi-police.example; dkim=pass header.d=delhi-police.example;
+ dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+4KSG4KSq4KSV4KWHIOCkqOCkvuCkriDgpLjgpYcg4KSt4KWH4KSc4KWHIOCkl+CkjyDgpKrgpL7g
+pLDgpY3gpLjgpLIg4KSu4KWH4KSCIOCkqOCktuClgOCksuClgCDgpKbgpLXgpL7gpI/gpIIgKOCk
+oeCljeCksOCkl+CljeCkuCkg4KSq4KS+4KSIIOCkl+CkiCDgpLngpYjgpILgpaQg4KSG4KSq4KSV
+4KWLIOCkoeCkv+CknOCkv+Ckn+CksiDgpIXgpLDgpYfgpLjgpY3gpJ8g4KSV4KS/4KSv4KS+IOCk
+nOCkvuCkpOCkviDgpLngpYjgpaQg4KSk4KWB4KSw4KSC4KSkIOCkteClgOCkoeCkv+Ckr+CliyDg
+pJXgpYngpLIg4KSq4KSwIOCknOClgeCkoeCkvOClhyDgpLDgpLngpYfgpIIg4KSF4KSo4KWN4KSv
+4KSl4KS+IOCkl+Ckv+CksOCkq+CljeCkpOCkvuCksOClgCDgpLngpYvgpJfgpYDgpaQK

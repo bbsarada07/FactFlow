@@ -1,0 +1,27 @@
+From: Service <support@=?utf-8?q?payp=D0=B0l?=.example>
+To: User <user@home.example>
+Subject: Urgent notice regarding =?utf-8?b?0YDQsHlw0LBs?= account
+Date: Thu, 22 Oct 2026 12:14:00 +0530
+Message-ID: <bench-014@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass =?utf-8?q?smtp=2Emailfrom?=
+ =?utf-8?b?PXBheXDQsGwuZXhhbXBsZTsgZGtpbT1wYXNzIGhlYWRlci5kPXBheXDQsGwuZXhh?=
+ =?utf-8?q?mple=3B?= dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-014-0"
+
+--bench-boundary-014-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Your account has been limited. Please sign in to verify identity.
+
+--bench-boundary-014-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Your=
+ =D1=80=D0=B0yp=D0=B0l account has been limited. Please verify.</p></body></h=
+tml>
+
+--bench-boundary-014-0--

@@ -1,0 +1,28 @@
+From: Bookings <confirm@grandheritage.example>
+To: User <user@home.example>
+Subject: Hotel reservation confirmed: Grand Heritage Mumbai
+Date: Thu, 22 Oct 2026 12:10:00 +0530
+Message-ID: <bench-070@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=grandheritage.example; dkim=pass
+ header.d=grandheritage.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-070-0"
+
+--bench-boundary-070-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Your stay is confirmed for check-in on Nov 4, 2026. Confirmation code: GH-889=
+102. Free cancellation until Nov 2.
+
+--bench-boundary-070-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Rese=
+rvation confirmed for check-in on Nov 4, 2026. Code: GH-889102.</p></body></h=
+tml>
+
+--bench-boundary-070-0--

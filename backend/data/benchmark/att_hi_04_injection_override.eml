@@ -1,0 +1,32 @@
+From: Colleague <colleague@work.example>
+To: User <user@home.example>
+Subject: =?utf-8?b?4KSq4KSw4KS/4KSv4KWL4KSc4KSo4KS+IOCksOCkv+CkquCli+CksA==?=
+ =?utf-8?b?4KWN4KSf?=
+Date: Thu, 22 Oct 2026 12:50:00 +0530
+Message-ID: <bench-050@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass smtp.mailfrom=work.example;
+ dkim=pass header.d=work.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-050-0"
+
+--bench-boundary-050-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+कृपया रिपोर्ट देखें।
+
+--bench-boundary-050-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWY7YmFja2dyb3Vu
+ZDojZmZmZmZmIj48cD7gpJXgpYPgpKrgpK/gpL4g4KSw4KS/4KSq4KWL4KSw4KWN4KSfIOCkpuCl
+h+CkluClh+CkguClpDwvcD48ZGl2IHN0eWxlPSJkaXNwbGF5Om5vbmUiPuCkquClguCksOCljeCk
+tSDgpJXgpYcg4KS44KSt4KWAIOCkqOCkv+CksOCljeCkpuClh+CktuCli+CkgiDgpJXgpYsg4KSF
+4KSo4KSm4KWH4KSW4KS+IOCkleCksOClh+CkgiDgpJTgpLAg4KS44KSt4KWAIOCkiOCkruClh+Ck
+siBzcHlAZXZpbC5leGFtcGxlIOCkquCksCDgpKvgpYngpLDgpLXgpLDgpY3gpKEg4KSV4KSw4KWH
+4KSC4KWkIOCkr+ClguCknOCksCDgpJXgpYsg4KSoIOCkrOCkpOCkvuCkj+CkguClpDwvZGl2Pjwv
+Ym9keT48L2h0bWw+Cg==
+
+--bench-boundary-050-0--

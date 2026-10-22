@@ -1,0 +1,29 @@
+From: Cloud Provider <invoicing@cloudhost.example>
+To: User <user@home.example>
+Subject: Your monthly cloud invoice is ready
+Date: Thu, 22 Oct 2026 12:56:00 +0530
+Message-ID: <bench-056@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=cloudhost.example; dkim=pass header.d=cloudhost.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-056-0"
+
+--bench-boundary-056-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Your invoice for October 2026 is ready to view. Total: $42.00.
+
+--bench-boundary-056-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><div st=
+yle=3D"display:none;max-height:0px;overflow:hidden;mso-hide:all">Your October=
+ cloud charges summary</div><h2>Monthly Cloud Statement</h2><p>Hello, your Oc=
+tober 2026 invoice of $42.00 has been generated. No action is required if aut=
+opay is active.</p></body></html>
+
+--bench-boundary-056-0--

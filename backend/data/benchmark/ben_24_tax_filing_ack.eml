@@ -1,0 +1,28 @@
+From: IT Dept Portal <donotreply@incometax.example>
+To: User <user@home.example>
+Subject: Income Tax Return ITR-1 e-Verification Acknowledgment
+Date: Thu, 22 Oct 2026 12:18:00 +0530
+Message-ID: <bench-078@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=incometax.example; dkim=pass header.d=incometax.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-078-0"
+
+--bench-boundary-078-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Your ITR-1 for Assessment Year 2026-27 has been successfully e-verified using=
+ Aadhaar OTP. Ack No: 918237190283.
+
+--bench-boundary-078-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>ITR-=
+1 successfully verified for AY 2026-27. Acknowledgment number: 918237190283.<=
+/p></body></html>
+
+--bench-boundary-078-0--

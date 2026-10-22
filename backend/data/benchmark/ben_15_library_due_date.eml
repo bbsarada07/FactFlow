@@ -1,0 +1,28 @@
+From: University Library <circulation@university.example>
+To: User <user@home.example>
+Subject: Library Courtesy Notice: Items due in 3 days
+Date: Thu, 22 Oct 2026 12:09:00 +0530
+Message-ID: <bench-069@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=university.example; dkim=pass header.d=university.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-069-0"
+
+--bench-boundary-069-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear patron, 'Introduction to Algorithms (4th Edition)' is due on October 25.=
+ You may renew online via the catalog.
+
+--bench-boundary-069-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>The =
+following item is due on Oct 25: Introduction to Algorithms. You can renew on=
+line.</p></body></html>
+
+--bench-boundary-069-0--

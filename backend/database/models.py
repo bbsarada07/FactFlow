@@ -497,3 +497,52 @@ class ShieldApproval(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     decided_by: Mapped[str | None] = mapped_column(String(128))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BenchmarkRun(Base):
+    """A red-team benchmark run over the benchmark dataset (shield/benchmark.py)."""
+
+    __tablename__ = "benchmark_runs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    mode: Mapped[str] = mapped_column(String(16), default="rules")  # rules | llm
+    status: Mapped[str] = mapped_column(String(16), default="running")  # running | complete | failed
+    dataset_size: Mapped[int] = mapped_column(Integer, default=0)
+    attack_count: Mapped[int] = mapped_column(Integer, default=0)
+    benign_count: Mapped[int] = mapped_column(Integer, default=0)
+    detection_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    false_positive_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    policy_block_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    per_category: Mapped[dict] = mapped_column(JSON, default=dict)
+    confusion_matrix: Mapped[dict] = mapped_column(JSON, default=dict)
+    latency_p50_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    latency_p95_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    token_usage: Mapped[dict] = mapped_column(JSON, default=dict)
+    failed_cases: Mapped[list] = mapped_column(JSON, default=list)
+    summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    error: Mapped[str | None] = mapped_column(Text)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "created_at": iso(self.created_at),
+            "completed_at": iso(self.completed_at),
+            "mode": self.mode,
+            "status": self.status,
+            "dataset_size": self.dataset_size,
+            "attack_count": self.attack_count,
+            "benign_count": self.benign_count,
+            "detection_rate": self.detection_rate,
+            "false_positive_rate": self.false_positive_rate,
+            "policy_block_rate": self.policy_block_rate,
+            "per_category": self.per_category or {},
+            "confusion_matrix": self.confusion_matrix or {},
+            "latency_p50_ms": self.latency_p50_ms,
+            "latency_p95_ms": self.latency_p95_ms,
+            "token_usage": self.token_usage or {},
+            "failed_cases": self.failed_cases or [],
+            "summary": self.summary or {},
+            "error": self.error,
+        }

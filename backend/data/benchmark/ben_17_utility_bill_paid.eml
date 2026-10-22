@@ -1,0 +1,28 @@
+From: Municipal Corporation <water@cityutilities.example>
+To: User <user@home.example>
+Subject: Payment receipt for Water Bill #WB-90123
+Date: Thu, 22 Oct 2026 12:11:00 +0530
+Message-ID: <bench-071@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=cityutilities.example; dkim=pass
+ header.d=cityutilities.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-071-0"
+
+--bench-boundary-071-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Thank you. Your payment of Rs 450.00 towards Water Consumer No. 90123 was rec=
+eived on 22-10-2026. Receipt #R-81920.
+
+--bench-boundary-071-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Paym=
+ent of Rs 450.00 received on 22-10-2026. Receipt number: R-81920.</p></body><=
+/html>
+
+--bench-boundary-071-0--

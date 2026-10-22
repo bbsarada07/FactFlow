@@ -1,0 +1,27 @@
+From: Sneha Patel <sneha@company.example>
+To: User <user@home.example>
+Subject: Lunch today at the cafeteria?
+Date: Thu, 22 Oct 2026 12:13:00 +0530
+Message-ID: <bench-073@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=company.example; dkim=pass header.d=company.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-073-0"
+
+--bench-boundary-073-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Hey Ravi, are you around for lunch around 1:15 today? We can grab dosa at the=
+ cafeteria.
+
+--bench-boundary-073-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Hey =
+Ravi, are you around for lunch around 1:15 today? Let me know!</p></body></ht=
+ml>
+
+--bench-boundary-073-0--

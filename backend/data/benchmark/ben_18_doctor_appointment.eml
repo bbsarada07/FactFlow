@@ -1,0 +1,28 @@
+From: Apollo Clinics <appointments@apolloclinics.example>
+To: User <user@home.example>
+Subject: Appointment Reminder: Dr. Sharma at 11:00 AM tomorrow
+Date: Thu, 22 Oct 2026 12:12:00 +0530
+Message-ID: <bench-072@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=apolloclinics.example; dkim=pass
+ header.d=apolloclinics.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-072-0"
+
+--bench-boundary-072-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Ravi, reminder for your general health checkup with Dr. Sharma tomorrow =
+at 11:00 AM at Indiranagar clinic.
+
+--bench-boundary-072-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Remi=
+nder for your appointment tomorrow at 11:00 AM with Dr. Sharma.</p></body></h=
+tml>
+
+--bench-boundary-072-0--

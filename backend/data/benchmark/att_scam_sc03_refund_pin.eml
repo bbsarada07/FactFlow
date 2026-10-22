@@ -1,0 +1,14 @@
+From: Refund Desk <refund@bill-support.example>
+To: User <user@home.example>
+Subject: Electricity bill refund processing
+Date: Thu, 22 Oct 2026 12:42:00 +0530
+Message-ID: <bench-042@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=bill-support.example; dkim=pass header.d=bill-support.example;
+ dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Your excess bill payment of Rs 1,850 is ready to be credited. Enter your MPIN=
+ to accept the refund transaction.

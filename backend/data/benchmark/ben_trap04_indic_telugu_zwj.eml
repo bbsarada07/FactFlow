@@ -1,0 +1,37 @@
+From: HR Team <hr@telugu-corp.example>
+To: User <user@home.example>
+Subject: =?utf-8?b?4LCq4LCC4LCh4LGB4LCXIOCwtuCxgeCwreCwvuCwleCwvuCwguCwlQ==?=
+ =?utf-8?b?4LGN4LC34LCy4LGBIOCwruCwsOCwv+Cwr+CxgSDgsIbgsKvgsYDgsLjgsY0g4LC4?=
+ =?utf-8?b?4LGG4LCy4LC14LGB?=
+Date: Thu, 22 Oct 2026 12:58:00 +0530
+Message-ID: <bench-058@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=telugu-corp.example; dkim=pass header.d=telugu-corp.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-058-0"
+
+--bench-boundary-058-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+
+4LCw4LC14LC/IOCwleCxgeCwruCwvuCwsOCxjSDgsJfgsL7gsLDgsL/gsJXgsL8g4LCo4LCu4LC4
+4LGN4LCV4LC+4LCw4LCCLCDgsKbgsLjgsLDgsL4g4LCq4LCC4LCh4LGB4LCXIOCwuOCwguCwpuCw
+sOCxjeCwreCwguCwl+CwviDgsLjgsYvgsK7gsLXgsL7gsLDgsIIg4LCV4LC+4LCw4LGN4LCv4LC+
+4LCy4LCv4LC+4LCo4LC/4LCV4LC/IOCwuOCxhuCwsuCwteCxgSDgsKrgsY3gsLDgsJXgsJ/gsL/g
+sILgsJrgsKzgsKHgsL/gsILgsKbgsL8uIOCwp+CwqOCxjeCwr+CwteCwvuCwpuCwruCxgeCwsuCx
+gS4K
+
+--bench-boundary-058-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWY7YmFja2dyb3Vu
+ZDojZmZmZmZmIj48cD7gsLDgsLXgsL8g4LCV4LGB4LCu4LC+4LCw4LGNIOCwl+CwvuCwsOCwv+Cw
+leCwvyDgsKjgsK7gsLjgsY3gsJXgsL7gsLDgsIIsPC9wPjxwPuCwpuCwuOCwsOCwviDgsKrgsILg
+sKHgsYHgsJcg4LC44LCC4LCm4LCw4LGN4LCt4LCC4LCX4LC+IOCwuOCxhuCwsuCwteCxgSDgsKrg
+sY3gsLDgsJXgsJ/gsL/gsILgsJrgsKzgsKHgsL/gsILgsKbgsL8uPC9wPjwvYm9keT48L2h0bWw+
+Cg==
+
+--bench-boundary-058-0--

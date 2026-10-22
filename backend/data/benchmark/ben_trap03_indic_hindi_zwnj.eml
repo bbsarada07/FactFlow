@@ -1,0 +1,37 @@
+From: HR Team <hr@samvad.example>
+To: User <user@home.example>
+Subject: =?utf-8?b?4KSm4KWA4KSq4KS+4KS14KSy4KWAIOCkleClgCDgpLbgpYHgpK3gpJU=?=
+ =?utf-8?b?4KS+4KSu4KSo4KS+4KSP4KSCIOCklOCksCDgpJXgpL7gpLDgpY3gpK/gpL7gpLI=?=
+ =?utf-8?b?4KSvIOCkheCkteCkleCkvuCktg==?=
+Date: Thu, 22 Oct 2026 12:57:00 +0530
+Message-ID: <bench-057@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=samvad.example; dkim=pass header.d=samvad.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-057-0"
+
+--bench-boundary-057-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+
+4KSo4KSu4KS44KWN4KSk4KWHIOCksOCkteCkvyDgpJXgpYHgpK7gpL7gpLAsIOCkpuClgOCkquCk
+vuCkteCksuClgCDgpKrgpLDgpY3gpLUg4KSV4KWHIOCkieCkquCksuCkleCljeCkt+CljeCkryDg
+pK7gpYfgpIIg4KSG4KSX4KS+4KSu4KWAIOCkuOCli+CkruCkteCkvuCksCDgpJXgpYsg4KSV4KS+
+4KSw4KWN4KSv4KS+4KSy4KSvIOCkrOCkguCkpiDgpLDgpLngpYfgpJfgpL7gpaQg4KSV4KWN4KSv
+4KS+IOCkhuCkqiDgpLjgpYvgpK7gpLXgpL7gpLAg4KSV4KWAIOCkm+ClgeCkn+CljeCkn+ClgCDg
+pJXgpYcg4KSy4KS/4KSPIOCkpOCliOCkr+CkvuCksCDgpLngpYjgpII/IOCkuOCkquCljeCksOCl
+h+Ckriwg4KSu4KS+4KSo4KS1IOCkuOCkguCkuOCkvuCkp+CkqCDgpLXgpL/gpK3gpL7gpJfgpaQK
+
+--bench-boundary-057-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWY7YmFja2dyb3Vu
+ZDojZmZmZmZmIj48cD7gpKjgpK7gpLjgpY3gpKTgpYcg4KSw4KS14KS/IOCkleClgeCkruCkvuCk
+sCw8L3A+PHA+4KSm4KWA4KSq4KS+4KS14KSy4KWAIOCkquCksOCljeCktSDgpJXgpYcg4KSJ4KSq
+4KSy4KSV4KWN4KS34KWN4KSvIOCkruClh+CkgiDgpJXgpL7gpLDgpY3gpK/gpL7gpLLgpK8g4KSu
+4KWH4KSCIOCkheCkteCkleCkvuCktiDgpLDgpLngpYfgpJfgpL7gpaQg4KS44KSq4KWN4KSw4KWH
+4KSuLDxicj7gpI/gpJrgpIbgpLAg4KSf4KWA4KSuPC9wPjwvYm9keT48L2h0bWw+Cg==
+
+--bench-boundary-057-0--

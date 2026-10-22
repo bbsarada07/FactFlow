@@ -503,3 +503,132 @@ Notes for the UI:
   `origin: untrusted_content` are attempts the message made, and they are always `BLOCK`. Actual
   agent work is in the mail tasks.
 - `explanation.whatsapp_warning` is ready to copy. It never contains links (they are removed).
+
+
+## Sandbox Email Assistant (operator)
+
+### POST /api/sandbox/run
+
+Run simulated email assistant on an email with `shield=on` (protected by quarantine, policy and approvals) or `shield=off` (intentionally vulnerable baseline).
+
+- **Headers:** `X-Operator-Token`
+- **Request Body:**
+  ```json
+  {
+    "raw": "optional raw RFC 822 or pasted text",
+    "eml_base64": "optional base64-encoded .eml",
+    "email_id": "optional existing email id",
+    "shield": "on" | "off" | true | false,
+    "mode": "full" | "rules"
+  }
+  ```
+- **Constraints & Behavior:**
+  - `shield=off` requires server env `ALLOW_VULNERABLE_DEMO=true`. Returns 403 Forbidden if disabled.
+  - In `shield=off`, feeds raw email directly to the LLM with tool access to `simulated_outbox`. If LLM is unavailable, returns `"status": "unavailable", "detail": "unavailable, nothing executed"` and never a fake attack success.
+  - In `shield=on`, runs through the real quarantine, policy and approval pipeline.
+  - Every response is labelled `"simulated": true`.
+- **Response:**
+  ```json
+  {
+    "simulated": true,
+    "shield": "off" | "on",
+    "status": "complete" | "unavailable" | "failed",
+    "executed": false,
+    "summary": "...",
+    "draft_reply": "...",
+    "tool_calls": [],
+    "outbox_entries": [],
+    "verdict": { ... },
+    "steps": [ ... ],
+    "latency_ms": 120
+  }
+  ```
+
+### GET /api/sandbox/outbox
+
+- **Headers:** `X-Operator-Token`
+- **Query:** `limit=50`, `offset=0`
+- **Response:**
+  ```json
+  {
+    "simulated": true,
+    "count": 2,
+    "items": [
+      {
+        "id": 1,
+        "task_id": "sandbox-...",
+        "step_id": "step-...",
+        "kind": "forward",
+        "target": "archive@...",
+        "subject": "...",
+        "body_preview": "...",
+        "approved_by": "policy:allowed",
+        "simulated": true
+      }
+    ]
+  }
+  ```
+
+### DELETE /api/sandbox/outbox (or POST /api/sandbox/outbox/clear)
+
+- **Headers:** `X-Operator-Token`
+- Clears all entries from `simulated_outbox` and appends an audit event.
+- **Response:** `{"simulated": true, "cleared": 2}`
+
+
+## Red-Team Benchmark (operator)
+
+### POST /api/benchmark/run
+
+Run the real red-team benchmark over `backend/data/benchmark/` cases. Only one run can execute at a time.
+
+- **Headers:** `X-Operator-Token`
+- **Request Body:**
+  ```json
+  {
+    "mode": "rules" | "llm",
+    "sample_size": 20
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "id": "...",
+    "mode": "rules",
+    "status": "complete",
+    "dataset_size": 89,
+    "attack_count": 54,
+    "benign_count": 35,
+    "detection_rate": 94.44,
+    "false_positive_rate": 82.86,
+    "policy_block_rate": 100.0,
+    "per_category": { ... },
+    "confusion_matrix": { "TP": 51, "FP": 29, "TN": 6, "FN": 3 },
+    "latency_p50_ms": 19.9,
+    "latency_p95_ms": 25.0,
+    "failed_cases": [ ... ],
+    "summary": { ... }
+  }
+  ```
+
+### GET /api/benchmark/runs
+
+List historical benchmark runs.
+
+- **Headers:** `X-Operator-Token`
+- **Query:** `limit=20`, `offset=0`
+- **Response:** `{"count": 1, "runs": [ ... ]}`
+
+### GET /api/benchmark/latest
+
+Fetch the most recent completed benchmark run.
+
+- **Headers:** `X-Operator-Token`
+- **Response:** Full benchmark run object.
+
+### GET /api/benchmark/runs/{run_id}
+
+Fetch a specific benchmark run by ID.
+
+- **Headers:** `X-Operator-Token`
+- **Response:** Full benchmark run object.

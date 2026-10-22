@@ -1,0 +1,20 @@
+From: Bank Desk <alert@bank-telugu.example>
+To: User <user@home.example>
+Subject: =?utf-8?b?4LCu4LGAIOCwrOCxjeCwr+CwvuCwguCwleCxjSDgsJbgsL7gsKTgsL4g?=
+ =?utf-8?b?4LCs4LGN4LCy4LC+4LCV4LGNIOCwheCwteCxgeCwpOCxgeCwguCwpuCwvyAtIA==?=
+ =?utf-8?b?4LCV4LGH4LC14LGI4LC44LGAIOCwheCwquCxjeCwoeCxh+Cwn+CxjQ==?=
+Date: Thu, 22 Oct 2026 12:52:00 +0530
+Message-ID: <bench-052@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=bank-telugu.example; dkim=pass header.d=bank-telugu.example;
+ dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+4LCq4LGN4LCw4LC/4LCv4LCu4LGI4LCoIOCwteCwv+CwqOCwv+Cwr+Cxi+Cwl+CwpuCwvuCwsOCx
+geCwoeCwviwg4LCu4LGAIOCwleCxh+CwteCxiOCwuOCxgCDgsIXgsKrgsY3gsKHgsYfgsJ/gsY0g
+4LCa4LGH4LCv4LCV4LCq4LGL4LCk4LGHIDI0IOCwl+CwguCwn+CwsuCxjeCwsuCxiyDgsKzgsY3g
+sK/gsL7gsILgsJXgsY0g4LCW4LC+4LCk4LC+IOCwrOCxjeCwsuCwvuCwleCxjSDgsIXgsLXgsYHg
+sKTgsYHgsILgsKbgsL8uIOCwteCxhuCwguCwn+CwqOCxhyDgsLLgsL/gsILgsJXgsY0g4LCV4LGN
+4LCy4LC/4LCV4LGNIOCwmuCxh+Cwr+CwguCwoeCwvy4K

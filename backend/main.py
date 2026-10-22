@@ -13,8 +13,8 @@ from loguru import logger
 from sqlalchemy import text
 
 from api import (
-    accuracy, approvals, audit, history, inbox, incidents, mail, policy, public_config, registry, result, stats,
-    stream, verify,
+    accuracy, approvals, audit, benchmark, history, inbox, incidents, mail, policy, public_config, registry, result,
+    sandbox, stats, stream, verify,
 )
 from config import settings
 from database import connection
@@ -53,12 +53,12 @@ app.add_middleware(
     allow_origins=[settings.FRONTEND_URL, "http://localhost:3000", "http://127.0.0.1:3000"],
     allow_origin_regex=r"chrome-extension://.*",
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 for module in (verify, stream, result, history, incidents, stats, registry, public_config, accuracy,
-               inbox, approvals, audit, policy, mail):
+               inbox, approvals, audit, policy, mail, sandbox, benchmark):
     app.include_router(module.router)
 
 

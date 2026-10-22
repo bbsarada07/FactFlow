@@ -1,0 +1,27 @@
+From: CRY India <donor-care@cry.example>
+To: User <user@home.example>
+Subject: Tax-exempt Donation Receipt: CRY India
+Date: Thu, 22 Oct 2026 12:15:00 +0530
+Message-ID: <bench-075@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass smtp.mailfrom=cry.example;
+ dkim=pass header.d=cry.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-075-0"
+
+--bench-boundary-075-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Thank you for your generous donation of Rs 2,000. Your 80G tax exemption cert=
+ificate is attached. Receipt #CRY-2026-9041.
+
+--bench-boundary-075-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Than=
+k you for supporting child education. Receipt #CRY-2026-9041 under Section 80=
+G.</p></body></html>
+
+--bench-boundary-075-0--

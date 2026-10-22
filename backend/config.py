@@ -122,6 +122,9 @@ class Settings(BaseSettings):
     REVERSE_IMAGE_SEARCH_URL: str = "https://lens.google.com/"
     PIB_FACTCHECK_URL: str = "https://factcheck.pib.gov.in"
 
+    # Sandbox assistant demo (must default to False, required for vulnerable mode)
+    ALLOW_VULNERABLE_DEMO: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

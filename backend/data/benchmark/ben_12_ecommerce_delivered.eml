@@ -1,0 +1,27 @@
+From: Amazon.in <shipment@amazon.example>
+To: User <user@home.example>
+Subject: Delivered: Your Amazon.in order #402-9182371-1201923
+Date: Thu, 22 Oct 2026 12:06:00 +0530
+Message-ID: <bench-066@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=amazon.example; dkim=pass header.d=amazon.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-066-0"
+
+--bench-boundary-066-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Your package containing 'Ergonomic Wireless Mouse' was delivered to your rece=
+ption at 11:24 AM.
+
+--bench-boundary-066-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Your=
+ order containing 'Ergonomic Wireless Mouse' was delivered today.</p></body><=
+/html>
+
+--bench-boundary-066-0--

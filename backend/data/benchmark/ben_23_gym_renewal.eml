@@ -1,0 +1,27 @@
+From: Cult Support <membership@cultfit.example>
+To: User <user@home.example>
+Subject: Cult.fit membership renewal reminder
+Date: Thu, 22 Oct 2026 12:17:00 +0530
+Message-ID: <bench-077@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=cultfit.example; dkim=pass header.d=cultfit.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-077-0"
+
+--bench-boundary-077-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Hi Ravi, your Cult Elite pass expires in 14 days. Renew today to lock in your=
+ current annual discount.
+
+--bench-boundary-077-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Your=
+ fitness pass expires in 14 days. Renew online to keep your active discount.<=
+/p></body></html>
+
+--bench-boundary-077-0--

@@ -1,0 +1,28 @@
+From: Cessna Pet Hospital <care@cessnavet.example>
+To: User <user@home.example>
+Subject: Annual Rabies Vaccination Due for Bruno
+Date: Thu, 22 Oct 2026 12:23:00 +0530
+Message-ID: <bench-083@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=cessnavet.example; dkim=pass header.d=cessnavet.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-083-0"
+
+--bench-boundary-083-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Hello, Bruno's annual rabies and 9-in-1 vaccination booster is due next week.=
+ Please bring his vaccination booklet along.
+
+--bench-boundary-083-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Remi=
+nder: Bruno vaccination booster is due next week. Book an appointment online.=
+</p></body></html>
+
+--bench-boundary-083-0--

@@ -1,0 +1,26 @@
+From: Indane Gas <orders@indane.example>
+To: User <user@home.example>
+Subject: LPG Cylinder Refill Booking #90182 Confirmed
+Date: Thu, 22 Oct 2026 12:28:00 +0530
+Message-ID: <bench-088@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=indane.example; dkim=pass header.d=indane.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-088-0"
+
+--bench-boundary-088-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Consumer 48102, refill cylinder booking #90182 has been accepted. Delive=
+ry expected within 2 business days. Subsidized amount: Rs 820.00.
+
+--bench-boundary-088-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Refi=
+ll booking accepted. Cash on delivery amount: Rs 820.00.</p></body></html>
+
+--bench-boundary-088-0--

@@ -1,0 +1,27 @@
+From: SBI Alerts <alerts@sbi.example>
+To: User <user@home.example>
+Subject: Salary credit notification: A/C XX3412
+Date: Thu, 22 Oct 2026 12:00:00 +0530
+Message-ID: <bench-060@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass smtp.mailfrom=sbi.example;
+ dkim=pass header.d=sbi.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-060-0"
+
+--bench-boundary-060-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Your account XX3412 has been credited with Rs 78,500.00 on 22-OCT-2026 by NEF=
+T salary transfer. Available Bal: Rs 92,340.00.
+
+--bench-boundary-060-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Your=
+ account XX3412 has been credited with Rs 78,500.00 by NEFT salary transfer.<=
+/p></body></html>
+
+--bench-boundary-060-0--

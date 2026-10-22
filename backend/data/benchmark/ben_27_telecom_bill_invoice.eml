@@ -1,0 +1,27 @@
+From: Airtel eBill <ebill@airtel.example>
+To: User <user@home.example>
+Subject: Airtel Postpaid e-Bill for Mobile 98450XXXXX
+Date: Thu, 22 Oct 2026 12:21:00 +0530
+Message-ID: <bench-081@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=airtel.example; dkim=pass header.d=airtel.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-081-0"
+
+--bench-boundary-081-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Customer, bill amount of Rs 588.82 for cycle ending 18-Oct-2026 is due o=
+n 05-Nov-2026. Pay easily via Airtel Thanks app.
+
+--bench-boundary-081-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Your=
+ Airtel postpaid bill of Rs 588.82 is generated. Due date: 05-Nov-2026.</p></=
+body></html>
+
+--bench-boundary-081-0--

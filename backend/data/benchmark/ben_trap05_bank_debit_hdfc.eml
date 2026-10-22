@@ -1,0 +1,29 @@
+From: HDFC Alerts <alerts@hdfcbank.example>
+To: User <user@home.example>
+Subject: Alert: A/C XX7102 debited for Rs 850.00
+Date: Thu, 22 Oct 2026 12:59:00 +0530
+Message-ID: <bench-059@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=hdfcbank.example; dkim=pass header.d=hdfcbank.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-059-0"
+
+--bench-boundary-059-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Customer, Rs 850.00 has been debited from your account ending in 7102 on=
+ 22-OCT-2026 via UPI to SWIGGY. Bal: Rs 42,100.50. If not done by you, call c=
+ustomer care.
+
+--bench-boundary-059-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Dear=
+ Customer,</p><p>Rs 850.00 has been debited from your account XX7102 on 22-OC=
+T-2026 via UPI to SWIGGY. Available balance: Rs 42,100.50.</p></body></html>
+
+--bench-boundary-059-0--

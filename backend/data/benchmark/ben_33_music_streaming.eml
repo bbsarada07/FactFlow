@@ -1,0 +1,26 @@
+From: Spotify Receipts <no-reply@spotify.example>
+To: User <user@home.example>
+Subject: Spotify Premium Family monthly receipt
+Date: Thu, 22 Oct 2026 12:27:00 +0530
+Message-ID: <bench-087@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=spotify.example; dkim=pass header.d=spotify.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-087-0"
+
+--bench-boundary-087-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Thanks for listening. We charged Rs 179.00 to your card ending 4821 for Spoti=
+fy Premium Family. Next billing date: 22 Nov 2026.
+
+--bench-boundary-087-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Your=
+ monthly Spotify Premium Family receipt: Rs 179.00 charged.</p></body></html>
+
+--bench-boundary-087-0--
