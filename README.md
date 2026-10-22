@@ -1,10 +1,10 @@
-# NemesisAI
+# FactFlow
 
 > In April 2020, two sadhus and their driver were lynched by a mob in Palghar, Maharashtra, after child-kidnapping
 > rumours spread in the area ([source](https://en.wikipedia.org/wiki/2020_Palghar_mob_lynching)).
-> **NemesisAI checks a forward like that one against published sources, live, and says plainly when it cannot tell.**
+> **FactFlow checks a forward like that one against published sources, live, and says plainly when it cannot tell.**
 
-NemesisAI is a multi-agent misinformation forensics system for India. Paste a WhatsApp forward, tweet, headline, link
+FactFlow is a multi-agent misinformation forensics system for India. Paste a WhatsApp forward, tweet, headline, link
 or screenshot, and six AI agents trace the evidence, reason over it, and return a verdict you can understand, share and
 forward back into the chat. Each step streams live while it runs.
 
@@ -12,7 +12,7 @@ forward back into the chat. Each step streams live while it runs.
 
 ---
 
-## 1. What NemesisAI does
+## 1. What FactFlow does
 
 - **Verifies any input:** pasted text, a URL (the article is fetched and read), or a PNG/JPG screenshot up to 5 MB
   (Gemma 4 reads the text; Tesseract OCR is the fallback).
@@ -206,7 +206,7 @@ from the verdict cache for `CACHE_TTL_HOURS` (default 24).
 
 Ways to verify:
 
-- **Right-click** selected text or an image, then choose **🔍 Verify with NemesisAI**. A glass verdict badge slides in at
+- **Right-click** selected text or an image, then choose **🔍 Verify with FactFlow**. A glass verdict badge slides in at
   the top-right and auto-dismisses after 8 seconds.
 - **Ctrl+Shift+V** (⌘⇧V on Mac) verifies the current selection. Chrome may keep its own "paste as plain text" binding;
   if so, assign the shortcut at `chrome://extensions/shortcuts`.
@@ -239,9 +239,9 @@ within three years): estimate, source to be added. No figure is given until it h
 - Regional early-warning dashboard for police and district administrations when CRITICAL claims spike.
 - Human-in-the-loop review queue for partner fact-checkers, with their verdicts fed back as Tier-1 evidence.
 
-## Best Use of Gemma 4
+## Gemma 4 for screenshots
 
-NemesisAI calls **Gemma 4** through the **Gemini API**, using the `google-genai` Python SDK
+FactFlow calls **Gemma 4** through the **Gemini API**, using the `google-genai` Python SDK
 (`backend/models/gemini_client.py`). Gemma 4 reads screenshots. It does not decide verdicts.
 
 | Setting | Value |
@@ -288,10 +288,11 @@ NemesisAI calls **Gemma 4** through the **Gemini API**, using the `google-genai`
 - **Screenshots must be PNG or JPG up to 5 MB.** Other formats (for example WebP images saved from
   WhatsApp) are rejected rather than converted.
 
-## Pre-existing work
+## Project history
 
-Every commit below predates the Hacktoberfest Hack Day (25 October 2026). Dates are taken from
-`git log` (IST).
+FactFlow builds on an earlier project of the same team, NemesisAI, which was built for another hackathon. What is new in FactFlow is listed in the section "What's new".
+
+Work that existed before FactFlow, by commit. Dates are taken from `git log` (IST).
 
 | Commit | Date | Work |
 |---|---|---|
@@ -305,12 +306,14 @@ Every commit below predates the Hacktoberfest Hack Day (25 October 2026). Dates 
 | `c27dba5` | 2026-10-21 | Gemma 4 via the Gemini API |
 | `0f05b6c`–`284fc28` | 2026-10-21 | Split routing (Groq verdicts, Gemma 4 screenshots only), screenshot checks, stance disagreement line, unsourced figures removed, `/health` key flags, `/accuracy` page |
 
-**Added during the Hack Day:** nothing yet. Any commits dated 25 October 2026 belong here.
+## What's new
+
+[to be filled by the team]
 
 ## Project structure
 
 ```
-nemesisai/
+factflow/
 ├── backend/        FastAPI app, agents/, api/, database/, services/, tasks/
 ├── frontend/       Next.js 14 (Pages Router) + Tailwind + Framer Motion + Recharts
 ├── extension/      Chrome MV3 extension
