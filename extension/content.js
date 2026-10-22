@@ -1,8 +1,8 @@
-// NemesisAI content script: floating verdict badge, plus inline verify buttons on
+// FactFlow content script: floating verdict badge, plus inline verify buttons on
 // WhatsApp Web, X/Twitter and Instagram. All UI lives in shadow roots so page CSS can't leak in.
 (() => {
-  if (window.__nemesisLoaded) return;
-  window.__nemesisLoaded = true;
+  if (window.__factflowLoaded) return;
+  window.__factflowLoaded = true;
 
   const COLORS = {
     FALSE: "#FF2D2D",
@@ -35,7 +35,7 @@
 
   function ensureBadge() {
     if (badgeRoot) return badgeRoot;
-    badgeHost = document.createElement("nemesis-badge");
+    badgeHost = document.createElement("factflow-badge");
     badgeHost.style.cssText = "position:fixed;top:16px;right:16px;z-index:2147483647;";
     badgeRoot = badgeHost.attachShadow({ mode: "open" });
     document.documentElement.appendChild(badgeHost);
@@ -141,9 +141,9 @@
   // Inline verdict chip rendered on the message bubble itself.
   function inlineChip(container) {
     const mount = adapter.mount(container);
-    let chipHost = mount.querySelector(":scope > nemesis-inline");
+    let chipHost = mount.querySelector(":scope > factflow-inline");
     if (!chipHost) {
-      chipHost = document.createElement("nemesis-inline");
+      chipHost = document.createElement("factflow-inline");
       chipHost.style.cssText = "display:block;margin:6px 0 2px;";
       chipHost.attachShadow({ mode: "open" });
       mount.appendChild(chipHost);
@@ -154,7 +154,7 @@
         root.innerHTML = `<style>${BASE_CSS}
           .chip { display:inline-flex; align-items:center; gap:8px; background:rgba(13,13,18,.92); border:1px solid #2A2A3A;
             border-radius:10px; padding:6px 10px; color:#C8C8D8; font-size:12px; animation: nm-fade .3s ease; }</style>
-          <div class="chip"><div class="spin"></div>NemesisAI is checking this…</div>`;
+          <div class="chip"><div class="spin"></div>FactFlow is checking this…</div>`;
       },
       result(r) {
         const c = colorFor(r.verdict);
@@ -166,13 +166,13 @@
           .conf { color:#8888A0; font-size:11px; }
           .x { margin-left:auto; background:none; border:0; color:#8888A0; cursor:pointer; font-size:14px; }</style>
           <div class="chip"><div class="top"><span class="verdict" style="background:${c};color:${r.verdict === "TRUE" ? "#04140b" : "#fff"}">${esc(r.verdict)}</span>
-          <span class="conf mono">${pct(r.confidence)} · NemesisAI</span><button class="x" aria-label="Dismiss">×</button></div>
+          <span class="conf mono">${pct(r.confidence)} · FactFlow</span><button class="x" aria-label="Dismiss">×</button></div>
           ${esc(clip(r.fact || r.summary, 220))}</div>`;
         root.querySelector(".x").addEventListener("click", () => chipHost.remove());
       },
       error(msg) {
         root.innerHTML = `<style>${BASE_CSS} .chip{display:inline-block;background:rgba(13,13,18,.92);border:1px solid #2A2A3A;border-radius:10px;padding:6px 10px;color:#FF8A8A;font-size:12px;}</style>
-          <div class="chip">NemesisAI: ${esc(msg)}</div>`;
+          <div class="chip">FactFlow: ${esc(msg)}</div>`;
       },
     };
   }
@@ -185,7 +185,7 @@
     }
     const chip = inlineChip(container);
     chip.pending();
-    chrome.runtime.sendMessage({ type: "NEMESIS_VERIFY_TEXT", text, platform: platformName }, (resp) => {
+    chrome.runtime.sendMessage({ type: "FACTFLOW_VERIFY_TEXT", text, platform: platformName }, (resp) => {
       if (chrome.runtime.lastError) return chip.error("Extension was reloaded — refresh the page.");
       if (resp && resp.ok) chip.result(resp.result);
       else chip.error((resp && resp.error) || "Verification failed");
@@ -194,14 +194,14 @@
 
   // Hover "V" button positioned over the hovered message/post.
   if (adapter) {
-    const btnHost = document.createElement("nemesis-hover");
+    const btnHost = document.createElement("factflow-hover");
     btnHost.style.cssText = "position:fixed;z-index:2147483646;display:none;";
     const btnRoot = btnHost.attachShadow({ mode: "open" });
     btnRoot.innerHTML = `<style>${BASE_CSS}
       button { width:26px; height:26px; border-radius:50%; border:1px solid rgba(255,255,255,.2); background:#FF2D2D; color:#fff;
         font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 0 16px rgba(255,45,45,.55); transition: transform .15s; }
       button:hover { transform: scale(1.12); }</style>
-      <button title="Verify with NemesisAI" aria-label="Verify with NemesisAI">V</button>`;
+      <button title="Verify with FactFlow" aria-label="Verify with FactFlow">V</button>`;
     document.documentElement.appendChild(btnHost);
 
     let current = null;
@@ -249,10 +249,10 @@
   // ── Messages from the service worker ──────────────────────────────
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     switch (msg.type) {
-      case "NEMESIS_GET_SELECTION":
+      case "FACTFLOW_GET_SELECTION":
         sendResponse({ text: String(window.getSelection() || "") });
         return false;
-      case "NEMESIS_GET_CONTEXT_TARGET": {
+      case "FACTFLOW_GET_CONTEXT_TARGET": {
         const container = adapter && lastContextTarget ? adapter.container(lastContextTarget) : null;
         if (!container) {
           sendResponse(null);
@@ -263,19 +263,19 @@
         sendResponse({ text: cleanText(adapter.text(container)), anchor });
         return false;
       }
-      case "NEMESIS_PENDING":
+      case "FACTFLOW_PENDING":
         if (msg.anchor && anchors.has(msg.anchor)) inlineChip(anchors.get(msg.anchor)).pending();
         else showPending();
         sendResponse(true);
         return false;
-      case "NEMESIS_RESULT":
+      case "FACTFLOW_RESULT":
         if (msg.anchor && anchors.has(msg.anchor)) {
           inlineChip(anchors.get(msg.anchor)).result(msg.result);
           anchors.delete(msg.anchor);
         } else showResult(msg.result);
         sendResponse(true);
         return false;
-      case "NEMESIS_ERROR":
+      case "FACTFLOW_ERROR":
         if (msg.anchor && anchors.has(msg.anchor)) {
           inlineChip(anchors.get(msg.anchor)).error(msg.message);
           anchors.delete(msg.anchor);

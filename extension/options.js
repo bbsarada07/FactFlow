@@ -1,4 +1,4 @@
-// Options page: stores the NemesisAI API base URL in chrome.storage.sync under "apiBase".
+// Options page: stores the FactFlow API base URL in chrome.storage.sync under "apiBase".
 const DEFAULT_API_BASE = "http://localhost:8000";
 
 const input = document.getElementById("apiBase");

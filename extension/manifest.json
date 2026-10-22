@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "NemesisAI — Fact Checker",
+  "name": "FactFlow — Fact Checker",
   "version": "1.0",
   "description": "Verify any claim instantly",
   "options_page": "options.html",
@@ -35,7 +35,7 @@
         "default": "Ctrl+Shift+V",
         "mac": "Command+Shift+V"
       },
-      "description": "Verify the selected text with NemesisAI"
+      "description": "Verify the selected text with FactFlow"
     }
   }
 }

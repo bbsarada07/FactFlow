@@ -56,7 +56,7 @@ async function checkBackend() {
 }
 
 document.getElementById("verify").addEventListener("click", async () => {
-  await chrome.runtime.sendMessage({ type: "NEMESIS_VERIFY_ACTIVE_SELECTION" });
+  await chrome.runtime.sendMessage({ type: "FACTFLOW_VERIFY_ACTIVE_SELECTION" });
   window.close();
 });
 

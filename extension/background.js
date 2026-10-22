@@ -1,4 +1,4 @@
-// NemesisAI service worker: context menus, keyboard shortcut, API calls and history.
+// FactFlow service worker: context menus, keyboard shortcut, API calls and history.
 
 const API_URL = "http://localhost:8000";
 const POLL_MS = 2000;
@@ -13,13 +13,13 @@ const SOCIAL_PATTERNS = [
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
-      id: "nemesis-verify",
-      title: "🔍 Verify with NemesisAI",
+      id: "factflow-verify",
+      title: "🔍 Verify with FactFlow",
       contexts: ["selection", "image"],
     });
     chrome.contextMenus.create({
-      id: "nemesis-verify-message",
-      title: "🔍 Verify this message with NemesisAI",
+      id: "factflow-verify-message",
+      title: "🔍 Verify this message with FactFlow",
       contexts: ["page", "link"],
       documentUrlPatterns: SOCIAL_PATTERNS,
     });
@@ -100,16 +100,16 @@ function notify(title, message) {
 
 /** Verify and show the floating badge (or an OS notification when the page can't host one). */
 async function verifyForTab(tab, payload, anchor = null) {
-  const shown = await sendToTab(tab.id, { type: "NEMESIS_PENDING", anchor });
+  const shown = await sendToTab(tab.id, { type: "FACTFLOW_PENDING", anchor });
   try {
     const result = compact(await verify({ ...payload, platform: platformFor(tab.url) }));
     await remember(result);
-    if (!(await sendToTab(tab.id, { type: "NEMESIS_RESULT", result, anchor })) || !shown) {
-      notify(`NemesisAI: ${result.verdict} (${Math.round((result.confidence || 0) * 100)}%)`, result.summary || result.claim);
+    if (!(await sendToTab(tab.id, { type: "FACTFLOW_RESULT", result, anchor })) || !shown) {
+      notify(`FactFlow: ${result.verdict} (${Math.round((result.confidence || 0) * 100)}%)`, result.summary || result.claim);
     }
   } catch (err) {
-    if (!(await sendToTab(tab.id, { type: "NEMESIS_ERROR", message: err.message, anchor }))) {
-      notify("NemesisAI could not verify this", err.message);
+    if (!(await sendToTab(tab.id, { type: "FACTFLOW_ERROR", message: err.message, anchor }))) {
+      notify("FactFlow could not verify this", err.message);
     }
   }
 }
@@ -117,13 +117,13 @@ async function verifyForTab(tab, payload, anchor = null) {
 async function verifySelectionInTab(tab) {
   let text = "";
   try {
-    const r = await chrome.tabs.sendMessage(tab.id, { type: "NEMESIS_GET_SELECTION" });
+    const r = await chrome.tabs.sendMessage(tab.id, { type: "FACTFLOW_GET_SELECTION" });
     text = (r && r.text) || "";
   } catch (_) {
     /* page without content script */
   }
   if (text.trim().length < 8) {
-    await sendToTab(tab.id, { type: "NEMESIS_ERROR", message: "Select some text to verify first." });
+    await sendToTab(tab.id, { type: "FACTFLOW_ERROR", message: "Select some text to verify first." });
     return;
   }
   await verifyForTab(tab, { text: text.trim().slice(0, 5000) });
@@ -132,7 +132,7 @@ async function verifySelectionInTab(tab) {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab || tab.id == null) return;
 
-  if (info.menuItemId === "nemesis-verify") {
+  if (info.menuItemId === "factflow-verify") {
     if (info.mediaType === "image" && info.srcUrl && /^https?:/.test(info.srcUrl)) {
       await verifyForTab(tab, { image_url: info.srcUrl, text: (info.selectionText || "").slice(0, 5000) });
     } else if (info.selectionText) {
@@ -141,16 +141,16 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  if (info.menuItemId === "nemesis-verify-message") {
+  if (info.menuItemId === "factflow-verify-message") {
     // Ask the content script for the message/post under the cursor when the menu opened.
     let target = null;
     try {
-      target = await chrome.tabs.sendMessage(tab.id, { type: "NEMESIS_GET_CONTEXT_TARGET" });
+      target = await chrome.tabs.sendMessage(tab.id, { type: "FACTFLOW_GET_CONTEXT_TARGET" });
     } catch (_) {
       /* ignore */
     }
     if (!target || !target.text) {
-      await sendToTab(tab.id, { type: "NEMESIS_ERROR", message: "Couldn't find a message here. Select its text and try again." });
+      await sendToTab(tab.id, { type: "FACTFLOW_ERROR", message: "Couldn't find a message here. Select its text and try again." });
       return;
     }
     await verifyForTab(tab, { text: target.text }, target.anchor);
@@ -165,7 +165,7 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Inline hover button on WhatsApp / X / Instagram.
-  if (msg.type === "NEMESIS_VERIFY_TEXT") {
+  if (msg.type === "FACTFLOW_VERIFY_TEXT") {
     verify({ text: msg.text.slice(0, 5000), platform: msg.platform || platformFor(sender.tab && sender.tab.url) })
       .then(async (r) => {
         const result = compact(r);
@@ -177,7 +177,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   // Popup "Verify Selected Text".
-  if (msg.type === "NEMESIS_VERIFY_ACTIVE_SELECTION") {
+  if (msg.type === "FACTFLOW_VERIFY_ACTIVE_SELECTION") {
     chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
       if (tab) verifySelectionInTab(tab);
       sendResponse({ ok: !!tab });
