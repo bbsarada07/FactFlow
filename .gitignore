@@ -19,3 +19,5 @@ dist/
 .DS_Store
 Thumbs.db
 *.log
+
+_reference/
