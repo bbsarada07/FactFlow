@@ -1,5 +1,5 @@
 {
-  "email_id": "7d36f1faa4e7492290760d70dd8a5749",
+  "email_id": "482feb80929c420ca85792760749e569",
   "overall": {
     "label": "SAFE",
     "score": 0,
@@ -63,20 +63,20 @@
   },
   "analysis_failures": [],
   "latency_ms": {
-    "total": 18,
+    "total": 23,
     "per_stage": {
-      "parse": 2.2,
-      "hidden_html": 1.0,
-      "hidden_other": 0.6,
-      "injection_rules": 0.4,
+      "parse": 1.9,
+      "hidden_html": 1.4,
+      "hidden_other": 1.0,
+      "injection_rules": 0.7,
       "qr": 0.0,
       "authenticity_links": 0.5,
-      "scam_rules": 0.6,
+      "scam_rules": 0.5,
       "score_policy": 0.1,
-      "audit": 12.7
+      "audit": 16.6
     }
   },
-  "audit_head_hash": "c6df1f105c63272a8f0ae5116f3f479d00d8cf8a38a0abc2784e7f6cc4839699",
+  "audit_head_hash": "9653ea1bd419178ac8bbb4760fbc878e352f695b85dae338604071492236d78b",
   "mode": "rules",
   "pipeline_version": "inbox-2",
   "input_type": "email",
@@ -98,5 +98,11 @@
     "level": "NONE",
     "reasons": []
   },
-  "llm_usage": null
+  "llm_usage": null,
+  "llm_status": {
+    "state": "not_used",
+    "reason": "rules-only mode was requested",
+    "retry_after_seconds": null
+  },
+  "reader_notes": null
 }

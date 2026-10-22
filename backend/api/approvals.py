@@ -4,7 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from services import shield_runtime
+from services import mail_agent, shield_runtime
 from services.operator_auth import require_operator
 from shield.approvals import ApprovalError, sign
 
@@ -47,14 +47,25 @@ async def list_approvals(status_: Literal["pending", "approved", "denied", "expi
 
 @router.post("/{approval_id}/decision")
 async def decide(approval_id: str, body: DecisionRequest, actor: str = Depends(require_operator)):
-    """Approve once or deny. The token binds the decision to one (email, action, target)."""
+    """Approve once or deny. The token binds the decision to one (email, action, target). The mail
+    agent's task then resumes: an approved step runs (outgoing steps only reach the simulated
+    outbox), a denied or expired one ends."""
     store = _store()
     try:
         approval = await store.decide(approval_id, body.decision, body.token, actor)
     except ApprovalError as exc:
+        if exc.code == "expired":
+            expired = await store.get(approval_id)
+            if expired is not None:
+                await mail_agent.on_approval_decided(expired)
         raise HTTPException(ERROR_STATUS.get(exc.code, status.HTTP_400_BAD_REQUEST), str(exc)) from None
+    await mail_agent.on_approval_decided(approval)
+    task = await mail_agent.task_for_approval(approval)
+    step = next((s for s in (task or {}).get("steps", []) if s.get("approval_id") == approval.id), None)
     return {
         "approval": approval.model_dump(mode="json"),
-        "executed": False,
-        "note": "Nothing is sent anywhere. Approved actions will run against the simulated outbox (Phase 4).",
+        "executed": bool(step and step.get("status") == "executed"),
+        "step": step,
+        "task_state": task["state"] if task else None,
+        "note": "Nothing leaves FactFlow: approved outgoing steps are written to the simulated outbox only.",
     }

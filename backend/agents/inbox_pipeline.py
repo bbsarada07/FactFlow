@@ -24,7 +24,7 @@ from config import settings
 from database import connection
 from database.models import Claim, Email, new_slug, utcnow
 from models.groq_client import Usage, call_nano, track_usage, usage_stage
-from services import dns_checks, shield_runtime
+from services import dns_checks, llm_status, shield_runtime
 from services.registry import is_fresh, lookup_repeat
 from services.safe_fetch import FetchBlocked, FetchError, expand_link
 from services.safety import check_sensitive
@@ -32,7 +32,7 @@ from services.text_utils import input_hash, normalize, redact_pii, truncate
 from shield import phishing, quarantine, scoring
 from shield.email_parser import EmailInputError, parse_input
 from shield.scan import RulesScan, finalize, rules_scan
-from shield.schemas import SEVERITY_RANK, ClaimItem, LLMUsage, UnifiedVerdict
+from shield.schemas import SEVERITY_RANK, ClaimItem, LLMStatus, LLMUsage, ReaderNotes, UnifiedVerdict
 
 STAGES = [
     {"index": 0, "name": "INTAKE & TRIAGE", "tier": "RULES", "role": "Reads the message structure"},
@@ -51,6 +51,7 @@ class InboxOptions:
     source: str = "paste"
     language: str = "auto"
     use_llm: bool = True
+    llm_disabled_by_server: bool = False  # full mode was asked for but INBOX_USE_LLM is off
 
 
 async def _q_llm(system: str, user: str, max_tokens: int) -> dict:
@@ -164,26 +165,33 @@ async def _dns(rs: RulesScan) -> None:
 # -------------------------------------------------------------------------------- main
 
 
+def _llm_status(opts: InboxOptions, problem: llm_status.LLMProblem | None) -> LLMStatus:
+    if not opts.use_llm:
+        if opts.llm_disabled_by_server:
+            return LLMStatus(state="disabled", reason="the server runs rules-only (INBOX_USE_LLM is off)")
+        return LLMStatus(state="not_used", reason="rules-only mode was requested")
+    if problem is not None:
+        return LLMStatus(state=problem.state, reason=problem.reason + "; this is a rules-only result",
+                         retry_after_seconds=problem.retry_after_seconds)
+    return LLMStatus(state="ok")
+
+
 async def _record(v: UnifiedVerdict, source: str, sha256: str) -> None:
-    """Audit trail for one verdict; approvals for actions the policy sends to a person."""
+    """Audit trail for one verdict. Approvals are created by the mail agent for its own steps
+    (services/mail_agent.py); the proposed actions here are the policy's view of the message."""
     log = shield_runtime.audit()
     await log.append("system", "email_received", {"email_id": v.email_id, "source": source, "sha256": sha256,
                                                   "mode": v.mode})
     await log.append("agent:shield", "scan_summary", {
         "email_id": v.email_id, "scores": {k: c["score"] for k, c in v.components.model_dump().items()},
         "hidden_findings": len(v.components.hidden_content.findings), "analysis_failures": len(v.analysis_failures)})
-    store = shield_runtime.approvals()
     for pa in v.proposed_actions:
         await log.append("policy", "policy_decision", {"email_id": v.email_id, "action": pa.action, "target": pa.target,
                                                       "origin": pa.origin, "decision": pa.policy.decision,
-                                                      "rule_id": pa.policy.rule_id})
-        if pa.policy.decision == "REQUIRE_APPROVAL" and store is not None:
-            await store.create(email_id=v.email_id, action=pa.action, target=pa.target, origin=pa.origin,
-                               rule_id=pa.policy.rule_id, reason=pa.policy.reason,
-                               evidence={"label": v.overall.label, "hidden_text": [d.text[:200] for d in v.visible_vs_raw.diff[:3]],
-                                         "attempted_actions": [a.model_dump() for a in v.components.injection.attempted_actions]})
+                                                      "rule_id": pa.policy.rule_id, "notice": pa.policy.notice})
     rec = await log.append("system", "verdict", {"email_id": v.email_id, "label": v.overall.label,
-                                                 "score": v.overall.score, "input_type": v.input_type})
+                                                 "score": v.overall.score, "input_type": v.input_type,
+                                                 "llm_state": v.llm_status.state})
     v.audit_head_hash = rec.hash
 
 
@@ -227,15 +235,27 @@ async def analyze(email_id: str, raw: bytes, opts: InboxOptions) -> UnifiedVerdi
         await run.set_agent(2, "complete", f"SPF {rs.auth.spf} · DKIM {rs.auth.dkim} · DMARC {rs.auth.dmarc} · "
                             f"{flagged}/{len(rs.links)} link(s) flagged", ms=rs.stages.get("authenticity_links", 0))
 
-        reading, claim_items, registry_hits = None, [], 0
-        if opts.use_llm:
+        reading, claim_items, registry_hits, problem = None, [], 0, None
+        if opts.use_llm and llm_status.breaker.remaining() > 0:
+            problem = llm_status.LLMProblem("quota_exhausted", "the daily model quota is used up",
+                                            llm_status.breaker.remaining())
+            failures.append("the AI reading was skipped because the daily model quota is used up")
+            for idx in (3, 4):
+                await run.set_agent(idx, "skipped", "Daily model quota used up: rules-only result")
+        elif opts.use_llm:
             await run.set_agent(3, "running", "Reading the untrusted text in quarantine")
             with usage_stage("quarantined_reader"):
                 q = await quarantine.read(rs.view.visible_text, rs.hidden_text, _q_llm)
             stages["quarantined_reader"] = q.ms
             if q.failure:
                 failures.append(q.failure)
-                await run.set_agent(3, "failed", q.failure, ms=q.ms)
+                if q.error is not None:
+                    problem = llm_status.classify(q.error)
+                    if problem.state == "quota_exhausted":
+                        llm_status.breaker.trip(problem.retry_after_seconds)
+                else:
+                    problem = llm_status.LLMProblem("llm_unavailable", "the AI reading returned an answer in the wrong format")
+                await run.set_agent(3, "failed", q.failure + (f": {problem.reason}" if problem else ""), ms=q.ms)
             else:
                 reading = q.reading
                 n_claims = len(reading.claims.visible) + len(reading.claims.hidden)
@@ -254,23 +274,29 @@ async def analyze(email_id: str, raw: bytes, opts: InboxOptions) -> UnifiedVerdi
                 await run.set_agent(4, "complete", f"{len(claim_items)} claim(s): {verdicts} · {registry_hits} from the registry",
                                     ms=stages["fact_check"])
             else:
-                await run.set_agent(4, "skipped", "No checkable claims")
+                await run.set_agent(4, "skipped", "AI reading unavailable" if problem else "No checkable claims")
         else:
             await run.set_agent(3, "skipped", "Rules-only mode")
             await run.set_agent(4, "skipped", "Rules-only mode")
+        status = _llm_status(opts, problem)
 
         await run.set_agent(5, "running", "Scoring harm and checking every action against the policy")
         cfg = shield_runtime.policy_store().get()
         verdict = finalize(rs, email_id, mode=cfg.mode, reading=reading, claims=claim_items, extra_failures=failures,
                            run_mode="full" if opts.use_llm else "rules", source=opts.source,
-                           allowed_domains=cfg.allowed_domains)
+                           allowed_domains=cfg.allowed_domains, llm_status=status)
+        if reading is not None:
+            verdict.reader_notes = ReaderNotes(summary=reading.summary, action_items=reading.action_items,
+                                               reply_requested=reading.reply_requested, meeting=reading.meeting)
         stages["score_policy"] = verdict.latency_ms.per_stage.get("score_policy", 0)
         await run.set_agent(5, "complete", f"{verdict.overall.label} {verdict.overall.score}/100 · harm {verdict.harm.level}",
                             ms=stages["score_policy"])
 
         user_code = opts.language if opts.language != "auto" else (reading.language if reading else "en")
         verdict.explanation.user_language = user_code
-        if opts.use_llm:
+        if opts.use_llm and llm_status.breaker.remaining() > 0:
+            await run.set_agent(6, "skipped", "Daily model quota used up: English summary")
+        elif opts.use_llm:
             await run.set_agent(6, "running", f"Writing the explanation in {LANGUAGE_NAMES.get(user_code, user_code)}")
             t = time.perf_counter()
             facts, quotes = _facts_and_quotes(verdict)
@@ -287,7 +313,13 @@ async def analyze(email_id: str, raw: bytes, opts: InboxOptions) -> UnifiedVerdi
             except Exception as exc:  # noqa: BLE001 - the English listing stays as the explanation
                 stages["explainer"] = round((time.perf_counter() - t) * 1000, 1)
                 verdict.explanation.user_language = "en"
-                await run.set_agent(6, "failed", f"Explanation failed ({type(exc).__name__}); showing the English summary")
+                explain_problem = llm_status.classify(exc)
+                if explain_problem.state == "quota_exhausted":
+                    llm_status.breaker.trip(explain_problem.retry_after_seconds)
+                if verdict.llm_status.state == "ok":
+                    verdict.llm_status = LLMStatus(state=explain_problem.state, retry_after_seconds=explain_problem.retry_after_seconds,
+                                                   reason=f"the explanation could not be written: {explain_problem.reason}")
+                await run.set_agent(6, "failed", f"Explanation failed ({explain_problem.reason}); showing the English summary")
         else:
             await run.set_agent(6, "skipped", "Rules-only mode: English summary")
 

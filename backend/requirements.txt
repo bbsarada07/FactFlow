@@ -41,3 +41,4 @@ pyyaml==6.0.3
 pypdf==6.21.2
 opencv-python-headless==4.14.0.94  # QR codes in images (quishing)
 dnspython==2.9.0  # optional SPF/DMARC record checks (ENABLE_DNS_CHECKS)
+cryptography==50.0.2  # encrypts stored Gmail OAuth tokens (Fernet)

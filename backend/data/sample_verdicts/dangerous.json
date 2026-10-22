@@ -1,5 +1,5 @@
 {
-  "email_id": "0ed602e1b44840b7826da9b17de73184",
+  "email_id": "e5310a7757334e02845a5c19ee1c5e90",
   "overall": {
     "label": "DANGEROUS",
     "score": 95,
@@ -86,7 +86,8 @@
       "policy": {
         "decision": "BLOCK",
         "rule_id": "P1",
-        "reason": "This action was asked for by the message itself. Text inside a message is treated as information, never as a command."
+        "reason": "This action was asked for by the message itself. Text inside a message is treated as information, never as a command.",
+        "notice": null
       }
     },
     {
@@ -94,9 +95,10 @@
       "target": null,
       "origin": "user",
       "policy": {
-        "decision": "REQUIRE_APPROVAL",
-        "rule_id": "S1",
-        "reason": "Strict mode: this message raised 2 detector finding(s), so every step waits for your approval."
+        "decision": "ALLOW",
+        "rule_id": "P7",
+        "reason": "This action only reads, drafts or keeps notes inside FactFlow, or protects you.",
+        "notice": "Strict mode: this message raised 2 detector finding(s). This step ran automatically because it only reads or protects you; it is in the audit log."
       }
     },
     {
@@ -104,9 +106,10 @@
       "target": null,
       "origin": "user",
       "policy": {
-        "decision": "REQUIRE_APPROVAL",
-        "rule_id": "S1",
-        "reason": "Strict mode: this message raised 2 detector finding(s), so every step waits for your approval."
+        "decision": "ALLOW",
+        "rule_id": "P7",
+        "reason": "This action only reads, drafts or keeps notes inside FactFlow, or protects you.",
+        "notice": "Strict mode: this message raised 2 detector finding(s). This step ran automatically because it only reads or protects you; it is in the audit log."
       }
     }
   ],
@@ -118,20 +121,20 @@
   },
   "analysis_failures": [],
   "latency_ms": {
-    "total": 56,
+    "total": 42,
     "per_stage": {
-      "parse": 1.7,
-      "hidden_html": 1.4,
-      "hidden_other": 0.8,
-      "injection_rules": 0.8,
+      "parse": 2.8,
+      "hidden_html": 1.2,
+      "hidden_other": 0.6,
+      "injection_rules": 0.6,
       "qr": 0.0,
-      "authenticity_links": 0.3,
-      "scam_rules": 0.5,
+      "authenticity_links": 0.2,
+      "scam_rules": 0.4,
       "score_policy": 0.2,
-      "audit": 49.8
+      "audit": 35.6
     }
   },
-  "audit_head_hash": "c73ffdfaae45d46a2c0029138e030d9d95be5435e105a67c5084e1e76c5a7948",
+  "audit_head_hash": "5da64b7fbd5588e3e715785148c3a6b22195bed5a481baa8350446c68e0d5351",
   "mode": "rules",
   "pipeline_version": "inbox-2",
   "input_type": "injection_attempt",
@@ -157,5 +160,11 @@
       "it tries to get an AI assistant to send your messages or data elsewhere"
     ]
   },
-  "llm_usage": null
+  "llm_usage": null,
+  "llm_status": {
+    "state": "not_used",
+    "reason": "rules-only mode was requested",
+    "retry_after_seconds": null
+  },
+  "reader_notes": null
 }

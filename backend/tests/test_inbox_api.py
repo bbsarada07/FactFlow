@@ -39,7 +39,7 @@ def fake_reading(user: str) -> dict:
 
 
 @pytest.fixture
-def app(tmp_path, monkeypatch):
+def app(db_url, monkeypatch):
     from api import inbox
     from api.verify import RateLimiter
     from database import connection
@@ -47,7 +47,7 @@ def app(tmp_path, monkeypatch):
     from services import operator_auth, shield_runtime
     import main
 
-    monkeypatch.setattr(settings, "ASYNC_DATABASE_URL", f"sqlite+aiosqlite:///{(tmp_path / 'i.db').as_posix()}")
+    monkeypatch.setattr(settings, "ASYNC_DATABASE_URL", db_url)
     monkeypatch.setattr(connection, "engine", None)
     monkeypatch.setattr(connection, "SessionLocal", None)
     monkeypatch.setattr(settings, "OPERATOR_TOKEN", OP["X-Operator-Token"])
@@ -190,10 +190,11 @@ def test_malformed_reader_output_is_discarded(app, monkeypatch):
     v = UnifiedVerdict.model_validate(run_demo(client, "02_benign_meeting_invite")["verdict"])
     assert any("did not match the required format" in f for f in v.analysis_failures)
     assert v.components.injection.llm is None and v.overall.score >= 15
-    # The rules scanned everything, so the label may stay SAFE, but strict mode pauses every step.
+    assert v.llm_status.state == "llm_unavailable" and "wrong format" in v.llm_status.reason
+    # The rules scanned everything, so the label may stay SAFE, but strict mode pauses agent steps and says why.
     from shield.policy import Signals, decide
-    d = decide("summarize", None, "user", v.overall.label, mode="strict", signals=Signals.from_verdict(v))
-    assert (d.decision, d.rule_id) == ("REQUIRE_APPROVAL", "S1")
+    d = decide("draft_reply", None, "user", v.overall.label, mode="strict", signals=Signals.from_verdict(v))
+    assert (d.decision, d.rule_id) == ("REQUIRE_APPROVAL", "S1") and "AI part of the check is unavailable" in d.reason
 
 
 def test_token_usage_is_counted_per_stage(app, monkeypatch):
@@ -230,12 +231,23 @@ def test_async_submission_streams_and_completes(app):
     client, _ = app
     r = client.post("/api/inbox/analyze", json={"raw": "Your KYC is pending. Update now or your account will be blocked."})
     assert r.status_code == 202
-    email_id = r.json()["email_id"]
-    with client.stream("GET", f"/api/inbox/{email_id}/stream") as s:
+    body = r.json()
+    with client.stream("GET", body["stream_url"]) as s:  # carries the submitter's view token
         events = [line for line in s.iter_lines() if line.startswith("event:")]
     assert events[0] == "event: start" and events[-1] == "event: result"
-    got = client.get(f"/api/inbox/{email_id}").json()
+    got = client.get(body["result_url"]).json()
     assert got["status"] == "complete" and got["verdict"]["overall"]["label"] != "SAFE"
+
+
+def test_message_content_needs_the_view_token_or_the_operator(app):
+    client, _ = app
+    body = run_demo(client, "02_benign_meeting_invite")
+    email_id = body["email_id"]
+    assert client.get(f"/api/inbox/{email_id}").status_code == 401
+    assert client.get(f"/api/inbox/{email_id}?view_token=wrong").status_code == 401
+    assert client.get(f"/api/inbox/{email_id}?view_token={body['view_token']}").status_code == 200
+    assert client.get(f"/api/inbox/{email_id}", headers=OP).status_code == 200
+    assert client.get(f"/api/inbox/{email_id}/stream").status_code == 401
 
 
 # ------------------------------------------------------------------- operator-protected routes
@@ -257,20 +269,15 @@ def test_protected_routes_are_closed_without_a_configured_token(app, monkeypatch
         assert client.get(path, headers=OP).status_code == 503
 
 
-def test_dangerous_email_creates_approvals_that_work_once(app):
+def test_strict_mode_runs_protective_steps_automatically_on_a_dangerous_email(app):
     client, _ = app
     data = run_demo(client, "09_fake_kyc_lookalike")
     v = UnifiedVerdict.model_validate(data["verdict"])
-    decisions = {(p.action, p.policy.decision, p.policy.rule_id) for p in v.proposed_actions}
-    assert ("quarantine_email", "REQUIRE_APPROVAL", "S1") in decisions  # strict mode by default
-    pending = client.get("/api/approvals?status=pending", headers=OP).json()
-    item = next(i for i in pending["items"] if i["email_id"] == data["email_id"] and i["action"] == "quarantine_email")
-    ok = client.post(f"/api/approvals/{item['id']}/decision", json={"decision": "approve", "token": item["token"]}, headers=OP)
-    assert ok.status_code == 200 and ok.json()["approval"]["status"] == "approved" and ok.json()["executed"] is False
-    again = client.post(f"/api/approvals/{item['id']}/decision", json={"decision": "approve", "token": item["token"]}, headers=OP)
-    assert again.status_code == 409
-    forged = client.post(f"/api/approvals/{item['id']}/decision", json={"decision": "deny", "token": "0" * 64}, headers=OP)
-    assert forged.status_code in (403, 409)
+    protective = {p.action: p.policy for p in v.proposed_actions if p.origin == "user"}
+    for action in ("report_phishing", "quarantine_email"):
+        assert protective[action].decision == "ALLOW" and "ran automatically" in protective[action].notice
+    # Analysing a message never creates approvals by itself; only mail-agent steps do.
+    assert client.get("/api/approvals?status=pending", headers=OP).json()["items"] == []
 
 
 def test_blocked_attempt_is_shown_and_never_approved(app):

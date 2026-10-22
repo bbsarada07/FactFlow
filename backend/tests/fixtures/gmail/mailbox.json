@@ -1,0 +1,149 @@
+{
+ "_note": "newest last; the fake server answers newest first",
+ "messages": [
+  {
+   "id": "923b14cc58ab479a",
+   "threadId": "923b14cc58ab479a",
+   "internalDate": 1792000000000,
+   "name": "filler_00"
+  },
+  {
+   "id": "fe09a52495d9ff1b",
+   "threadId": "fe09a52495d9ff1b",
+   "internalDate": 1792000060000,
+   "name": "filler_01"
+  },
+  {
+   "id": "e85ed8644b5a5a5f",
+   "threadId": "e85ed8644b5a5a5f",
+   "internalDate": 1792000120000,
+   "name": "filler_02"
+  },
+  {
+   "id": "899ab1480a9a0257",
+   "threadId": "899ab1480a9a0257",
+   "internalDate": 1792000180000,
+   "name": "filler_03"
+  },
+  {
+   "id": "cb56c9961a60ad78",
+   "threadId": "cb56c9961a60ad78",
+   "internalDate": 1792000240000,
+   "name": "filler_04"
+  },
+  {
+   "id": "f4575ca2c0175d5c",
+   "threadId": "f4575ca2c0175d5c",
+   "internalDate": 1792000300000,
+   "name": "filler_05"
+  },
+  {
+   "id": "ea90219dd16dcbf5",
+   "threadId": "ea90219dd16dcbf5",
+   "internalDate": 1792000360000,
+   "name": "filler_06"
+  },
+  {
+   "id": "ab442b7e66421782",
+   "threadId": "ab442b7e66421782",
+   "internalDate": 1792000420000,
+   "name": "filler_07"
+  },
+  {
+   "id": "0efbb7bda095899a",
+   "threadId": "0efbb7bda095899a",
+   "internalDate": 1792000480000,
+   "name": "filler_08"
+  },
+  {
+   "id": "fc936ab06a478bf0",
+   "threadId": "fc936ab06a478bf0",
+   "internalDate": 1792000540000,
+   "name": "filler_09"
+  },
+  {
+   "id": "3698aacf96a74883",
+   "threadId": "3698aacf96a74883",
+   "internalDate": 1792000600000,
+   "name": "01_benign_newsletter"
+  },
+  {
+   "id": "cde55e5ba35b0668",
+   "threadId": "cde55e5ba35b0668",
+   "internalDate": 1792000660000,
+   "name": "02_benign_meeting_invite"
+  },
+  {
+   "id": "e3d49a9581d54dfe",
+   "threadId": "e3d49a9581d54dfe",
+   "internalDate": 1792000720000,
+   "name": "03_benign_bank_alert"
+  },
+  {
+   "id": "4e34d89d83d50313",
+   "threadId": "4e34d89d83d50313",
+   "internalDate": 1792000780000,
+   "name": "04_white_on_white_injection"
+  },
+  {
+   "id": "d4db548ec583153c",
+   "threadId": "d4db548ec583153c",
+   "internalDate": 1792000840000,
+   "name": "05_font_size_zero_injection"
+  },
+  {
+   "id": "83e03afad56e9b11",
+   "threadId": "83e03afad56e9b11",
+   "internalDate": 1792000900000,
+   "name": "06_unicode_tags_injection"
+  },
+  {
+   "id": "84bca4a08b1dcdaa",
+   "threadId": "84bca4a08b1dcdaa",
+   "internalDate": 1792000960000,
+   "name": "07_html_comment_injection"
+  },
+  {
+   "id": "53da29a188f39900",
+   "threadId": "53da29a188f39900",
+   "internalDate": 1792001020000,
+   "name": "08_alt_text_injection"
+  },
+  {
+   "id": "19d89ad589a9c27e",
+   "threadId": "19d89ad589a9c27e",
+   "internalDate": 1792001080000,
+   "name": "09_fake_kyc_lookalike"
+  },
+  {
+   "id": "93554169fb95dbd8",
+   "threadId": "93554169fb95dbd8",
+   "internalDate": 1792001140000,
+   "name": "10_digital_arrest_hindi"
+  },
+  {
+   "id": "a596ec030e3542e3",
+   "threadId": "a596ec030e3542e3",
+   "internalDate": 1792001200000,
+   "name": "11_telugu_fake_scheme"
+  },
+  {
+   "id": "a7524f158c3e02c2",
+   "threadId": "a7524f158c3e02c2",
+   "internalDate": 1792001260000,
+   "name": "12_upi_collect_scam"
+  },
+  {
+   "id": "0e1a6f93726544b8",
+   "threadId": "0e1a6f93726544b8",
+   "internalDate": 1792001320000,
+   "name": "13_quishing_qr"
+  },
+  {
+   "id": "c253ef8119b2f4f6",
+   "threadId": "c253ef8119b2f4f6",
+   "internalDate": 1792001380000,
+   "name": "14_mixed_false_claim_and_injection"
+  }
+ ]
+}

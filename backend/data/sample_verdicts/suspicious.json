@@ -1,5 +1,5 @@
 {
-  "email_id": "3a232e48f78e48c289c8c9fa490291bf",
+  "email_id": "bea3b01b6d4140e384283aebe7d08350",
   "overall": {
     "label": "SUSPICIOUS",
     "score": 35,
@@ -73,20 +73,20 @@
   },
   "analysis_failures": [],
   "latency_ms": {
-    "total": 32,
+    "total": 37,
     "per_stage": {
-      "parse": 2.7,
+      "parse": 2.6,
       "hidden_html": 0.6,
       "hidden_other": 0.3,
-      "injection_rules": 0.3,
-      "qr": 11.4,
-      "authenticity_links": 0.5,
-      "scam_rules": 0.5,
+      "injection_rules": 0.2,
+      "qr": 12.8,
+      "authenticity_links": 0.4,
+      "scam_rules": 0.3,
       "score_policy": 0.1,
-      "audit": 15.4
+      "audit": 19.0
     }
   },
-  "audit_head_hash": "0a56e0f6e76e81ccf16382959b8864202977bfe37dfdebb4b84a26dd4675420e",
+  "audit_head_hash": "e575b8969062aed8cb791fd9c6045c7a24dc45818f55d00f463ac867bb5507fa",
   "mode": "rules",
   "pipeline_version": "inbox-2",
   "input_type": "qr",
@@ -118,5 +118,11 @@
     "level": "LOW",
     "reasons": []
   },
-  "llm_usage": null
+  "llm_usage": null,
+  "llm_status": {
+    "state": "not_used",
+    "reason": "rules-only mode was requested",
+    "retry_after_seconds": null
+  },
+  "reader_notes": null
 }

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,7 @@ from api.verify import RateLimiter
 from config import BASE_DIR, settings
 from database.connection import get_session
 from database.models import Email, iso
+from services import view_tokens
 from services.event_bus import get_bus
 from services.operator_auth import require_operator
 from shield.email_parser import MAX_BYTES, EmailInputError, parse_input
@@ -50,6 +51,7 @@ class AnalyzeResponse(BaseModel):
     cached: bool = False
     stream_url: str
     result_url: str
+    view_token: str | None = Field(default=None, description="lets the submitter read this analysis; keep it private")
     verdict: dict | None = None
     error: str | None = None
 
@@ -66,9 +68,20 @@ def _bytes(body: AnalyzeRequest) -> bytes:
 
 
 def _response(row: Email, cached: bool = False) -> AnalyzeResponse:
-    return AnalyzeResponse(email_id=row.id, status=row.status, mode=row.mode, cached=cached,
-                           stream_url=f"/api/inbox/{row.id}/stream", result_url=f"/api/inbox/{row.id}",
+    token = view_tokens.view_token(row.id)
+    return AnalyzeResponse(email_id=row.id, status=row.status, mode=row.mode, cached=cached, view_token=token,
+                           stream_url=f"/api/inbox/{row.id}/stream?view_token={token}",
+                           result_url=f"/api/inbox/{row.id}?view_token={token}",
                            verdict=row.verdict if row.status == "complete" else None, error=row.error)
+
+
+def require_viewer(email_id: str, request: Request, view_token: str | None = Query(default=None),
+                   x_operator_token: str | None = Header(default=None)) -> str:
+    """The submitter (with the view token from POST /analyze) or the operator. Messages fetched by
+    the mail agent have no view token, so only the operator can read them."""
+    if view_tokens.valid(email_id, view_token):
+        return "submitter"
+    return require_operator(request, x_operator_token)
 
 
 async def _submit(data: bytes, source: str, opts: AnalyzeOptions, request: Request, response: Response,
@@ -81,6 +94,7 @@ async def _submit(data: bytes, source: str, opts: AnalyzeOptions, request: Reque
     limiter.check(request.client.host if request.client else "unknown")
     use_llm = opts.mode == "full" and settings.INBOX_USE_LLM
     mode = "full" if use_llm else "rules"
+    disabled_by_server = opts.mode == "full" and not settings.INBOX_USE_LLM
     if not opts.force:
         cached = await session.scalar(
             select(Email).where(Email.sha256 == pe.sha256, Email.pipeline_version == PIPELINE_VERSION,
@@ -94,7 +108,8 @@ async def _submit(data: bytes, source: str, opts: AnalyzeOptions, request: Reque
     session.add(row)
     await session.commit()
     email_id = row.id
-    job = analyze(email_id, data, InboxOptions(source=source, language=opts.language, use_llm=use_llm))
+    job = analyze(email_id, data, InboxOptions(source=source, language=opts.language, use_llm=use_llm,
+                                               llm_disabled_by_server=disabled_by_server))
     if opts.wait:
         await job
         await session.refresh(row)
@@ -153,8 +168,9 @@ async def list_inbox(limit: int = Query(30, ge=1, le=100), offset: int = Query(0
 
 
 @router.get("/{email_id}")
-async def get_email(email_id: str, response: Response, session: AsyncSession = Depends(get_session)):
-    """One analysis by its id (the id is unguessable, like /api/result/{id}). 202 while processing."""
+async def get_email(email_id: str, response: Response, session: AsyncSession = Depends(get_session),
+                    _viewer: str = Depends(require_viewer)):
+    """One analysis: for the submitter (view_token) or the operator. 202 while processing."""
     row = await session.get(Email, email_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown email_id")
@@ -169,7 +185,8 @@ def _sse(event: dict) -> dict:
 
 
 @router.get("/{email_id}/stream")
-async def stream_email(email_id: str, request: Request, session: AsyncSession = Depends(get_session)):
+async def stream_email(email_id: str, request: Request, session: AsyncSession = Depends(get_session),
+                       _viewer: str = Depends(require_viewer)):
     """Live stage events in the same format as /api/stream/{request_id}."""
     row = await session.get(Email, email_id)
     if row is None:

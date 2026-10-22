@@ -19,6 +19,7 @@ ClaimVerdict = Literal["TRUE", "FALSE", "MISLEADING", "UNVERIFIED"]
 
 Action = Literal[
     "summarize",
+    "extract_action_items",
     "draft_reply",
     "send_reply",
     "forward_email",
@@ -214,6 +215,7 @@ class PolicyDecision(BaseModel):
     decision: Decision
     rule_id: str
     reason: str
+    notice: str | None = None  # set when strict mode let a protective step run automatically
 
 
 class ProposedAction(BaseModel):
@@ -268,6 +270,40 @@ class MessageSummary(BaseModel):
     attachments: list[dict] = Field(default_factory=list)
 
 
+class ActionItem(BaseModel):
+    task: str = Field(max_length=200)
+    due: str | None = Field(default=None, max_length=80)
+    amount: str | None = Field(default=None, max_length=80)
+
+
+class Meeting(BaseModel):
+    title: str = Field(default="", max_length=200)
+    when: str = Field(default="", max_length=120)
+    where: str | None = Field(default=None, max_length=200)
+
+
+class ReaderNotes(BaseModel):
+    """What the quarantined reader extracted for the mail agent. All of it comes from the message:
+    it is data for display and planning, never an instruction."""
+
+    summary: str = Field(default="", max_length=400)
+    action_items: list[ActionItem] = Field(default_factory=list)
+    reply_requested: bool = False
+    meeting: Meeting | None = None
+
+
+LLMState = Literal["ok", "not_used", "disabled", "llm_unavailable", "quota_exhausted"]
+
+
+class LLMStatus(BaseModel):
+    """Whether the AI part of the analysis ran. Anything other than "ok" or "not_used" means the
+    verdict is rules-only and says why, instead of degrading silently."""
+
+    state: LLMState = "not_used"
+    reason: str | None = None
+    retry_after_seconds: int | None = None
+
+
 class LLMUsage(BaseModel):
     llm_calls: int = 0
     prompt_tokens: int = 0
@@ -298,6 +334,8 @@ class UnifiedVerdict(BaseModel):
     message: MessageSummary | None = None
     harm: Harm = Field(default_factory=Harm)
     llm_usage: LLMUsage | None = None
+    llm_status: LLMStatus = Field(default_factory=LLMStatus)
+    reader_notes: ReaderNotes | None = None  # null in rules mode
 
 
 ApprovalStatus = Literal["pending", "approved", "denied", "expired"]

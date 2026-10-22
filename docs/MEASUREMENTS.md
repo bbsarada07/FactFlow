@@ -19,24 +19,57 @@ pipeline: parse, every detector, scoring, policy, and writing the audit trail.
 
 | | p50 | p95 |
 |---|---|---|
-| Total per email | **46 ms** | **53 ms** |
+| Total per email | **35 ms** | **41 ms** |
+
+(Re-measured after Phase 3: the analysis no longer writes approvals, so the audit stage is shorter.
+The Phase 2 run measured p50 46 ms and p95 53 ms.)
 
 Median per stage, across the 14 emails:
 
 | Stage | Median (ms) | Max (ms) |
 |---|---|---|
-| parse | 1.8 | 2.7 |
-| hidden_html (HC-01..05, 08, 11) | 0.9 | 1.5 |
-| hidden_other (HC-06, 07, 09, 10, 12) | 0.7 | 0.9 |
-| injection_rules | 0.6 | 0.9 |
-| qr (QR decoding) | 0.0 | 11.4 (the email with a QR image) |
-| authenticity_links | 0.3 | 0.6 |
-| scam_rules | 0.5 | 0.8 |
-| score_policy | 0.1 | 0.2 |
-| audit (4-6 database writes) | 43.0 | 49.8 |
+| parse | 2.0 | 3.1 |
+| hidden_html (HC-01..05, 08, 11) | 0.9 | 1.8 |
+| hidden_other (HC-06, 07, 09, 10, 12) | 0.7 | 1.5 |
+| injection_rules | 0.6 | 2.1 |
+| qr (QR decoding) | 0.0 | 12.8 (the email with a QR image) |
+| authenticity_links | 0.3 | 0.7 |
+| scam_rules | 0.5 | 0.7 |
+| score_policy | 0.2 | 0.3 |
+| audit (database writes) | 30.2 | 35.6 |
 
 All the deterministic detection takes about 5 ms per email; most of the total is writing the
-audit chain. The first QR decode in a process took 173 ms, while OpenCV loaded.
+audit chain.
+
+## Mail agent, rules-only (Phase 3)
+
+`scripts/measure_mail_agent.py`; raw data in `data/measurements/mail_agent_2026-10-22.json`. The 14
+demo emails go through the whole agent: fetch, parse, analyse, plan, policy, execute or park for
+approval, and audit every transition. Strict mode, no model calls (`llm_calls_total: 0`).
+
+| | p50 | p95 |
+|---|---|---|
+| Whole task per message | **210 ms** | **273 ms** |
+| Agent overhead (everything but the analysis) | 164 ms | 181 ms |
+
+The analysis stages inside each task match the table above (detection about 5 ms; audit 37 ms
+median, because a task writes more audit records). The agent overhead is database work: on average
+7 state transitions per task, each committed and written to the hash-chained audit log, plus a
+policy decision and an execution record per step. The QR email took 432 ms the first time, while
+OpenCV loaded.
+
+## Token use per mode
+
+| Mode | Model calls per message | Tokens | Status |
+|---|---|---|---|
+| `rules` | 0 | 0 | Measured (all 14 demo emails, both the inbox pipeline and the mail agent) |
+| `full` | 1 quarantined reader + 1 explainer + about 4-5 per new claim | **not measured yet** | Blocked by the exhausted Groq daily quota; tests use stand-in models |
+
+Phase 3 asks the quarantined reader for more fields (summary, action items, meeting, reply
+requested) in the same single call. Its output limit went from 900 to 1,200 tokens, so expect the
+reader's tokens per message to rise; the real number will come from the pending full-mode run.
+Every full-mode verdict reports its own `llm_usage`, so the numbers are visible per message as soon
+as the quota is back. The first QR decode in a process took 173 ms, while OpenCV loaded.
 
 Results:
 

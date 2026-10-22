@@ -31,6 +31,7 @@ from shield.schemas import (
     Latency,
     LinkItem,
     LinksComponent,
+    LLMStatus,
     MessageSummary,
     ProposedAction,
     RuleHit,
@@ -314,7 +315,8 @@ def explain_en(v: UnifiedVerdict) -> str:
 def finalize(rs: RulesScan, email_id: str | None = None, *, mode: str | None = None,
              reading: QReading | None = None, claims: list[ClaimItem] | None = None,
              extra_failures: list[str] | None = None, run_mode: str = "rules",
-             source: str | None = None, allowed_domains: tuple[str, ...] = ()) -> UnifiedVerdict:
+             source: str | None = None, allowed_domains: tuple[str, ...] = (),
+             llm_status: LLMStatus | None = None) -> UnifiedVerdict:
     """Build the unified verdict from the rules scan plus, in the full pipeline, the quarantined
     reader's output and the claim verdicts."""
     t0 = time.perf_counter()
@@ -357,6 +359,8 @@ def finalize(rs: RulesScan, email_id: str | None = None, *, mode: str | None = N
                                from_addr=pe.from_addr, from_display=pe.from_display, reply_to=pe.reply_to,
                                to=pe.to, date=pe.date, attachments=[a.summary() for a in pe.attachments]),
     )
+    if llm_status is not None:
+        verdict.llm_status = llm_status  # before the policy runs, so strict mode can say why it paused
     verdict.input_type = triage(rs, components)
     verdict.harm = assess_harm(components, verdict.overall.label)
     signals = policy.Signals.from_verdict(verdict)

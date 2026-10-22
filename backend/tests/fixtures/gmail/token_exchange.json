@@ -1,0 +1,7 @@
+{
+ "access_token": "FAKE-access-token-1",
+ "expires_in": 3599,
+ "refresh_token": "FAKE-refresh-token-1",
+ "scope": "https://www.googleapis.com/auth/gmail.readonly",
+ "token_type": "Bearer"
+}

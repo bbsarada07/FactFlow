@@ -106,6 +106,17 @@ class Settings(BaseSettings):
     ENABLE_LINK_EXPANSION: bool = False  # follow shortened links (HEAD only, SSRF-guarded)
     ENABLE_DNS_CHECKS: bool = False  # look up SPF and DMARC records of the sender's domain
 
+    # Mail agent and read-only Gmail (docs/GMAIL_SETUP.md). Empty values keep Gmail disconnected.
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/mail/gmail/callback"
+    TOKEN_ENCRYPTION_KEY: str = ""  # Fernet key that encrypts stored OAuth tokens
+    MAIL_POLL_ENABLED: bool = True
+    MAIL_POLL_SECONDS: float = 45.0
+    MAIL_FIRST_SYNC: int = 20  # on first connect, only the most recent messages
+    MAIL_MAX_PER_SYNC: int = 50
+    MAIL_AGENT_MAX_PER_MINUTE: int = 20
+
     # Allow-listed URLs for user-facing "checks to do" (never model-generated)
     GOOGLE_SEARCH_URL: str = "https://www.google.com/search?q="
     REVERSE_IMAGE_SEARCH_URL: str = "https://lens.google.com/"

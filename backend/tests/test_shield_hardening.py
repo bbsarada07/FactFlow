@@ -27,12 +27,12 @@ PAGE = f"""<html><head><title>Dengue myths</title><meta name="description" conte
 
 
 @pytest.fixture
-def env(tmp_path, monkeypatch):
+def env(db_url, monkeypatch):
     from database import connection
     from models.groq_client import LLMResult
     import main
 
-    monkeypatch.setattr(settings, "ASYNC_DATABASE_URL", f"sqlite+aiosqlite:///{(tmp_path / 'h.db').as_posix()}")
+    monkeypatch.setattr(settings, "ASYNC_DATABASE_URL", db_url)
     monkeypatch.setattr(connection, "engine", None)
     monkeypatch.setattr(connection, "SessionLocal", None)
     monkeypatch.setattr("api.verify.dispatch", lambda rid: "test")
