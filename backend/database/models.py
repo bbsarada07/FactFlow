@@ -367,6 +367,44 @@ class AuditLog(Base):
     payload_json: Mapped[dict] = mapped_column(JSON, default=dict)
     prev_hash: Mapped[str] = mapped_column(String(64), unique=True)
     hash: Mapped[str] = mapped_column(String(64), unique=True)
+    # Copied from payload["email_id"] for filtering; not part of the hash.
+    email_id: Mapped[str | None] = mapped_column(String(64), index=True)
+
+
+class Email(Base):
+    """An analysed email or pasted message and its unified verdict (see agents/inbox_pipeline.py).
+
+    Subject and sender come from the message itself: show them as text, never as HTML."""
+
+    __tablename__ = "emails"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(16), default="paste")  # upload | paste | demo | gmail | whatsapp
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    pipeline_version: Mapped[str] = mapped_column(String(16))
+    mode: Mapped[str] = mapped_column(String(8), default="full")  # rules | full
+    language: Mapped[str] = mapped_column(String(8), default="auto")
+    status: Mapped[str] = mapped_column(String(16), default="processing", index=True)  # processing | complete | failed
+    subject: Mapped[str | None] = mapped_column(Text)
+    from_addr: Mapped[str | None] = mapped_column(String(320))
+    label: Mapped[str | None] = mapped_column(String(16), index=True)
+    score: Mapped[int | None] = mapped_column(Integer)
+    verdict: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    tokens: Mapped[int | None] = mapped_column(Integer)
+    agent_log: Mapped[list] = mapped_column(JSON, default=list)
+
+    def summary(self) -> dict:
+        """Row for the inbox list."""
+        reasons = ((self.verdict or {}).get("overall") or {}).get("reasons") or []
+        return {
+            "email_id": self.id, "created_at": iso(self.created_at), "source": self.source, "status": self.status,
+            "mode": self.mode, "subject": self.subject, "from_addr": self.from_addr, "label": self.label,
+            "score": self.score, "top_reason": reasons[0] if reasons else None,
+        }
 
 
 class ShieldApproval(Base):

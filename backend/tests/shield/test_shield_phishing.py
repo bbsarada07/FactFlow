@@ -86,6 +86,7 @@ def test_not_lookalikes(host):
     ("https://example.com/" + "a" * 220, "very_long_url"),
     ("https://xn--sb-1jc.co.in/", "punycode"),
     ("https://sbi-kyc-update.com/verify", "lookalike_domain"),
+    ("http://www.irctc.co.in/nget", "no_https"),
 ])
 def test_link_flags(url, flag):
     items, _ = phishing.analyze_links([LinkRef(url, "click", "a")], "")

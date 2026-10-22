@@ -1,0 +1,450 @@
+{
+  "date": "2026-10-22",
+  "machine": "Windows 10, AMD64 Family 25 Model 117 Stepping 2, AuthenticAMD, Python 3.11.9",
+  "models": {
+    "nano": "openai/gpt-oss-20b",
+    "ultra": "openai/gpt-oss-120b"
+  },
+  "database": "SQLite (throwaway)",
+  "rules": [
+    {
+      "name": "01_benign_newsletter",
+      "label": "SAFE",
+      "score": 15,
+      "input_type": "email",
+      "total_ms": 19,
+      "wall_ms": 23,
+      "per_stage": {
+        "parse": 1.7,
+        "hidden_html": 1.5,
+        "hidden_other": 0.7,
+        "injection_rules": 0.4,
+        "qr": 0.0,
+        "authenticity_links": 0.6,
+        "scam_rules": 0.4,
+        "score_policy": 0.1,
+        "audit": 13.5
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        65,
+        22,
+        19,
+        19,
+        19
+      ]
+    },
+    {
+      "name": "02_benign_meeting_invite",
+      "label": "SAFE",
+      "score": 0,
+      "input_type": "email",
+      "total_ms": 18,
+      "wall_ms": 24,
+      "per_stage": {
+        "parse": 2.2,
+        "hidden_html": 1.0,
+        "hidden_other": 0.6,
+        "injection_rules": 0.4,
+        "qr": 0.0,
+        "authenticity_links": 0.5,
+        "scam_rules": 0.6,
+        "score_policy": 0.1,
+        "audit": 12.7
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        20,
+        18,
+        18,
+        18,
+        19
+      ]
+    },
+    {
+      "name": "03_benign_bank_alert",
+      "label": "SAFE",
+      "score": 0,
+      "input_type": "email",
+      "total_ms": 20,
+      "wall_ms": 25,
+      "per_stage": {
+        "parse": 1.6,
+        "hidden_html": 0.8,
+        "hidden_other": 0.9,
+        "injection_rules": 0.7,
+        "qr": 0.0,
+        "authenticity_links": 0.4,
+        "scam_rules": 0.7,
+        "score_policy": 0.1,
+        "audit": 14.1
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        20,
+        21,
+        20,
+        18,
+        20
+      ]
+    },
+    {
+      "name": "04_white_on_white_injection",
+      "label": "DANGEROUS",
+      "score": 100,
+      "input_type": "injection_attempt",
+      "total_ms": 51,
+      "wall_ms": 56,
+      "per_stage": {
+        "parse": 1.8,
+        "hidden_html": 1.3,
+        "hidden_other": 0.7,
+        "injection_rules": 0.6,
+        "qr": 0.0,
+        "authenticity_links": 0.2,
+        "scam_rules": 0.3,
+        "score_policy": 0.2,
+        "audit": 46.3
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        53,
+        49,
+        51,
+        51,
+        52
+      ]
+    },
+    {
+      "name": "05_font_size_zero_injection",
+      "label": "DANGEROUS",
+      "score": 95,
+      "input_type": "injection_attempt",
+      "total_ms": 53,
+      "wall_ms": 57,
+      "per_stage": {
+        "parse": 2.1,
+        "hidden_html": 1.3,
+        "hidden_other": 0.6,
+        "injection_rules": 0.9,
+        "qr": 0.0,
+        "authenticity_links": 0.2,
+        "scam_rules": 0.3,
+        "score_policy": 0.2,
+        "audit": 47.2
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        47,
+        53,
+        143,
+        51,
+        54
+      ]
+    },
+    {
+      "name": "06_unicode_tags_injection",
+      "label": "DANGEROUS",
+      "score": 95,
+      "input_type": "injection_attempt",
+      "total_ms": 50,
+      "wall_ms": 58,
+      "per_stage": {
+        "parse": 1.0,
+        "hidden_html": 0.0,
+        "hidden_other": 0.9,
+        "injection_rules": 0.8,
+        "qr": 0.0,
+        "authenticity_links": 0.3,
+        "scam_rules": 0.3,
+        "score_policy": 0.1,
+        "audit": 47.1
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        51,
+        46,
+        49,
+        51,
+        50
+      ]
+    },
+    {
+      "name": "07_html_comment_injection",
+      "label": "DANGEROUS",
+      "score": 100,
+      "input_type": "injection_attempt",
+      "total_ms": 53,
+      "wall_ms": 57,
+      "per_stage": {
+        "parse": 2.5,
+        "hidden_html": 1.2,
+        "hidden_other": 0.7,
+        "injection_rules": 0.8,
+        "qr": 0.0,
+        "authenticity_links": 0.2,
+        "scam_rules": 0.3,
+        "score_policy": 0.1,
+        "audit": 46.8
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        53,
+        51,
+        55,
+        57,
+        51
+      ]
+    },
+    {
+      "name": "08_alt_text_injection",
+      "label": "DANGEROUS",
+      "score": 100,
+      "input_type": "injection_attempt",
+      "total_ms": 53,
+      "wall_ms": 57,
+      "per_stage": {
+        "parse": 1.9,
+        "hidden_html": 0.8,
+        "hidden_other": 0.5,
+        "injection_rules": 0.6,
+        "qr": 0.0,
+        "authenticity_links": 0.2,
+        "scam_rules": 0.3,
+        "score_policy": 0.2,
+        "audit": 48.1
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        56,
+        53,
+        50,
+        50,
+        53
+      ]
+    },
+    {
+      "name": "09_fake_kyc_lookalike",
+      "label": "DANGEROUS",
+      "score": 100,
+      "input_type": "phishing_or_scam",
+      "total_ms": 46,
+      "wall_ms": 50,
+      "per_stage": {
+        "parse": 2.1,
+        "hidden_html": 1.2,
+        "hidden_other": 0.5,
+        "injection_rules": 0.3,
+        "qr": 0.0,
+        "authenticity_links": 0.4,
+        "scam_rules": 0.4,
+        "score_policy": 0.1,
+        "audit": 40.9
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        48,
+        46,
+        46,
+        49,
+        46
+      ]
+    },
+    {
+      "name": "10_digital_arrest_hindi",
+      "label": "DANGEROUS",
+      "score": 100,
+      "input_type": "phishing_or_scam",
+      "total_ms": 46,
+      "wall_ms": 51,
+      "per_stage": {
+        "parse": 1.0,
+        "hidden_html": 0.0,
+        "hidden_other": 0.8,
+        "injection_rules": 0.5,
+        "qr": 0.0,
+        "authenticity_links": 0.2,
+        "scam_rules": 0.6,
+        "score_policy": 0.1,
+        "audit": 43.0
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        46,
+        46,
+        47,
+        44,
+        43
+      ]
+    },
+    {
+      "name": "11_telugu_fake_scheme",
+      "label": "DANGEROUS",
+      "score": 70,
+      "input_type": "phishing_or_scam",
+      "total_ms": 46,
+      "wall_ms": 51,
+      "per_stage": {
+        "parse": 1.1,
+        "hidden_html": 0.0,
+        "hidden_other": 0.7,
+        "injection_rules": 0.5,
+        "qr": 0.0,
+        "authenticity_links": 0.3,
+        "scam_rules": 0.8,
+        "score_policy": 0.1,
+        "audit": 42.0
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        45,
+        43,
+        46,
+        47,
+        51
+      ]
+    },
+    {
+      "name": "12_upi_collect_scam",
+      "label": "DANGEROUS",
+      "score": 100,
+      "input_type": "phishing_or_scam",
+      "total_ms": 46,
+      "wall_ms": 50,
+      "per_stage": {
+        "parse": 1.0,
+        "hidden_html": 0.0,
+        "hidden_other": 0.5,
+        "injection_rules": 0.4,
+        "qr": 0.0,
+        "authenticity_links": 0.2,
+        "scam_rules": 0.5,
+        "score_policy": 0.1,
+        "audit": 43.0
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        44,
+        47,
+        47,
+        46,
+        46
+      ]
+    },
+    {
+      "name": "13_quishing_qr",
+      "label": "SUSPICIOUS",
+      "score": 35,
+      "input_type": "qr",
+      "total_ms": 32,
+      "wall_ms": 37,
+      "per_stage": {
+        "parse": 2.7,
+        "hidden_html": 0.6,
+        "hidden_other": 0.3,
+        "injection_rules": 0.3,
+        "qr": 11.4,
+        "authenticity_links": 0.5,
+        "scam_rules": 0.5,
+        "score_policy": 0.1,
+        "audit": 15.4
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        169,
+        31,
+        32,
+        32,
+        35
+      ]
+    },
+    {
+      "name": "14_mixed_false_claim_and_injection",
+      "label": "DANGEROUS",
+      "score": 95,
+      "input_type": "injection_attempt",
+      "total_ms": 56,
+      "wall_ms": 60,
+      "per_stage": {
+        "parse": 1.7,
+        "hidden_html": 1.4,
+        "hidden_other": 0.8,
+        "injection_rules": 0.8,
+        "qr": 0.0,
+        "authenticity_links": 0.3,
+        "scam_rules": 0.5,
+        "score_policy": 0.2,
+        "audit": 49.8
+      },
+      "usage": null,
+      "claims": [],
+      "analysis_failures": [],
+      "language": "en",
+      "runs_ms": [
+        56,
+        56,
+        56,
+        132,
+        53
+      ]
+    }
+  ],
+  "full": [],
+  "repeat": [],
+  "summary": {
+    "rules_total_ms": {
+      "p50": 46,
+      "p95": 53
+    },
+    "full_total_ms": {
+      "p50": 0,
+      "p95": 0
+    },
+    "full_tokens": {
+      "p50": 0,
+      "max": 0,
+      "sum": 0
+    },
+    "failed_runs": [],
+    "mean_rules_ms": 42.1
+  }
+}

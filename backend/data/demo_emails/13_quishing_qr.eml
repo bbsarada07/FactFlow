@@ -1,0 +1,49 @@
+From: "Delivery Updates" <updates@parcel-updates.example>
+To: Ravi Kumar <ravi.kumar@home.example>
+Subject: Delivery attempt: scan to reschedule
+Date: Wed, 21 Oct 2026 10:13:00 +0530
+Message-ID: <demo-13@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=parcel-updates.example; dkim=pass
+ header.d=parcel-updates.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="factflow-demo-13-0"
+
+--factflow-demo-13-0
+Content-Type: multipart/alternative; boundary="factflow-demo-13-1"
+
+--factflow-demo-13-1
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+We could not deliver your parcel today. Scan the QR code in this email to cho=
+ose a new delivery slot.
+
+--factflow-demo-13-1
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>We c=
+ould not deliver your parcel today.</p><p>Scan the QR code below to choose a =
+new delivery slot.</p><img src=3D"cid:qr" alt=3D"QR code" width=3D"200"></bod=
+y></html>
+
+--factflow-demo-13-1--
+
+--factflow-demo-13-0
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-Disposition: inline; filename="reschedule-qr.png"
+MIME-Version: 1.0
+
+iVBORw0KGgoAAAANSUhEUgAAAUgAAAFIAQAAAAAab1qeAAABiElEQVR42u2aSRLDMAgEqfz/z2SR
+GFByMfiYVjZb4dQFDCCbX12GJZZYYonlt6Wt5e937Kyr+Oe1HnZ1/bOlJX6rv4ulduDZ42nbIW3d
+yMMtqcKzzzNY7i+D522eyprag+c0f/oWpUXUzcmfM56h778v9H3AM4snE8StS7ngeZ1nqtFnRx/B
+hWczf55iflae5M+2fy4pUhm6oJZNeLb13crFCvOzdYVnQ4/ki9sbi5+GLsGzVc9L4+Mmw538OemP
+IlfWQZM6JHg2412VfVRK2czvFArPtr5nKe9RjVLPz/rNMlDyI9a308KzHe+RSjfEHC3Dc8DTayF6
+4MU/J/27pkwSeMs8AM+2HrkCu9ad1PPTfvOYztcTJeZLE/808+w2vc5BqZcm/VH4Z87kS9MEz66+
+az7v37pu5M+750dn0DvzkPH5ptdDDvWd8Jyfv4uhZwIl3oc8c76klsmY19m9521K5bS7JuJ9+nxd
+nm1qdEe9NNf3nCNH/en0mzfqT546xhJLLLG8bPkEldBKPcSBbjkAAAAASUVORK5CYII=
+
+--factflow-demo-13-0--

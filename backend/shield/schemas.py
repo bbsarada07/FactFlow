@@ -129,6 +129,7 @@ class LinkItem(BaseModel):
     host: str | None = None
     flags: list[str] = Field(default_factory=list)
     severity: Severity | None = None
+    expanded_to: str | None = None  # where a shortened link really goes (only with ENABLE_LINK_EXPANSION)
 
 
 class AttemptedAction(BaseModel):
@@ -238,11 +239,49 @@ class Explanation(BaseModel):
 
 class Latency(BaseModel):
     total: int = 0
-    per_stage: dict[str, int] = Field(default_factory=dict)
+    per_stage: dict[str, float] = Field(default_factory=dict)  # milliseconds, one decimal
+
+
+HarmType = Literal["FINANCIAL_FRAUD", "CREDENTIAL_THEFT", "DATA_EXFILTRATION", "MISINFORMATION", "IMPERSONATION"]
+InputType = Literal["claim", "email", "phishing_or_scam", "injection_attempt", "qr", "voice_note"]
+
+
+class Harm(BaseModel):
+    """What could go wrong if the reader acts on the message (Agent 5, scam/fraud extension)."""
+
+    types: list[HarmType] = Field(default_factory=list)
+    level: Literal["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"] = "NONE"
+    reasons: list[str] = Field(default_factory=list)
+
+
+class MessageSummary(BaseModel):
+    """Header facts about the message. All of it comes from the sender: show as text only."""
+
+    source: str
+    has_headers: bool
+    subject: str = ""
+    from_addr: str = ""
+    from_display: str = ""
+    reply_to: str = ""
+    to: list[str] = Field(default_factory=list)
+    date: str = ""
+    attachments: list[dict] = Field(default_factory=list)
+
+
+class LLMUsage(BaseModel):
+    llm_calls: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    by_stage: dict[str, int] = Field(default_factory=dict)
+    claims_from_registry: int = 0
 
 
 class UnifiedVerdict(BaseModel):
-    """The single verdict FactFlow returns for an email or message (master prompt section 4.6)."""
+    """The single verdict FactFlow returns for an email or message (master prompt section 4.6).
+
+    Fields after `audit_head_hash` are FactFlow additions (all optional for older verdicts).
+    """
 
     email_id: str
     overall: Overall
@@ -253,6 +292,12 @@ class UnifiedVerdict(BaseModel):
     analysis_failures: list[str] = Field(default_factory=list)
     latency_ms: Latency = Field(default_factory=Latency)
     audit_head_hash: str | None = None
+    mode: Literal["rules", "full"] = "rules"
+    pipeline_version: str = ""
+    input_type: InputType = "email"
+    message: MessageSummary | None = None
+    harm: Harm = Field(default_factory=Harm)
+    llm_usage: LLMUsage | None = None
 
 
 ApprovalStatus = Literal["pending", "approved", "denied", "expired"]

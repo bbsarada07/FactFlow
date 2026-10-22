@@ -277,7 +277,7 @@ class PolicyStore:
 
     config: PolicyConfig = field(default_factory=load_config)
     on_change: Callable[[dict], None] | None = None
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
 
     def get(self) -> PolicyConfig:
         with self._lock:
@@ -290,27 +290,44 @@ class PolicyStore:
         self.config = new
         return new
 
-    def set_mode(self, mode: str, *, confirm: bool = False, actor: str = "human") -> PolicyConfig:
+    def plan_mode(self, mode: str, *, confirm: bool = False, actor: str = "human") -> tuple[PolicyConfig, dict | None]:
+        """Validate a mode change without applying it: (new config, change record or None)."""
         if mode not in ("strict", "balanced"):
             raise ValueError(f"unknown policy mode {mode!r}")
+        old = self.get()
+        if mode == old.mode:
+            return old, None
+        if mode == "balanced" and not confirm:
+            raise PermissionError("Switching to balanced mode loosens the policy and needs confirm=True.")
+        return replace(old, mode=mode), {"field": "policy_mode", "previous": old.mode, "new": mode, "actor": actor}
+
+    def plan_domains(self, new_domains: list[str], *, confirm: bool = False,
+                     actor: str = "human") -> tuple[PolicyConfig, dict | None]:
+        """Validate an allowlist change without applying it: (new config, change record or None)."""
+        cleaned = tuple(sorted({validate_domain(d) for d in new_domains}))
+        old = self.get()
+        added = set(cleaned) - set(old.allowed_domains)
+        if added and not confirm:
+            raise PermissionError(f"Adding trusted domains needs confirm=True: {sorted(added)}")
+        if cleaned == old.allowed_domains:
+            return old, None
+        return replace(old, allowed_domains=cleaned), {"field": "allowed_domains", "previous": list(old.allowed_domains),
+                                                       "new": list(cleaned), "actor": actor}
+
+    def apply(self, new: PolicyConfig, expected: PolicyConfig) -> None:
+        """Apply a planned config, only if nothing changed since it was planned (the change must
+        already be in the audit log)."""
         with self._lock:
-            old = self.config
-            if mode == old.mode:
-                return old
-            if mode == "balanced" and not confirm:
-                raise PermissionError("Switching to balanced mode loosens the policy and needs confirm=True.")
-            return self._commit(replace(old, mode=mode),
-                                {"field": "policy_mode", "previous": old.mode, "new": mode, "actor": actor})
+            if self.config != expected:
+                raise RuntimeError("the policy changed while this change was being recorded; try again")
+            self.config = new
+
+    def set_mode(self, mode: str, *, confirm: bool = False, actor: str = "human") -> PolicyConfig:
+        with self._lock:
+            new, change = self.plan_mode(mode, confirm=confirm, actor=actor)
+            return self._commit(new, change) if change else new
 
     def set_allowed_domains(self, new_domains: list[str], *, confirm: bool = False, actor: str = "human") -> PolicyConfig:
-        cleaned = tuple(sorted({validate_domain(d) for d in new_domains}))
         with self._lock:
-            old = self.config
-            added = set(cleaned) - set(old.allowed_domains)
-            if added and not confirm:
-                raise PermissionError(f"Adding trusted domains needs confirm=True: {sorted(added)}")
-            if cleaned == old.allowed_domains:
-                return old
-            return self._commit(replace(old, allowed_domains=cleaned),
-                                {"field": "allowed_domains", "previous": list(old.allowed_domains),
-                                 "new": list(cleaned), "actor": actor})
+            new, change = self.plan_domains(new_domains, confirm=confirm, actor=actor)
+            return self._commit(new, change) if change else new

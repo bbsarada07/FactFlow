@@ -1,5 +1,5 @@
 """Agent 5 — Harm Assessor (Nano): classify harm type and score severity."""
-from agents.context import HARM_TYPES, URGENCY, AgentOutput, PipelineContext, clamp, pick
+from agents.context import HARM_TYPES, UNTRUSTED_NOTICE, URGENCY, AgentOutput, PipelineContext, clamp, pick, untrusted
 from models.groq_client import call_nano
 
 LEVEL_FLOOR = {"LOW": 1.5, "MEDIUM": 4.0, "HIGH": 6.5, "CRITICAL": 8.5}
@@ -16,9 +16,11 @@ def level_for(score: float) -> str:
 
 SYSTEM = """You are the Harm Assessor agent of FactFlow. You estimate the real-world damage a piece of content
 could cause if it keeps spreading in India, drawing on documented cases (mob lynchings after child-lifter
-rumours, communal riots after recycled videos, deaths from fake cures). Respond with a single JSON object only."""
+rumours, communal riots after recycled videos, deaths from fake cures). Respond with a single JSON object only.
+""" + UNTRUSTED_NOTICE
 
-PROMPT = """CONTENT: \"\"\"{raw}\"\"\"
+PROMPT = """CONTENT:
+{raw}
 CLAIM: {claim}
 VERDICT: {verdict} (model leaned {model_verdict} at {confidence:.0%})
 Claim type: {claim_type} | Urgency: {urgency} | Platform: {platform}
@@ -43,7 +45,7 @@ async def run(ctx: PipelineContext) -> AgentOutput:
     res = await call_nano(
         SYSTEM,
         PROMPT.format(
-            raw=ctx.raw_text[:1500],
+            raw=untrusted(ctx.raw_text[:1500], "content"),
             claim=ctx.claim,
             verdict=ctx.verdict,
             confidence=ctx.model_confidence if ctx.model_confidence is not None else 0.0,

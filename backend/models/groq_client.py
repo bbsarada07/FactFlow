@@ -7,7 +7,9 @@ call_vision -> extracts text from screenshots when Tesseract is unavailable
 import json
 import re
 import time
-from dataclasses import dataclass
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 
 import openai
 from loguru import logger
@@ -54,6 +56,58 @@ class LLMResult:
     model: str
     ms: int
     tokens: int
+
+
+@dataclass
+class Usage:
+    """Token usage of every model call made while this meter is active (see track_usage)."""
+
+    calls: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    by_stage: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def total_tokens(self) -> int:
+        return self.prompt_tokens + self.completion_tokens
+
+    def as_dict(self) -> dict:
+        return {"llm_calls": self.calls, "prompt_tokens": self.prompt_tokens,
+                "completion_tokens": self.completion_tokens, "total_tokens": self.total_tokens,
+                "by_stage": dict(self.by_stage)}
+
+
+_usage: ContextVar[Usage | None] = ContextVar("llm_usage", default=None)
+_stage: ContextVar[str] = ContextVar("llm_usage_stage", default="other")
+
+
+def track_usage() -> Usage:
+    """Start counting tokens for the current task and the tasks it starts."""
+    meter = Usage()
+    _usage.set(meter)
+    return meter
+
+
+@contextmanager
+def usage_stage(name: str):
+    """Attribute model calls inside this block to `name` in the active meter's by_stage."""
+    token = _stage.set(name)
+    try:
+        yield
+    finally:
+        _stage.reset(token)
+
+
+def _record_usage(usage) -> None:
+    meter = _usage.get()
+    if meter is None or usage is None:
+        return
+    prompt, completion = int(getattr(usage, "prompt_tokens", 0) or 0), int(getattr(usage, "completion_tokens", 0) or 0)
+    meter.calls += 1
+    meter.prompt_tokens += prompt
+    meter.completion_tokens += completion
+    stage = _stage.get()
+    meter.by_stage[stage] = meter.by_stage.get(stage, 0) + prompt + completion
 
 
 def client() -> AsyncOpenAI:
@@ -144,6 +198,7 @@ async def _chat_json(model: str, effort: str, system: str, user: str, max_tokens
             logger.debug(f"{model} JSON validation failed at max_tokens={budget}; retrying with a larger budget")
             continue
         tokens += resp.usage.total_tokens if resp.usage else 0
+        _record_usage(resp.usage)
         content = resp.choices[0].message.content or ""
         try:
             data = parse_json(content)

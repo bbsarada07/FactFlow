@@ -5,7 +5,6 @@ import io
 import shutil
 from dataclasses import dataclass, field
 
-import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 
@@ -13,49 +12,70 @@ from config import settings
 from models.gemini_client import read_screenshot, vision_available
 from models.groq_client import call_vision
 from models.vision_output import parse_vision_output
+from services.safe_fetch import FetchBlocked, FetchError, SafeResponse, safe_request
+from shield.hidden_content import scan_html
+from shield.textnorm import strip_invisible
 
-USER_AGENT = "Mozilla/5.0 (compatible; FactFlow/1.0; +https://github.com/bbsarada07/FactFlow)"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
+HIDDEN_TEXT_IDS = {"HC-01", "HC-02", "HC-03", "HC-04", "HC-05", "HC-06", "HC-08"}
 
 
 class InputError(ValueError):
     pass
 
 
-async def fetch_url_text(url: str) -> str:
-    try:
-        async with httpx.AsyncClient(timeout=12, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as http:
-            resp = await http.get(url)
-        resp.raise_for_status()
-    except Exception as exc:  # noqa: BLE001
-        raise InputError(f"Could not fetch URL: {exc}") from exc
+class PageText(str):
+    """Visible text of a fetched page. `hidden_findings` lists text on the page that a reader would
+    not see (hidden with CSS, comments, metadata...). That text is never passed on to the agents."""
 
-    if "html" not in resp.headers.get("content-type", "html"):
+    hidden_findings: list = []
+    hidden_instructions: bool = False
+
+
+async def _fetch(url: str, max_bytes: int, timeout: float, accept: str) -> SafeResponse:
+    try:
+        resp = await safe_request(url, max_bytes=max_bytes, timeout=timeout, accept=accept)
+    except FetchBlocked as exc:
+        raise InputError(f"This URL cannot be fetched: {exc}") from exc
+    except FetchError as exc:
+        raise InputError(f"Could not fetch URL: {exc}") from exc
+    if resp.status >= 400:
+        raise InputError(f"Could not fetch URL: the site answered {resp.status}")
+    return resp
+
+
+async def fetch_url_text(url: str) -> PageText:
+    """Fetch an article through the SSRF guard and return only the text a reader would see.
+
+    The page is rendered by the Shield's hidden-content scanner: text hidden with CSS, comments,
+    alt text and metadata are dropped (and reported in `hidden_findings`), so hidden instructions
+    on a page can never reach a model.
+    """
+    resp = await _fetch(url, max_bytes=2_000_000, timeout=12, accept="text/html,application/xhtml+xml")
+    if "html" not in (resp.content_type or "html"):
         raise InputError("URL does not point to an HTML page")
 
-    soup = BeautifulSoup(resp.text, "lxml")
-    for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form", "noscript"]):
+    soup = BeautifulSoup(resp.body, "lxml")
+    for tag in soup(["nav", "footer", "header", "aside", "form"]):
         tag.decompose()
-    title = (soup.title.string or "").strip() if soup.title else ""
-    meta = soup.find("meta", attrs={"property": "og:description"}) or soup.find("meta", attrs={"name": "description"})
-    description = (meta.get("content") or "").strip() if meta else ""
-    paragraphs = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
-    body = " ".join(p for p in paragraphs if len(p) > 40)
-    text = "\n".join(x for x in (title, description, body) if x)
+    scan = scan_html(str(soup))
+    visible = strip_invisible(scan.visible_text)
+    title = strip_invisible((soup.title.string or "").strip()) if soup.title and soup.title.string else ""
+    text = "\n".join(x for x in (title, visible) if x)
     if len(text) < 20:
         raise InputError("No readable article text found at URL")
-    return text[:4000]
+    out = PageText(text[:4000])
+    out.hidden_findings = [f for f in scan.findings if f.id in HIDDEN_TEXT_IDS]
+    out.hidden_instructions = any(f.instruction_like for f in scan.findings)
+    return out
 
 
 async def download_image(url: str) -> tuple[str, str]:
-    try:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as http:
-            resp = await http.get(url)
-        resp.raise_for_status()
-    except Exception as exc:  # noqa: BLE001
-        raise InputError(f"Could not download image: {exc}") from exc
-    mime = screenshot_type(resp.content)
-    return base64.b64encode(resp.content).decode(), mime
+    resp = await _fetch(url, max_bytes=MAX_IMAGE_BYTES, timeout=15, accept="image/png,image/jpeg")
+    if resp.truncated:
+        raise InputError("Image is larger than 8 MB")
+    mime = screenshot_type(resp.body)
+    return base64.b64encode(resp.body).decode(), mime
 
 
 SCREENSHOT_RULE = "Only PNG or JPG screenshots up to 5 MB are supported."

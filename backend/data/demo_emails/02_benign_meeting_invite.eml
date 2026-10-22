@@ -1,0 +1,36 @@
+From: "Priya Nair" <priya@teamwork.example>
+To: Ravi Kumar <ravi.kumar@home.example>
+Subject: Project sync moved to Thursday 3pm
+Date: Wed, 21 Oct 2026 10:02:00 +0530
+Message-ID: <demo-02@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=teamwork.example; dkim=pass header.d=teamwork.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="factflow-demo-02-0"
+
+--factflow-demo-02-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Hi Ravi,
+
+The project sync is moved to Thursday at 3pm in room 4B. The agenda is the Q4=
+ budget and the hiring plan. Join online if you are travelling: https://meet.=
+teamwork.example/q4-sync
+
+Thanks,
+Priya
+
+--factflow-demo-02-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Hi R=
+avi,</p><p>The project sync is moved to <b>Thursday at 3pm</b> in room 4B. Th=
+e agenda is the Q4 budget and the hiring plan.</p><p>Join online if you are t=
+ravelling: <a href=3D"https://meet.teamwork.example/q4-sync">meet.teamwork.ex=
+ample/q4-sync</a></p><p>Thanks,<br>Priya</p></body></html>
+
+--factflow-demo-02-0--

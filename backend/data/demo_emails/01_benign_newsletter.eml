@@ -1,0 +1,35 @@
+From: "Chai & Code Weekly" <news@chaicode.example>
+To: Ravi Kumar <ravi.kumar@home.example>
+Subject: Chai & Code Weekly #42
+Date: Wed, 21 Oct 2026 10:01:00 +0530
+Message-ID: <demo-01@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=chaicode.example; dkim=pass header.d=chaicode.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="factflow-demo-01-0"
+
+--factflow-demo-01-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+This week: monsoon recipes from our readers, a beginner Python challenge, and=
+ the winners of last month's photo contest. Read online or unsubscribe at any=
+ time from your settings page.
+
+--factflow-demo-01-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><span s=
+tyle=3D"display:none;max-height:0;overflow:hidden">Monsoon recipes and a codi=
+ng challenge</span><img src=3D"https://cdn.chaicode.example/logo.png" alt=3D"=
+Chai &amp; Code logo" width=3D"120"><h1>Chai &amp; Code Weekly #42</h1><p>Thi=
+s week: monsoon recipes from our readers, a beginner Python challenge, and th=
+e winners of last month's photo contest.</p><p><a href=3D"https://chaicode.us=
+1.list-manage.com/track/click?u=3D1">Read online</a> =C2=B7 <a href=3D"https:=
+//chaicode.example/settings">Unsubscribe from your settings page</a></p></bod=
+y></html>
+
+--factflow-demo-01-0--

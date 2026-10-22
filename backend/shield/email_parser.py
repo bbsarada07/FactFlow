@@ -39,10 +39,12 @@ class Attachment:
     text: str | None = None  # extracted text (.txt / .pdf only)
     metadata: dict[str, str] = field(default_factory=dict)  # PDF document info
     data: bytes = field(default=b"", repr=False)  # kept in memory for QR decoding; never persisted
+    scan_note: str | None = None  # set when text that should have been scanned was not (fully) read
 
     def summary(self) -> dict:
         return {"filename": self.filename, "content_type": self.content_type, "size": self.size,
-                "sha256": self.sha256, "inline": self.inline, "text_extracted": self.text is not None}
+                "sha256": self.sha256, "inline": self.inline, "text_extracted": self.text is not None,
+                "scan_note": self.scan_note}
 
 
 @dataclass
@@ -95,9 +97,10 @@ def _decode_part(part: EmailMessage) -> str:
         return payload.decode("utf-8", errors="replace")
 
 
-def _pdf_text(data: bytes) -> tuple[str | None, dict[str, str]]:
+def _pdf_text(data: bytes) -> tuple[str | None, dict[str, str], str | None]:
+    """(text, metadata, scan_note). scan_note is set when the PDF could not be fully read."""
     if not data.startswith(b"%PDF"):
-        return None, {}
+        return None, {}, "file is named .pdf but is not a PDF, so its text was not scanned"
     try:
         from pypdf import PdfReader
 
@@ -107,14 +110,19 @@ def _pdf_text(data: bytes) -> tuple[str | None, dict[str, str]]:
             for key, value in reader.metadata.items():
                 if value is not None:
                     meta[str(key).lstrip("/")] = str(value)[:2000]
-        parts = []
-        for page in reader.pages[:MAX_PDF_PAGES]:
+        parts, note = [], None
+        pages = reader.pages
+        for i, page in enumerate(pages):
+            if i >= MAX_PDF_PAGES:
+                note = f"only the first {MAX_PDF_PAGES} of {len(pages)} pages were scanned"
+                break
             parts.append(page.extract_text() or "")
             if sum(len(p) for p in parts) > MAX_ATTACHMENT_TEXT:
+                note = f"only the first {MAX_ATTACHMENT_TEXT:,} characters were scanned"
                 break
-        return "\n".join(parts)[:MAX_ATTACHMENT_TEXT], meta
-    except Exception:  # noqa: BLE001 - malformed PDFs are reported as metadata-only
-        return None, {}
+        return "\n".join(parts)[:MAX_ATTACHMENT_TEXT], meta, note
+    except Exception:  # noqa: BLE001 - malformed PDFs are reported, never treated as clean
+        return None, {}, "the PDF could not be read, so its text was not scanned"
 
 
 def _attachment(part: EmailMessage) -> Attachment:
@@ -128,8 +136,10 @@ def _attachment(part: EmailMessage) -> Attachment:
     lower = filename.lower()
     if lower.endswith(".txt") or ctype == "text/plain":
         att.text = data[:MAX_ATTACHMENT_TEXT].decode("utf-8", errors="replace")
+        if len(data) > MAX_ATTACHMENT_TEXT:
+            att.scan_note = f"only the first {MAX_ATTACHMENT_TEXT:,} bytes were scanned"
     elif lower.endswith(".pdf") or ctype == "application/pdf":
-        att.text, att.metadata = _pdf_text(data)
+        att.text, att.metadata, att.scan_note = _pdf_text(data)
     return att
 
 

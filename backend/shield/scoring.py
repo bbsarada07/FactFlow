@@ -42,8 +42,12 @@ def hidden_injection(components: Components) -> bool:
     return any(f.instruction_like for f in components.hidden_content.findings)
 
 
-def overall(components: Components, analysis_failures: list[str]) -> Overall:
-    """Combine component scores into the overall label, score, confidence and reasons."""
+def overall(components: Components, analysis_failures: list[str], unscanned: bool = False) -> Overall:
+    """Combine component scores into the overall label, score, confidence and reasons.
+
+    unscanned: part of the message was not scanned (body truncated, attachment not fully read).
+    Unscanned content is never treated as clean: the label is at least SUSPICIOUS.
+    """
     c = cfg()
     scores = {
         "hidden content": components.hidden_content.score,
@@ -66,6 +70,11 @@ def overall(components: Components, analysis_failures: list[str]) -> Overall:
         penalty = c["analysis_failure_penalty"] * len(analysis_failures)
         score = min(100, score + penalty)
         reasons.append(f"+{penalty} because {len(analysis_failures)} part(s) of the analysis failed")
+
+    if unscanned and score < c["labels"]["suspicious"]:
+        score = c["labels"]["suspicious"]
+    if unscanned:
+        reasons.append("part of the message could not be scanned, so it is never treated as safe")
 
     forced = hidden_injection(components)
     if forced and score < c["labels"]["dangerous"]:

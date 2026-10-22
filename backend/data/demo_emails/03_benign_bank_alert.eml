@@ -1,0 +1,33 @@
+From: "Bharat Sahakari Bank" <alerts@bsbank.example>
+To: Ravi Kumar <ravi.kumar@home.example>
+Subject: Debit alert: Rs 2,500 from A/c XX4821
+Date: Wed, 21 Oct 2026 10:03:00 +0530
+Message-ID: <demo-03@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=bsbank.example; dkim=pass header.d=bsbank.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="factflow-demo-03-0"
+
+--factflow-demo-03-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Customer, Rs 2,500.00 was debited from your account XX4821 on 21-10-2026=
+ by UPI to GROCERY MART. Available balance: Rs 18,240.50. If you did not make=
+ this payment, call the number printed on the back of your card. Never share =
+your OTP, PIN or CVV with anyone. Bharat Sahakari Bank will never ask for the=
+m.
+
+--factflow-demo-03-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Dear=
+ Customer,</p><p>Rs 2,500.00 was debited from your account XX4821 on 21-10-20=
+26 by UPI to GROCERY MART. Available balance: Rs 18,240.50.</p><p>If you did =
+not make this payment, call the number printed on the back of your card. Neve=
+r share your OTP, PIN or CVV with anyone. Bharat Sahakari Bank will never ask=
+ for them.</p></body></html>
+
+--factflow-demo-03-0--

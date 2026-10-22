@@ -24,6 +24,9 @@ from services import input_service
 from services.event_bus import get_bus
 from services.safety import PRIVATE_PERSON_MESSAGE, WITHHELD_LABEL, check_sensitive
 from services.text_utils import input_hash, keyword_score, normalize, redact_pii, similarity, truncate
+from shield.injection import scan_text as injection_rules
+from shield.schemas import SEVERITY_RANK
+from shield.textnorm import invisible_runs, strip_invisible
 
 AGENTS = [
     {"index": 0, "name": "ORCHESTRATOR", "tier": "NANO", "role": "Routes and controls"},
@@ -120,11 +123,11 @@ def apply_gate(ctx: PipelineContext) -> None:
 class Run:
     """Tracks agent state for one request and publishes events."""
 
-    def __init__(self, request_id: str) -> None:
+    def __init__(self, request_id: str, agents: list[dict] | None = None) -> None:
         self.request_id = request_id
         self.bus = get_bus()
         self.t0 = time.perf_counter()
-        self.agents = [{**a, "status": "waiting", "preview": "", "model": None, "ms": 0} for a in AGENTS]
+        self.agents = [{**a, "status": "waiting", "preview": "", "model": None, "ms": 0} for a in (agents or AGENTS)]
 
     @property
     def elapsed_ms(self) -> int:
@@ -181,9 +184,29 @@ async def match_patterns(text: str) -> list[dict]:
     return sorted(scored, key=lambda x: -x["score"])[:2]
 
 
-async def _prepare_input(claim: Claim) -> tuple[str, str, dict | None]:
-    """Returns (text_to_analyse, routing_note, image_info). For screenshots, only the extracted
-    text goes on to the reasoning agents; the reader label and visible cues are display-only."""
+HIDDEN_PAGE_MARKER = "The web page hides text from readers; it was removed before analysis"
+HIDDEN_CHARS_MARKER = "Contains invisible characters that hide a message; they were removed before analysis"
+INSTRUCTIONS_MARKER = "Contains instructions aimed at AI systems; they were ignored and treated as text to check"
+
+
+def shield_guard(text: str) -> tuple[str, list[str]]:
+    """Shield check on untrusted input before any agent sees it.
+
+    Returns the text with invisible characters removed (a message hidden in Unicode Tags is
+    checked but never passed on) and manipulation markers for the report. The injected text
+    itself is never quoted in the markers."""
+    markers = []
+    if any(r.decoded.strip() for r in invisible_runs(text or "")):
+        markers.append(HIDDEN_CHARS_MARKER)
+    if any(SEVERITY_RANK[h.severity] >= SEVERITY_RANK["medium"] for h in injection_rules(text or "")):
+        markers.append(INSTRUCTIONS_MARKER)
+    return strip_invisible(text or ""), markers
+
+
+async def _prepare_input(claim: Claim) -> tuple[str, str, dict | None, list[str]]:
+    """Returns (text_to_analyse, routing_note, image_info, manipulation_markers). For screenshots,
+    only the extracted text goes on to the reasoning agents; the reader label and visible cues are
+    display-only. Every input passes through shield_guard first."""
     note = claim.raw_input.strip()
     if claim.input_type == "image":
         if claim.image_data:
@@ -195,15 +218,20 @@ async def _prepare_input(claim: Claim) -> tuple[str, str, dict | None]:
         read = await input_service.read_image(b64, mime)
         text = redact_pii(read.text)
         image_info = {"reader": read.reader, "label": read.label, "cues": [redact_pii(c) for c in read.cues]}
-        combined = f"{text}\n\nUser note: {note}" if note else text
-        return combined, f"Image → text via {read.reader} ({len(text)} chars)", image_info
+        combined, markers = shield_guard(f"{text}\n\nUser note: {note}" if note else text)
+        return combined, f"Image → text via {read.reader} ({len(text)} chars)", image_info, markers
     if claim.input_type == "url" and claim.source_url:
-        text = redact_pii(await input_service.fetch_url_text(claim.source_url))
-        combined = f"{text}\n\nUser note: {note}" if note else text
-        return combined, f"URL fetched ({len(text)} chars)", None
+        page = await input_service.fetch_url_text(claim.source_url)
+        page_markers = [HIDDEN_PAGE_MARKER] if getattr(page, "hidden_findings", None) else []
+        if getattr(page, "hidden_instructions", False):
+            page_markers.append(INSTRUCTIONS_MARKER)
+        text = redact_pii(page)
+        combined, markers = shield_guard(f"{text}\n\nUser note: {note}" if note else text)
+        return combined, f"URL fetched ({len(text)} chars)", None, list(dict.fromkeys(page_markers + markers))
     if not note:
         raise input_service.InputError("No text to analyse")
-    return note, f"Text input ({len(note)} chars)", None
+    text, markers = shield_guard(note)
+    return text, f"Text input ({len(text)} chars)", None, markers
 
 
 async def _persist(ctx: PipelineContext, run: Run, raw_text: str) -> Claim:
@@ -324,7 +352,7 @@ async def _pipeline(request_id: str, run: Run) -> None:
     # ── Agent 0: routing ──────────────────────────────────────────────
     await run.set_agent(0, "running", f"Routing {input_type} input")
     try:
-        raw_text, route_note, image_info = await _prepare_input(snapshot)
+        raw_text, route_note, image_info, shield_markers = await _prepare_input(snapshot)
     except input_service.InputError as exc:
         await run.set_agent(0, "failed", str(exc))
         raise PipelineError(str(exc)) from exc
@@ -340,6 +368,7 @@ async def _pipeline(request_id: str, run: Run) -> None:
         requested_language=language or "auto", platform=platform or "web", slug=slug,
         image_info=image_info,
     )
+    ctx.manipulation_markers.extend(shield_markers)
     ctx.pattern_matches = await match_patterns(raw_text)
 
     pattern_note = f" · resembles '{ctx.pattern_matches[0]['name']}'" if ctx.pattern_matches else ""

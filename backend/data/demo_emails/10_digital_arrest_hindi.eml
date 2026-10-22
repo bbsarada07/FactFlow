@@ -1,0 +1,21 @@
+From: "CBI Cyber Cell" <notice@cbi-cyber-cell.example>
+To: Ravi Kumar <ravi.kumar@home.example>
+Subject: =?utf-8?b?4KSX4KS/4KSw4KSr4KWN4KSk4KS+4KSw4KWAIOCkqOCli+Ckn+Ckvw==?=
+ =?utf-8?b?4KS4?=
+Date: Wed, 21 Oct 2026 10:10:00 +0530
+Message-ID: <demo-10@factflow.example>
+Authentication-Results: mx.inbox.example; spf=fail
+ smtp.mailfrom=cbi-cyber-cell.example; dkim=none; dmarc=fail (p=reject)
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+4KSu4KWI4KSCIENCSSDgpLjgpL7gpIfgpKzgpLAg4KS44KWH4KSyIOCkuOClhyDgpKzgpYvgpLIg
+4KSw4KS54KS+IOCkueClguCkgeClpCDgpIbgpKrgpJXgpYcg4KSo4KS+4KSuIOCkuOClhyDgpK3g
+pYfgpJzgpYcg4KSX4KSPIOCkquCkvuCksOCljeCkuOCksiDgpK7gpYfgpIIg4KSh4KWN4KSw4KSX
+4KWN4KS4IOCkruCkv+CksuClhyDgpLngpYjgpILgpaQg4KSG4KSqIOCkoeCkv+CknOCkv+Ckn+Ck
+siDgpIXgpLDgpYfgpLjgpY3gpJ8g4KSu4KWH4KSCIOCkueCliOCkguClpCDgpLXgpYDgpKHgpL/g
+pK/gpYsg4KSV4KWJ4KSyIOCkquCksCDgpKzgpKjgpYcg4KSw4KS54KWH4KSCIOCklOCksCDgpJXg
+pL/gpLjgpYAg4KSV4KWLIOCkruCkpCDgpKzgpKTgpL7gpKjgpL7gpaQg4KSc4KS+4KSC4KSaIOCk
+quClguCksOClgCDgpLngpYvgpKjgpYcg4KSk4KSVIOKCuTk1LDAwMCDgpLjgpKTgpY3gpK/gpL7g
+pKrgpKgg4KSW4KS+4KSk4KWHIOCkruClh+CkgiDgpJzgpK7gpL4g4KSV4KSw4KWH4KSC4KWkCg==

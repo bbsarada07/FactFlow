@@ -1,0 +1,29 @@
+From: "SBI KYC Team" <alerts@sbi-kyc-update.example>
+To: Ravi Kumar <ravi.kumar@home.example>
+Subject: Urgent: your KYC is pending
+Date: Wed, 21 Oct 2026 10:09:00 +0530
+Message-ID: <demo-09@factflow.example>
+Reply-To: kyc.help.desk@gmail.example
+Authentication-Results: mx.inbox.example; spf=fail
+ smtp.mailfrom=sbi-kyc-update.example; dkim=none; dmarc=fail (p=reject)
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="factflow-demo-09-0"
+
+--factflow-demo-09-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Customer, your KYC is pending. Your account will be blocked within 24 ho=
+urs. Update now: http://sbi-kyc-update.example/login
+
+--factflow-demo-09-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Dear=
+ Customer,</p><p>Your KYC is pending. Your account will be blocked within 24 =
+hours.</p><p>Update now: <a href=3D"http://sbi-kyc-update.example/login">http=
+s://www.onlinesbi.sbi/kyc</a></p></body></html>
+
+--factflow-demo-09-0--

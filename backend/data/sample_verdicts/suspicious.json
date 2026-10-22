@@ -1,0 +1,122 @@
+{
+  "email_id": "3a232e48f78e48c289c8c9fa490291bf",
+  "overall": {
+    "label": "SUSPICIOUS",
+    "score": 35,
+    "confidence": 0.6,
+    "reasons": [
+      "links scored 35"
+    ]
+  },
+  "components": {
+    "hidden_content": {
+      "score": 0,
+      "findings": []
+    },
+    "injection": {
+      "score": 0,
+      "rule_hits": [],
+      "llm": null,
+      "attempted_actions": []
+    },
+    "authenticity": {
+      "score": 0,
+      "spf": "pass",
+      "dkim": "pass",
+      "dmarc": "pass",
+      "reply_to_mismatch": false,
+      "return_path_mismatch": false,
+      "display_name_impersonation": null,
+      "lookalikes": [],
+      "signals": []
+    },
+    "links": {
+      "score": 35,
+      "items": [
+        {
+          "url": "http://track-parcel-now.example/slot?id=88213",
+          "host": "track-parcel-now.example",
+          "flags": [
+            "from_qr_code",
+            "no_https"
+          ],
+          "severity": "medium",
+          "expanded_to": null
+        }
+      ]
+    },
+    "scam": {
+      "score": 0,
+      "detectors": []
+    },
+    "claims": {
+      "score": 0,
+      "items": []
+    }
+  },
+  "visible_vs_raw": {
+    "visible_text": "We could not deliver your parcel today. Scan the QR code below to choose a new delivery slot.",
+    "raw_text": "We could not deliver your parcel today. Scan the QR code below to choose a new delivery slot. QR code",
+    "diff": [
+      {
+        "text": "QR code",
+        "hc_id": "HC-08"
+      }
+    ]
+  },
+  "proposed_actions": [],
+  "explanation": {
+    "en": "SUSPICIOUS (score 35/100). Links: 1 flagged (from_qr_code, no_https).",
+    "user_language": "en",
+    "text": "SUSPICIOUS (score 35/100). Links: 1 flagged (from_qr_code, no_https).",
+    "whatsapp_warning": ""
+  },
+  "analysis_failures": [],
+  "latency_ms": {
+    "total": 32,
+    "per_stage": {
+      "parse": 2.7,
+      "hidden_html": 0.6,
+      "hidden_other": 0.3,
+      "injection_rules": 0.3,
+      "qr": 11.4,
+      "authenticity_links": 0.5,
+      "scam_rules": 0.5,
+      "score_policy": 0.1,
+      "audit": 15.4
+    }
+  },
+  "audit_head_hash": "0a56e0f6e76e81ccf16382959b8864202977bfe37dfdebb4b84a26dd4675420e",
+  "mode": "rules",
+  "pipeline_version": "inbox-2",
+  "input_type": "qr",
+  "message": {
+    "source": "demo",
+    "has_headers": true,
+    "subject": "Delivery attempt: scan to reschedule",
+    "from_addr": "updates@parcel-updates.example",
+    "from_display": "Delivery Updates",
+    "reply_to": "",
+    "to": [
+      "ravi.kumar@home.example"
+    ],
+    "date": "Wed, 21 Oct 2026 10:13:00 +0530",
+    "attachments": [
+      {
+        "filename": "reschedule-qr.png",
+        "content_type": "image/png",
+        "size": 449,
+        "sha256": "51766903e501d09f14ceab0ea972a49aec3cdd04319ee756fcf882a7d56e8e96",
+        "inline": true,
+        "text_extracted": false,
+        "scan_note": null
+      }
+    ]
+  },
+  "harm": {
+    "types": [],
+    "level": "LOW",
+    "reasons": []
+  },
+  "llm_usage": null
+}

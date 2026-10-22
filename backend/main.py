@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from sqlalchemy import text
 
-from api import accuracy, history, incidents, public_config, registry, result, stats, stream, verify
+from api import accuracy, approvals, audit, history, inbox, incidents, policy, public_config, registry, result, stats, stream, verify
 from config import settings
 from database import connection
 from models.gemini_client import vision_available
@@ -42,11 +42,12 @@ app.add_middleware(
     allow_origins=[settings.FRONTEND_URL, "http://localhost:3000", "http://127.0.0.1:3000"],
     allow_origin_regex=r"chrome-extension://.*",
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "OPTIONS"],
     allow_headers=["*"],
 )
 
-for module in (verify, stream, result, history, incidents, stats, registry, public_config, accuracy):
+for module in (verify, stream, result, history, incidents, stats, registry, public_config, accuracy,
+               inbox, approvals, audit, policy):
     app.include_router(module.router)
 
 
