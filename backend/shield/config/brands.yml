@@ -1,0 +1,147 @@
+# HUMAN MUST VERIFY.
+#
+# Legitimate domains of brands commonly impersonated in India, filled in from general knowledge
+# on 2026-10-22 and NOT checked against the brands' own sites. A wrong entry here is a security
+# bug: a domain listed as legitimate is never flagged as a lookalike. Verify every entry before
+# the demo and record the check in docs/DECISIONS.md.
+#
+# legit_domains: registrable domains (or their subdomains) the brand really uses.
+# tokens: words that, inside some other domain or a sender display name, claim to be the brand.
+#         Tokens of 3 letters or fewer only match as a whole hyphen/dot-separated part.
+
+brands:
+  - name: State Bank of India
+    tokens: [sbi, onlinesbi, statebank, yonosbi]
+    legit_domains: [sbi.co.in, onlinesbi.sbi, sbi.bank.in, sbicard.com]
+  - name: HDFC Bank
+    tokens: [hdfc, hdfcbank]
+    legit_domains: [hdfcbank.com]
+  - name: ICICI Bank
+    tokens: [icici, icicibank]
+    legit_domains: [icicibank.com]
+  - name: Axis Bank
+    tokens: [axisbank]
+    legit_domains: [axisbank.com]
+  - name: Punjab National Bank
+    tokens: [pnb, pnbindia, netpnb, punjabnational]
+    legit_domains: [pnbindia.in, netpnb.com]
+  - name: Paytm
+    tokens: [paytm]
+    legit_domains: [paytm.com, paytmbank.com, paytmmoney.com]
+  - name: PhonePe
+    tokens: [phonepe]
+    legit_domains: [phonepe.com]
+  - name: Google Pay
+    tokens: [gpay, googlepay, tez]
+    legit_domains: [google.com]
+  - name: NPCI / UPI / BHIM
+    tokens: [npci, bhim, upi, bhimupi]
+    legit_domains: [npci.org.in, bhimupi.org.in]
+  - name: IRCTC
+    tokens: [irctc]
+    legit_domains: [irctc.co.in]
+  - name: UIDAI / Aadhaar
+    tokens: [uidai, aadhaar, aadhar, myaadhaar]
+    legit_domains: [uidai.gov.in]
+  - name: Income Tax Department
+    tokens: [incometax, incometaxindia, efiling, itrefund]
+    legit_domains: [incometax.gov.in, incometaxindia.gov.in]
+  - name: EPFO
+    tokens: [epfo, epfindia]
+    legit_domains: [epfindia.gov.in]
+  - name: India Post
+    tokens: [indiapost, ippb, ippbonline]
+    legit_domains: [indiapost.gov.in, ippbonline.com]
+  - name: DigiLocker
+    tokens: [digilocker]
+    legit_domains: [digilocker.gov.in]
+  - name: Amazon
+    tokens: [amazon]
+    legit_domains: [amazon.in, amazon.com]
+  - name: Flipkart
+    tokens: [flipkart]
+    legit_domains: [flipkart.com]
+  - name: Jio
+    tokens: [jio, myjio, reliancejio]
+    legit_domains: [jio.com]
+  - name: Airtel
+    tokens: [airtel]
+    legit_domains: [airtel.in, airtel.com]
+  - name: Swiggy
+    tokens: [swiggy]
+    legit_domains: [swiggy.com, swiggy.in]
+  - name: Zomato
+    tokens: [zomato]
+    legit_domains: [zomato.com]
+  - name: Reserve Bank of India
+    tokens: [rbi, reservebank]
+    legit_domains: [rbi.org.in]
+
+# Words that claim to be a government body. A domain containing one of these that is not under
+# a government suffix is flagged.
+government:
+  suffixes: [gov.in, nic.in]
+  tokens: [gov, govt, sarkar, sarkari, pmkisan, yojana, pmyojana, uidai, incometax, epfo, trai, cbi, cybercrime]
+
+# Only regulated banks can register under .bank.in, so a brand token there is not a lookalike.
+trusted_bank_suffixes: [bank.in]
+
+# Multi-part public suffixes used to find the registrable domain (no full Public Suffix List).
+multi_part_suffixes:
+  - co.in
+  - net.in
+  - org.in
+  - firm.in
+  - gen.in
+  - ind.in
+  - ac.in
+  - edu.in
+  - res.in
+  - gov.in
+  - nic.in
+  - mil.in
+  - bank.in
+  - co.uk
+  - org.uk
+  - ac.uk
+  - gov.uk
+  - com.au
+  - co.nz
+  - com.sg
+  - co.jp
+  - com.br
+
+shorteners:
+  - bit.ly
+  - tinyurl.com
+  - t.co
+  - goo.gl
+  - ow.ly
+  - is.gd
+  - buff.ly
+  - rebrand.ly
+  - cutt.ly
+  - shorturl.at
+  - rb.gy
+  - t.ly
+  - tiny.cc
+  - s.id
+  - v.gd
+  - bl.ink
+  - lnkd.in
+  - shorte.st
+  - adf.ly
+
+# Click-tracking domains of common email services. A link whose text shows one domain but which
+# goes through one of these is reported at lower severity, because newsletters do this routinely.
+link_trackers:
+  - list-manage.com
+  - sendgrid.net
+  - mandrillapp.com
+  - mcsv.net
+  - hubspotlinks.com
+  - awstrack.me
+  - sparkpostmail.com
+  - mailgun.org
+  - rs6.net
+  - ctrk.klclick.com

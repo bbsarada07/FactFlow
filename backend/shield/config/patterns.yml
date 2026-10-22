@@ -1,0 +1,423 @@
+# Shield detection patterns. Matched against normalised text (Unicode Tags decoded, NFKC,
+# invisible characters removed, Cyrillic/Greek lookalikes mapped to Latin, casefolded, spaces
+# collapsed with newlines kept). Write patterns in lowercase.
+#
+# These rules are heuristics. They miss phrasings they do not know and can match benign text;
+# the benchmark (data/benchmark) measures both. Safety does not depend on them: every action is
+# gated by the policy engine regardless of what the detectors find.
+#
+# Indic scripts: do not use \b next to Devanagari/Telugu text (vowel signs are not \w).
+
+injection_rules:
+  # --- instruction override -------------------------------------------------------------
+  - id: INJ-OVR-01
+    category: instruction_override
+    severity: critical
+    patterns:
+      - '\b(ignore|disregard|forget|override|bypass)\b[^.\n]{0,40}\b(previous|prior|above|earlier|preceding|original|existing|system|your|all)\b[^.\n]{0,30}\b(instructions?|prompts?|rules|directions|guidelines|guardrails|programming|directives?)\b'
+  - id: INJ-OVR-02
+    category: instruction_override
+    severity: critical
+    patterns:
+      - '\b(ignore|disregard)\s+(everything|all)\s+(above|before|previously|said)\b'
+  - id: INJ-OVR-03
+    category: instruction_override
+    severity: high
+    patterns:
+      - '\bdo not follow\b[^.\n]{0,30}\b(previous|prior|original|system|earlier)\b'
+      - '\b(new|updated|revised|real|actual)\s+(system\s+)?(instructions|directives?|system prompt)\s*:'
+
+  # --- role hijack ------------------------------------------------------------------------
+  - id: INJ-ROLE-01
+    category: role_hijack
+    severity: high
+    patterns:
+      - '\byou are (now|no longer)\b[^.\n]{0,30}\b(assistant|ai|bot|agent|model|chatbot|gpt|llm|admin|administrator|developer mode|dan|jailbroken|unrestricted|unfiltered)\b'
+      - '\b(enter|enable|switch to|activate)\b[^.\n]{0,15}\b(developer|god|admin|dan|jailbreak|unrestricted|debug) mode\b'
+  - id: INJ-ROLE-02
+    category: role_hijack
+    severity: medium
+    patterns:
+      - '\b(pretend|imagine) (to be|you are|that you are)\b[^.\n]{0,40}\b(assistant|ai|bot|admin|system|developer)\b'
+      - '\bfrom now on,? (you|the assistant|the ai)\b[^.\n]{0,20}\b(will|must|should|are)\b'
+  - id: INJ-ROLE-03
+    category: role_hijack
+    severity: low
+    patterns:
+      - '\bact as (an? |the |my )?(ai|assistant|system|admin|administrator|root|developer)\b'
+
+  # --- exfiltration -----------------------------------------------------------------------
+  - id: INJ-EXF-01
+    category: exfiltration
+    severity: high
+    patterns:
+      - '\b(forward|send|email|e-mail|post|upload|transmit|share|copy|bcc)\b[^.\n]{0,30}\b(all|every|each|entire|whole|the last \d+|the \d+ most recent|the most recent|recent)\b[^.\n]{0,20}\b(emails?|e-mails?|messages?|mails?|conversations?|threads?|contacts?|inbox|mailbox|files?|documents?|attachments?|chats?|history)\b'
+  - id: INJ-EXF-02
+    category: exfiltration
+    severity: high
+    patterns:
+      - '\breply with\b[^.\n]{0,30}\b(contents?|passwords?|credentials?|otp|codes?|api keys?|tokens?|secrets?|inbox)\b'
+      - '\binclude\b[^.\n]{0,20}\b(the user''?s|the recipient''?s|their|his|her)\b[^.\n]{0,20}\b(passwords?|credentials?|otp|emails?|address book|contacts?|api keys?|tokens?|bank|account|card|aadhaar|pan)\b'
+  - id: INJ-EXF-03
+    category: exfiltration
+    severity: high
+    patterns:
+      - '\b(assistant|ai|agent|bot|model|copilot)\b[^.\n]{0,60}\b(forward|send|email|upload|post)\b[^.\n]{0,60}(@|https?://)'
+  - id: INJ-EXF-04
+    category: exfiltration
+    severity: medium
+    patterns:
+      - '!\[[^\]]*\]\(https?://[^)\s]*\?[^)\s]*='
+
+  # --- tool invocation --------------------------------------------------------------------
+  - id: INJ-TOOL-01
+    category: tool_invocation
+    severity: high
+    patterns:
+      - '\b(call|invoke|use|run|execute|trigger)\s+(the\s+)?[a-z]+_[a-z_]+\s*(tool|function|\()'
+      - '\b(send_email|forward_email|send_reply|share_data|delete_email|open_link|download_attachment|execute_command|run_shell|http_request|fetch_url)\s*\('
+  - id: INJ-TOOL-02
+    category: tool_invocation
+    severity: medium
+    patterns:
+      - '\b(call|invoke)\s+the\s+(function|tool)\b'
+      - '"(tool|function|tool_name)"\s*:\s*"[a-z_]+"'
+
+  # --- secrecy towards the user -----------------------------------------------------------
+  - id: INJ-SEC-01
+    category: secrecy
+    severity: high
+    patterns:
+      - '\b(do not|don''t|dont|never)\s+(tell|inform|notify|alert|mention|reveal|show|disclose)\b[^.\n]{0,15}\b(the )?(user|recipient|reader|account owner|human)\b'
+      - '\bwithout (telling|informing|notifying|alerting|asking)\b[^.\n]{0,10}\b(the )?(user|recipient|account owner|human)\b'
+      - '\b(do not|don''t|dont)\s+(mention|summari[sz]e|include|display|repeat)\s+(this|these)\s+(instructions?|part|section|text|note)\b'
+  - id: INJ-SEC-02
+    category: secrecy
+    severity: medium
+    patterns:
+      - '\b(keep|hide)\s+(this|these)\b[^.\n]{0,20}\b(secret|hidden|confidential)\b[^.\n]{0,20}\bfrom (the )?(user|recipient)\b'
+
+  # --- chat-template spoofing -------------------------------------------------------------
+  - id: INJ-TPL-01
+    category: template_spoofing
+    severity: critical
+    patterns:
+      - '<\|\s*(system|im_start|im_end|user|assistant|endoftext|eot_id|start_header_id)\s*\|>'
+      - '\[/?inst\]'
+      - '<<\s*/?sys\s*>>'
+  - id: INJ-TPL-02
+    category: template_spoofing
+    severity: high
+    patterns:
+      - '(^|\n)\s*#{2,}\s*(system|instructions?|assistant)\b'
+      - '\[(system|admin|assistant)\]\s*:'
+      - '</s>'
+  - id: INJ-TPL-03
+    category: template_spoofing
+    severity: medium
+    patterns:
+      - '(^|\n)\s*(system|assistant)\s*:\s'
+
+  # --- authority claims / addressing the AI -----------------------------------------------
+  - id: INJ-AUTH-01
+    category: authority_claim
+    severity: high
+    patterns:
+      - '\b(message|instruction|notice|directive|order)s?\s+from\s+(the\s+)?(system administrator|sysadmin|system admin|developers?|openai|anthropic|ai provider|platform owner|system)\b'
+      - '\b(admin|administrator|developer|system|root)\s+(override|access granted|privileges? granted)\b'
+  - id: INJ-AUTH-02
+    category: authority_claim
+    severity: high
+    patterns:
+      - '\b(attention|note to|dear|hey|instructions for)\s+(the\s+)?(ai assistant|assistant|llm|chatgpt|chatbot|copilot|language model|email assistant|ai agent|ai model)\b'
+      - '\bif you are an? (ai|llm|language model|assistant|automated (agent|assistant|system)|bot)\b'
+
+  # --- Hindi (romanised) ------------------------------------------------------------------
+  - id: INJ-HI-01
+    category: instruction_override
+    severity: critical
+    patterns:
+      - '\b(pichh?le|purane|pehle ke|upar ke)\s+(sabhi |saare |sare |sab )?(nirdesh|nirdeshon|instructions?|aadesh|rules)\s+(ko\s+)?(bhool|bhul|ignore|nazarandaaz|andekha)'
+  - id: INJ-HI-02
+    category: secrecy
+    severity: high
+    patterns:
+      - '\b(user|upyogkarta|grahak|malik)\s+ko\s+(yeh |ye |is baare mein |iske baare mein )?(mat|na|nahi|nahin)\s+(batana|batao|bataye|bataen|bataiye|batayein)'
+  - id: INJ-HI-03
+    category: exfiltration
+    severity: high
+    patterns:
+      - '\b(sabhi|saare|sare|sab|tamam)\s+(emails?|e-mails?|mails?|messages?|sandesh|sandeshon)\s+(ko\s+)?[^.\n]{0,40}(forward|bhej|send)'
+  - id: INJ-HI-04
+    category: role_hijack
+    severity: high
+    patterns:
+      - '\b(tum|aap)\s+ab\s+(ek\s+)?(naye\s+|nayi\s+|naya\s+)?(assistant|sahayak|admin|system|bot|ai|developer)\b'
+  - id: INJ-HI-05
+    category: tool_invocation
+    severity: high
+    patterns:
+      - '\b[a-z]+_[a-z_]+\s+(tool|function)\s+(ka\s+)?(upyog|istemal|istemaal|use)\s+(karo|karein|kare|kijiye)'
+  # Hindi (Devanagari)
+  - id: INJ-HI-06
+    category: instruction_override
+    severity: critical
+    patterns:
+      - '(पिछले|पुराने|ऊपर के)\s*(सभी|सारे)?\s*(निर्देश|निर्देशों)\s*(को)?\s*(भूल|अनदेखा|नज़रअंदाज़|नजरअंदाज)'
+  - id: INJ-HI-07
+    category: secrecy
+    severity: high
+    patterns:
+      - '(उपयोगकर्ता|यूज़र|यूजर)\s*को\s*(यह\s*)?(मत|न)\s*(बताना|बताएं|बताओ|बताएँ)'
+  - id: INJ-HI-08
+    category: exfiltration
+    severity: high
+    patterns:
+      - '(सभी|सारे)\s*(ईमेल|मेल|संदेश|संदेशों)\s*[^.\n]{0,30}(फॉरवर्ड|फ़ॉरवर्ड|भेज)'
+
+  # --- Telugu (romanised) -----------------------------------------------------------------
+  - id: INJ-TE-01
+    category: instruction_override
+    severity: critical
+    patterns:
+      - '\b(mundu|mundhu|munupati|paina)\s+(cheppina\s+)?(anni\s+)?(suchanalu|soochanalu|instructions?|aadeshalu|niyamalu)\s+(ni\s+)?(marchipo|marchipondi|vadileyi|vadileyandi|ignore cheyyi|ignore cheyandi|pattinchukoku)'
+  - id: INJ-TE-02
+    category: secrecy
+    severity: high
+    patterns:
+      - '\b(user|viniyogadaru|customer)\s*(ki|ku)\s+(ee vishayam\s+)?(cheppaku|cheppakandi|teliyaneeyaku|teliyanivvaku)'
+  - id: INJ-TE-03
+    category: exfiltration
+    severity: high
+    patterns:
+      - '\b(anni|annitini|motham)\s+(emails?|mails?|messages?|sandeshalu)\s+[^.\n]{0,40}(forward|pampu|pampandi|pampinchu|send)'
+  - id: INJ-TE-04
+    category: role_hijack
+    severity: high
+    patterns:
+      - '\b(nuvvu|meeru)\s+ippudu\s+(oka\s+)?(assistant|sahayakudu|admin|system|bot|ai|developer)\b'
+  - id: INJ-TE-05
+    category: tool_invocation
+    severity: high
+    patterns:
+      - '\b[a-z]+_[a-z_]+\s+(tool|function)\s+(ni\s+)?(vadu|vaadu|vadandi|use cheyyi|use cheyandi|upayoginchu)'
+  # Telugu (script)
+  - id: INJ-TE-06
+    category: instruction_override
+    severity: critical
+    patterns:
+      - '(ముందు|మునుపటి|పైన)\s*(చెప్పిన\s*)?(అన్ని\s*)?(సూచనలు|సూచనలను)\s*(మర్చిపో|మర్చిపోండి|పట్టించుకోవద్దు|విస్మరించు)'
+  - id: INJ-TE-07
+    category: secrecy
+    severity: high
+    patterns:
+      - '(వినియోగదారు|యూజర్)\s*(కి|కు)\s*(చెప్పకు|చెప్పవద్దు|చెప్పకండి)'
+  - id: INJ-TE-08
+    category: exfiltration
+    severity: high
+    patterns:
+      - 'అన్ని\s*(ఈమెయిల్స్|మెయిల్స్|సందేశాలు|మెసేజ్లు)\s*[^.\n]{0,30}(ఫార్వర్డ్|పంపు|పంపండి)'
+
+
+# India-specific scam detectors. A detector fires on any `strong` pattern, or when at least
+# `min_weak` different `weak` patterns match (severity then drops to `weak_severity`).
+# `guard_before` / `guard_after`: a match is ignored when this pattern occurs within 30
+# characters before / after it (used for negations such as "never share your OTP").
+scam_detectors:
+  - id: SC-01
+    name: Digital arrest / fake police, CBI, customs or TRAI call
+    severity: critical
+    weak_severity: high
+    min_weak: 3
+    strong:
+      - 'digital(ly)? arrest'
+      - 'डिजिटल अरेस्ट'
+      - 'డిజిటల్ అరెస్ట్'
+      - '\b(cbi|ncb|customs|narcotics|cyber ?crime|crime branch|police)\b[^.\n]{0,80}\b(video call|skype call|whatsapp video)'
+      - '\b(parcel|package|courier)\b[^.\n]{0,60}\b(drugs|narcotics|mdma|illegal items|contraband|fake passports?)\b'
+      - '\b(sim|mobile number|your number)\b[^.\n]{0,40}\b(will be|is being|has been)\s+(blocked|disconnected|suspended|deactivated)\b[^.\n]{0,60}\b(trai|department of telecom)'
+      - '\bmoney laundering case\b'
+    weak:
+      - '\b(cbi|ncb|trai|customs|narcotics|enforcement directorate|cyber cell|crime branch|mumbai police|delhi police)\b'
+      - '\b(arrest|arrested|arrest warrant|fir|case registered|legal action)\b'
+      - 'गिरफ्तार|गिरफ़्तार|giraftar|अरेस्ट'
+      - 'అరెస్ట్|అరెస్టు'
+      - 'पुलिस|పోలీస్|पुलिस केस'
+      - '\b(do not disconnect|stay on the call|don''t cut the call|isolate yourself)\b'
+      - '\b(transfer|deposit)\b[^.\n]{0,40}\b(verification|safe account|rbi account)\b'
+
+  - id: SC-02
+    name: Fake KYC, account-block or PAN-Aadhaar deadline
+    severity: high
+    weak_severity: medium
+    min_weak: 3
+    strong:
+      - '\b(kyc|e-?kyc)\b[^.\n]{0,60}\b(expired?|expiring|pending|incomplete|not updated|update now|suspend\w*|block\w*|deactivat\w*)'
+      - '\b(account|a/c|card|wallet|sim)\b[^.\n]{0,40}\b(will be|has been|is being)\s+(blocked|suspended|frozen|deactivated|closed)\b'
+      - '\bpan\b[^.\n]{0,30}\b(aadhaar|aadhar)\b[^.\n]{0,40}\b(link|linking|not linked)'
+      - 'केवाईसी[^.\n]{0,40}(अपडेट|बंद|ब्लॉक)'
+      - '\bkyc (update karein|update karo|nahi hua|band ho)'
+      - 'కేవైసీ[^.\n]{0,40}(అప్డేట్|బ్లాక్)'
+    weak:
+      - '\b(kyc|pan card|aadhaar|aadhar)\b'
+      - '\b(today|within 24 hours|within \d+ (hours|days)|immediately|last date|deadline)\b'
+      - '\b(click|link|update now|verify now)\b'
+      - '\b(blocked|suspended|deactivated|frozen)\b'
+
+  - id: SC-03
+    name: UPI collect request / "enter PIN to receive money"
+    severity: critical
+    weak_severity: high
+    min_weak: 3
+    strong:
+      - '\b(enter|type|put)\b[^.\n]{0,20}\b(upi )?(pin|mpin)\b[^.\n]{0,40}\b(receive|get|credit|claim|accept)'
+      - '\bcollect request\b[^.\n]{0,60}\b(receive|refund|cashback|prize|money)'
+      - '\b(approve|accept)\b[^.\n]{0,30}\b(request|payment)\b[^.\n]{0,40}\b(to receive|refund|get the money|cashback)'
+      - 'पैसे (पाने|प्राप्त करने) के लिए[^.\n]{0,20}(पिन|pin)'
+      - '\bpaise (paane|lene|receive karne) ke liye[^.\n]{0,20}pin'
+      - 'డబ్బు (పొందడానికి|రావడానికి)[^.\n]{0,20}(పిన్|pin)'
+    weak:
+      - '\bupi\b'
+      - '\b(pin|mpin)\b'
+      - '\b(refund|cashback|receive money|money received)\b'
+      - '\bcollect\b'
+
+  - id: SC-04
+    name: Lottery, prize, KBC or gift-card scam
+    severity: high
+    weak_severity: medium
+    min_weak: 3
+    strong:
+      - '\b(you|your (number|email|mobile))\b[^.\n]{0,30}\b(have |has )?(won|been selected|is selected)\b[^.\n]{0,40}\b(lottery|prize|lucky draw|jackpot|crore|lakh|reward|iphone|car)\b'
+      - '\bkbc\b|kaun banega crorepati|कौन बनेगा करोड़पति'
+      - '\blottery\b[^.\n]{0,40}\b(winner|won|claim)'
+      - '\bgift cards?\b[^.\n]{0,40}\b(buy|purchase|send|scratch|code)'
+      - '(lottery|inaam|इनाम|लॉटरी)[^.\n]{0,30}(jeet|जीत)'
+      - '(లాటరీ|బహుమతి)[^.\n]{0,30}(గెలుచు|గెలిచారు|గెలిచిన)'
+    weak:
+      - '\b(congratulations|congrats|winner|lucky|prize|reward)\b'
+      - '\b(processing fee|registration fee|claim fee|pay tax|gst charges)\b'
+      - '\b(crore|lakh)\b|₹|\brs\.? ?\d'
+      - '\bclaim\b'
+
+  - id: SC-05
+    name: Fake government scheme, subsidy, ration or scholarship
+    severity: high
+    weak_severity: medium
+    min_weak: 3
+    strong:
+      - '\b(pm[- ]?kisan|pradhan mantri|pm yojana|free (laptop|scooty|cycle|ration|recharge|gas cylinder|tablet))\b[^.\n]{0,80}\b(register|apply|click|link|form|fee|claim)\b'
+      - '\b(government|govt|sarkari|sarkar)\b[^.\n]{0,40}\b(giving|offering|distributing|will give)\b[^.\n]{0,40}(₹|\brs\b|\bfree\b|\brupees\b)'
+      - '(सरकार|सरकारी योजना|योजना)[^.\n]{0,60}(मुफ्त|मुफ़्त|फ्री|₹|रुपये)[^.\n]{0,40}(लिंक|क्लिक|रजिस्टर|फॉर्म)'
+      - '(ప్రభుత్వం|పథకం)[^.\n]{0,60}(ఉచిత|ఫ్రీ|₹|రూపాయలు)'
+    weak:
+      - '\b(scheme|yojana|subsidy|scholarship|ration|beneficiary)\b|योजना|పథకం|యోజన'
+      - '\bfree\b|₹|\brs\b|\brupees\b|मुफ्त|ఉచిత'
+      - '\b(register|apply|click|link|last date)\b|लिंक|లింక్'
+
+  - id: SC-06
+    name: Fake job offer or advance-fee ask
+    severity: high
+    weak_severity: medium
+    min_weak: 3
+    strong:
+      - '\b(job|work from home|part[- ]time|vacancy|offer letter|selected for)\b[^.\n]{0,80}\b(registration fee|security deposit|processing fee|training fee|refundable deposit|pay (₹|rs))'
+      - '\b(earn|income)\s+(₹|rs\.?)?\s?\d[\d,]*\s*(per|/)\s*(day|daily)\b[^.\n]{0,60}\b(like|review|youtube|task|telegram)'
+      - '\b(youtube|google maps?|hotel) (likes?|reviews?|ratings?)\b[^.\n]{0,40}\b(earn|pay|₹)'
+    weak:
+      - '\b(job|hiring|vacancy|work from home|part time|salary)\b'
+      - '\b(fee|deposit)\b'
+      - '\b(earn|per day|daily income|telegram)\b'
+
+  - id: SC-07
+    name: Electricity or gas disconnection threat
+    severity: high
+    weak_severity: medium
+    min_weak: 3
+    strong:
+      - '\b(electricity|power|bijli|gas)\b[^.\n]{0,40}\b(connection|supply)\b[^.\n]{0,60}\b(will be|to be)\s+(disconnected|cut|cut off)\b'
+      - '\b(electricity|bijli|power)\b[^.\n]{0,60}\b(cut|disconnect\w*)\b[^.\n]{0,30}\btonight\b'
+      - 'बिजली[^.\n]{0,40}(कनेक्शन|कट|काट)'
+      - '(కరెంట్|విద్యుత్)[^.\n]{0,40}(కట్|నిలిపివేయ)'
+    weak:
+      - '\b(electricity bill|bijli|gas connection|power bill)\b'
+      - '\b(disconnect\w*|cut off|tonight)\b'
+      - '\b(electricity officer|call (this|the) number)\b'
+
+  - id: SC-08
+    name: Fake courier or customs fee
+    severity: high
+    weak_severity: medium
+    min_weak: 3
+    strong:
+      - '\b(parcel|package|courier|shipment|consignment)\b[^.\n]{0,60}\b(held|on hold|stuck|pending|undelivered|seized)\b[^.\n]{0,60}\b(fee|charges|pay|duty)\b'
+      - '\b(customs|clearance|redelivery|address update) (fee|charge)s?\b'
+      - '(पार्सल|कूरियर)[^.\n]{0,60}(शुल्क|फीस)'
+    weak:
+      - '\b(parcel|courier|india post|fedex|dhl|blue dart|delivery)\b'
+      - '\b(fee|charges|duty)\b'
+      - '\b(update (your )?address|within \d+ hours)\b'
+
+  - id: SC-09
+    name: Investment, trading group or crypto-doubling pitch
+    severity: high
+    weak_severity: medium
+    min_weak: 3
+    strong:
+      - '\b(double|triple|2x|3x)\b[^.\n]{0,30}\b(your )?(money|investment|amount|crypto|bitcoin)\b'
+      - '\bguaranteed\b[^.\n]{0,30}\b(returns?|profits?)\b'
+      - '\b\d{2,3}\s?%\s*(returns?|profits?)\b[^.\n]{0,30}\b(daily|weekly|monthly|per (day|week|month))'
+      - '\b(trading|stock|ipo|crypto) (group|tips|signals)\b[^.\n]{0,60}\b(whatsapp|telegram|join)\b'
+      - 'पैसा?\s*(डबल|दोगुना)'
+      - '(డబ్బు|పెట్టుబడి)[^.\n]{0,30}(రెట్టింపు|డబుల్)'
+    weak:
+      - '\b(invest|investment|trading|crypto|bitcoin|stocks?|returns?|profits?)\b'
+      - '\b(guaranteed|risk[- ]free|assured)\b'
+      - '\b(join|whatsapp group|telegram)\b'
+
+  - id: SC-10
+    name: Request for OTP, PIN, CVV or password
+    severity: critical
+    weak_severity: high
+    min_weak: 99
+    guard_before: '\b(not|never|don''t|dont|no one|nobody)\b|मत|न करें|వద్దు'
+    strong:
+      - '\b(share|send|tell|provide|give|forward|reply with|enter|type|read out)\b[^.\n]{0,15}\b(me |us )?(your |the )?(otp|one[- ]time password|verification code|upi pin|mpin|atm pin|cvv|net ?banking password|password)\b'
+      - '\b(otp|ओटीपी)\s*(batao|bataiye|bataye|bhejo|bhejiye|share karo|share karein|बताएं|बताइए|बताओ|भेजें|शेयर करें)'
+      - '\b(otp|ఓటీపీ)\s*(cheppandi|cheppu|pampandi|share cheyandi|చెప్పండి|చెప్పు|పంపండి)'
+    weak: []
+
+  - id: SC-11
+    name: Remote-access app request (AnyDesk, TeamViewer, QuickSupport)
+    severity: critical
+    weak_severity: high
+    min_weak: 99
+    strong:
+      - '\b(anydesk|teamviewer|quick ?support|rustdesk|airdroid|ammyy|ultraviewer|alpemix)\b[^.\n]{0,60}\b(install|download|open|share|code|id)\b'
+      - '\b(install|download)\b[^.\n]{0,40}\b(anydesk|teamviewer|quick ?support|rustdesk|airdroid)\b'
+    weak: []
+
+  - id: SC-12
+    name: Artificial urgency or threats
+    severity: low
+    weak_severity: low
+    min_weak: 2
+    strong: []
+    weak:
+      - '\b(urgent|urgently|immediately|right now|within (24|48) hours|today itself|last chance|final (notice|warning)|act now|expires? today)\b'
+      - '\b(legal action|penalty|fine of|will be blocked|will be suspended|arrest)\b'
+      - 'तुरंत|फौरन|\bturant\b|\bjaldi\b'
+      - 'వెంటనే|\bventane\b'
+
+  - id: SC-13
+    name: Asks you to keep it secret
+    severity: medium
+    weak_severity: medium
+    min_weak: 99
+    guard_after: 'otp|pin|password|cvv|ओटीपी|पिन|ఓటీపీ|పిన్'
+    strong:
+      - '\b(do not|don''t|dont|never)\s+(tell|inform|discuss this with|share this with)\s+(anyone|anybody|your family|family members|bank staff|the police)\b'
+      - '\bkeep (this|it) (a )?(secret|confidential)\b'
+      - '(kisi ko|किसी को)\s*(mat|मत|na|न)\s*(batana|batayein|बताना|बताएं|बताओ)'
+      - '(ఎవరికీ|\bevariki\b)\s*(cheppakandi|cheppaku|చెప్పకండి|చెప్పకు)'
+    weak: []

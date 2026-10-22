@@ -349,3 +349,41 @@ class Incident(Base):
             "source": source,
             "extra_sources": self.extra_sources or [],
         }
+
+
+class AuditLog(Base):
+    """Shield audit log: an append-only SHA-256 hash chain (see shield/audit.py).
+
+    `seq` is the primary key, so two writers can never both append record N; the loser retries
+    on the new head. `ts` is stored as the exact string that was hashed.
+    """
+
+    __tablename__ = "audit_log"
+
+    seq: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    ts: Mapped[str] = mapped_column(String(32))
+    actor: Mapped[str] = mapped_column(String(128), index=True)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    payload_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    prev_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    hash: Mapped[str] = mapped_column(String(64), unique=True)
+
+
+class ShieldApproval(Base):
+    """A human-in-the-loop approval request (see shield/approvals.py)."""
+
+    __tablename__ = "approvals"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    email_id: Mapped[str] = mapped_column(String(64), index=True)
+    action: Mapped[str] = mapped_column(String(48))
+    target: Mapped[str | None] = mapped_column(Text)
+    origin: Mapped[str] = mapped_column(String(32))
+    rule_id: Mapped[str] = mapped_column(String(32))
+    reason: Mapped[str] = mapped_column(Text)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[str | None] = mapped_column(String(128))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -35,3 +35,7 @@ tenacity==9.1.4
 rapidfuzz==3.14.6
 google-genai==2.32.0
 loguru==0.7.3
+
+# Shield (email and message scanning)
+pyyaml==6.0.3
+pypdf==6.21.2

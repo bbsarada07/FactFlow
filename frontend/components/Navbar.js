@@ -54,12 +54,6 @@ export default function Navbar() {
       </nav>
 
       <div className="hidden shrink-0 items-center gap-3 lg:flex">
-        <span
-          className="glass rounded-full px-3 py-1 text-[10px] font-semibold tracking-[1.5px] text-red"
-          style={{ borderColor: "rgba(255,45,45,0.45)", boxShadow: "none" }}
-        >
-          BEST APPS TRACK
-        </span>
         <span className="mono text-[11px] text-muted">GROQ × GPT-OSS</span>
       </div>
     </header>
