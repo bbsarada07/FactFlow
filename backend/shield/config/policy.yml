@@ -1,0 +1,64 @@
+# Shield policy configuration. Read by shield/policy.py and shield/scoring.py.
+
+# strict:   any signal (a finding of any severity, an analysis failure, SPF/DKIM/DMARC fail or
+#           none, a flagged link, a FALSE/MISLEADING claim) sends every agent step to human
+#           approval. Never less strict than balanced.
+# balanced: rules P1-P8 as written.
+# Rules P0, P1, P2 and E-EGRESS apply in both modes and cannot be switched off.
+policy_mode: strict
+
+# Recipient domains the user trusts for send_reply / forward_email / share_data (rule P4).
+allowed_domains: []
+
+approval_ttl_seconds: 600
+
+scoring:
+  # Points for one finding of each severity; a component's score is the highest finding's
+  # points plus extra_per_finding for every further finding, capped at 100.
+  severity_points:
+    low: 15
+    medium: 35
+    high: 60
+    critical: 85
+  extra_per_finding: 5
+
+  # overall = min(100, max(component scores) + corroboration_bonus * (number of OTHER
+  # components scoring >= corroboration_threshold))
+  corroboration_bonus: 10
+  corroboration_threshold: 50
+
+  # Added to the overall score for each analysis failure; never lowers it.
+  analysis_failure_penalty: 15
+
+  labels:
+    suspicious: 25   # SAFE below this
+    dangerous: 60    # DANGEROUS at or above this
+
+  # Confidence of the overall label (deterministic, documented in DECISIONS.md).
+  confidence:
+    base: 0.6
+    per_corroborating_component: 0.1
+    override: 0.9          # hidden text that is also an injection forces DANGEROUS
+    failure_penalty: 0.15
+    min: 0.2
+    max: 0.95
+
+  # Severity of authentication and sender signals (authenticity component).
+  auth_signals:
+    spf_fail: medium
+    spf_softfail: low
+    spf_none: low
+    dkim_fail: medium
+    dkim_none: low
+    dmarc_fail: high
+    dmarc_none: low
+    reply_to_mismatch: medium
+    return_path_mismatch: low
+    display_name_impersonation: high
+
+  # Points for the claims component, from the fact-check verdict of each extracted claim.
+  claim_points:
+    "FALSE": 70
+    MISLEADING: 45
+    UNVERIFIED: 15
+    "TRUE": 0
