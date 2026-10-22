@@ -9,7 +9,7 @@ from sqlalchemy.pool import NullPool
 from config import BASE_DIR, settings
 from database.models import Base
 
-SQLITE_URL = f"sqlite+aiosqlite:///{(BASE_DIR / 'nemesisai.db').as_posix()}"
+SQLITE_URL = f"sqlite+aiosqlite:///{(BASE_DIR / 'factflow.db').as_posix()}"
 
 engine: AsyncEngine | None = None
 SessionLocal: async_sessionmaker[AsyncSession] | None = None

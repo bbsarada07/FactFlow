@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     )
 
     # Storage
-    ASYNC_DATABASE_URL: str = f"sqlite+aiosqlite:///{(BASE_DIR / 'nemesisai.db').as_posix()}"
+    ASYNC_DATABASE_URL: str = f"sqlite+aiosqlite:///{(BASE_DIR / 'factflow.db').as_posix()}"
     SQLITE_FALLBACK: bool = True
 
     # Queue / cache
