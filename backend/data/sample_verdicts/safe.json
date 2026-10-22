@@ -1,0 +1,108 @@
+{
+  "email_id": "482feb80929c420ca85792760749e569",
+  "overall": {
+    "label": "SAFE",
+    "score": 0,
+    "confidence": 0.6,
+    "reasons": []
+  },
+  "components": {
+    "hidden_content": {
+      "score": 0,
+      "findings": []
+    },
+    "injection": {
+      "score": 0,
+      "rule_hits": [],
+      "llm": null,
+      "attempted_actions": []
+    },
+    "authenticity": {
+      "score": 0,
+      "spf": "pass",
+      "dkim": "pass",
+      "dmarc": "pass",
+      "reply_to_mismatch": false,
+      "return_path_mismatch": false,
+      "display_name_impersonation": null,
+      "lookalikes": [],
+      "signals": []
+    },
+    "links": {
+      "score": 0,
+      "items": [
+        {
+          "url": "https://meet.teamwork.example/q4-sync",
+          "host": "meet.teamwork.example",
+          "flags": [],
+          "severity": null,
+          "expanded_to": null
+        }
+      ]
+    },
+    "scam": {
+      "score": 0,
+      "detectors": []
+    },
+    "claims": {
+      "score": 0,
+      "items": []
+    }
+  },
+  "visible_vs_raw": {
+    "visible_text": "Hi Ravi, The project sync is moved to Thursday at 3pm in room 4B. The agenda is the Q4 budget and the hiring plan. Join online if you are travelling: meet.teamwork.example/q4-sync Thanks, Priya",
+    "raw_text": "Hi Ravi, The project sync is moved to Thursday at 3pm in room 4B. The agenda is the Q4 budget and the hiring plan. Join online if you are travelling: meet.teamwork.example/q4-sync Thanks, Priya",
+    "diff": []
+  },
+  "proposed_actions": [],
+  "explanation": {
+    "en": "SAFE (score 0/100). No warning signs were found. These checks are heuristic and can miss things.",
+    "user_language": "en",
+    "text": "SAFE (score 0/100). No warning signs were found. These checks are heuristic and can miss things.",
+    "whatsapp_warning": ""
+  },
+  "analysis_failures": [],
+  "latency_ms": {
+    "total": 23,
+    "per_stage": {
+      "parse": 1.9,
+      "hidden_html": 1.4,
+      "hidden_other": 1.0,
+      "injection_rules": 0.7,
+      "qr": 0.0,
+      "authenticity_links": 0.5,
+      "scam_rules": 0.5,
+      "score_policy": 0.1,
+      "audit": 16.6
+    }
+  },
+  "audit_head_hash": "9653ea1bd419178ac8bbb4760fbc878e352f695b85dae338604071492236d78b",
+  "mode": "rules",
+  "pipeline_version": "inbox-2",
+  "input_type": "email",
+  "message": {
+    "source": "demo",
+    "has_headers": true,
+    "subject": "Project sync moved to Thursday 3pm",
+    "from_addr": "priya@teamwork.example",
+    "from_display": "Priya Nair",
+    "reply_to": "",
+    "to": [
+      "ravi.kumar@home.example"
+    ],
+    "date": "Wed, 21 Oct 2026 10:02:00 +0530",
+    "attachments": []
+  },
+  "harm": {
+    "types": [],
+    "level": "NONE",
+    "reasons": []
+  },
+  "llm_usage": null,
+  "llm_status": {
+    "state": "not_used",
+    "reason": "rules-only mode was requested",
+    "retry_after_seconds": null
+  },
+  "reader_notes": null
+}

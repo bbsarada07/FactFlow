@@ -1,0 +1,21 @@
+From: "Praja Seva" <info@praja-seva-yojana.example>
+To: Ravi Kumar <ravi.kumar@home.example>
+Subject: =?utf-8?b?4LCq4LGN4LCw4LCk4LC/IOCwleCxgeCwn+CxgeCwguCwrOCwvuCwqA==?=
+ =?utf-8?b?4LC/4LCV4LC/IOKCuTEwLDAwMA==?=
+Date: Wed, 21 Oct 2026 10:11:00 +0530
+Message-ID: <demo-11@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=praja-seva-yojana.example; dkim=pass
+ header.d=praja-seva-yojana.example; dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+4LCV4LGH4LCC4LCm4LGN4LCwIOCwquCxjeCwsOCwreCxgeCwpOCxjeCwteCwgiDgsKbgsYDgsKrg
+sL7gsLXgsLPgsL8g4LCy4LGL4LCq4LGBIOCwquCxjeCwsOCwpOCwvyDgsJXgsYHgsJ/gsYHgsILg
+sKzgsL7gsKjgsL/gsJXgsL8g4oK5MTAsMDAwIOCwieCwmuCwv+CwpOCwguCwl+CwviDgsIfgsLjg
+sY3gsKTgsYvgsILgsKbgsL8uIOCwiCDgsLLgsL/gsILgsJXgsY3igIzgsLLgsYsg4LCo4LCu4LGL
+4LCm4LGBIOCwmuCxh+CwuOCxgeCwleCxi+CwguCwoeCwvzogaHR0cDovL3ByYWphLXNldmEteW9q
+YW5hLmV4YW1wbGUvcmVnaXN0ZXIg4LCIIOCwuOCwguCwpuCxh+CwtuCwvuCwqOCxjeCwqOCwvyDg
+sK7gsYAg4LCV4LGB4LCf4LGB4LCC4LCsIOCwuOCwreCxjeCwr+CxgeCwsuCwguCwpuCwsOCwv+Cw
+leCxgCDgsKrgsILgsKrgsILgsKHgsL8uCg==

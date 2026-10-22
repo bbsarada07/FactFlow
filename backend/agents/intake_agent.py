@@ -1,19 +1,28 @@
 """Agent 1 — Intake & Triage (Nano): extract the core claim, detect language, classify urgency."""
-from agents.context import CLAIM_TYPES, LANGUAGE_NAMES, URGENCY, AgentOutput, PipelineContext, pick, str_list
+from agents.context import (
+    CLAIM_TYPES,
+    LANGUAGE_NAMES,
+    UNTRUSTED_NOTICE,
+    URGENCY,
+    AgentOutput,
+    PipelineContext,
+    pick,
+    str_list,
+    untrusted,
+)
 from models.groq_client import call_nano
 from services.text_utils import truncate
 
 SYSTEM = """You are the Intake & Triage agent of FactFlow, a misinformation forensics system focused on India.
 You receive raw content (a WhatsApp forward, tweet, headline, OCR text or article) and prepare it for fact-checking.
-Respond with a single JSON object and nothing else."""
+Respond with a single JSON object and nothing else.
+""" + UNTRUSTED_NOTICE
 
 PROMPT = """Today's date: {today}
 Known misinformation patterns that resemble this content: {patterns}
 
 RAW CONTENT:
-\"\"\"
 {text}
-\"\"\"
 
 Return JSON with exactly these keys:
 - "claim": the single core factual assertion that can be checked, rewritten in clear English, max 30 words. Keep names, places, numbers and dates. If several claims exist, choose the most consequential one.
@@ -35,7 +44,7 @@ async def run(ctx: PipelineContext) -> AgentOutput:
     patterns = ", ".join(p["name"] for p in ctx.pattern_matches) or "none"
     res = await call_nano(
         SYSTEM,
-        PROMPT.format(today=ctx.today, patterns=patterns, text=ctx.raw_text[:4000], claim_types=", ".join(CLAIM_TYPES)),
+        PROMPT.format(today=ctx.today, patterns=patterns, text=untrusted(ctx.raw_text[:4000], "content"), claim_types=", ".join(CLAIM_TYPES)),
         max_tokens=700,
     )
     d = res.data

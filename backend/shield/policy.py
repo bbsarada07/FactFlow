@@ -14,9 +14,12 @@ override the result. Rules are evaluated top to bottom; the first match wins:
   P4  send/forward/share to a recipient outside the allowlist     -> REQUIRE_APPROVAL
   P5  verdict SUSPICIOUS and a consequential action               -> REQUIRE_APPROVAL
   P6  delete_email                                                -> REQUIRE_APPROVAL
-  P7  summarize, draft_reply, report_phishing, quarantine_email   -> ALLOW
+  P7  summarize, extract_action_items, draft_reply, report_phishing,
+      quarantine_email                                            -> ALLOW
   P8  anything else                                               -> REQUIRE_APPROVAL
-  S1  strict mode only: any signal turns an ALLOW into REQUIRE_APPROVAL
+  S1  strict mode only: any signal turns an ALLOW into REQUIRE_APPROVAL, except the warning
+      summary and the protective steps (summarize, report_phishing, quarantine_email), which run
+      automatically with a `notice`
 
 P0, P1, P2 and E-EGRESS apply in both modes. Strict mode is never less strict than balanced.
 Ported from Sentinel (bbsarada07/CVR, policy.py): origin is recomputed rather than trusted (a
@@ -41,7 +44,9 @@ P1_EXCEPTIONS = frozenset({"summarize", "report_phishing", "quarantine_email"})
 CONSEQUENTIAL = frozenset({"send_reply", "forward_email", "share_data", "open_link", "download_attachment"})
 RECIPIENT_ACTIONS = frozenset({"send_reply", "forward_email", "share_data"})
 OUTGOING_TEXT_ACTIONS = frozenset({"draft_reply", "send_reply", "forward_email", "share_data"})
-P7_ALLOW = frozenset({"summarize", "draft_reply", "report_phishing", "quarantine_email"})
+P7_ALLOW = frozenset({"summarize", "extract_action_items", "draft_reply", "report_phishing", "quarantine_email"})
+# In strict mode these still run on a flagged message: they only read or protect, and send nothing out.
+STRICT_AUTOMATIC = frozenset({"summarize", "report_phishing", "quarantine_email"})
 FINANCIAL_KINDS = frozenset({"AADHAAR", "CARD", "ACCOUNT_NO", "OTP", "UPI_ID", "PAN", "IFSC"})
 _DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$")
 _ADDR_RE = re.compile(r"[^\s<>,;\"']+@[^\s<>,;\"']+")
@@ -69,15 +74,20 @@ class Signals:
     auth_fail_or_none: bool = False
     flagged_links: int = 0
     false_or_misleading_claims: int = 0
+    llm_state: str | None = None  # quota_exhausted / llm_unavailable when the AI part did not run
 
     def any(self) -> bool:
         return bool(self.findings or self.analysis_failures or self.auth_fail_or_none or self.flagged_links
-                    or self.false_or_misleading_claims)
+                    or self.false_or_misleading_claims or self.llm_state in ("quota_exhausted", "llm_unavailable"))
 
     def describe(self) -> list[str]:
         out = []
         if self.findings:
             out.append(f"{self.findings} detector finding(s)")
+        if self.llm_state == "quota_exhausted":
+            out.append("the AI part of the check is unavailable (daily model quota used up), so this is a rules-only result")
+        elif self.llm_state == "llm_unavailable":
+            out.append("the AI part of the check is unavailable, so this is a rules-only result")
         if self.analysis_failures:
             out.append(f"{self.analysis_failures} analysis failure(s)")
         if self.auth_fail_or_none:
@@ -100,6 +110,7 @@ class Signals:
             auth_fail_or_none=auth_bad,
             flagged_links=sum(1 for item in c.links.items if item.flags),
             false_or_misleading_claims=sum(1 for i in c.claims.items if i.verdict in ("FALSE", "MISLEADING")),
+            llm_state=v.llm_status.state,
         )
 
 
@@ -196,7 +207,7 @@ def _balanced(action: str, target: str | None, origin: str, label: str, ctx: Use
     if action == "delete_email":
         return _d("REQUIRE_APPROVAL", "P6", "Deleting an email always needs your approval.")
     if action in P7_ALLOW:
-        return _d("ALLOW", "P7", "This action only reads, drafts inside FactFlow or protects you.")
+        return _d("ALLOW", "P7", "This action only reads, drafts or keeps notes inside FactFlow, or protects you.")
     return _d("REQUIRE_APPROVAL", "P8", "No rule allows this action automatically, so a person must decide.")
 
 
@@ -233,8 +244,12 @@ def decide(
             triggered = signals.any() if signals is not None else verdict_label != "SAFE"
             if triggered:
                 found = signals.describe() if signals is not None else [f"verdict {verdict_label}"]
+                if action in STRICT_AUTOMATIC:
+                    return PolicyDecision(decision="ALLOW", rule_id=decision.rule_id, reason=decision.reason,
+                                          notice="Strict mode: this message raised " + "; ".join(found) + ". This step "
+                                          "ran automatically because it only reads or protects you; it is in the audit log.")
                 return _d("REQUIRE_APPROVAL", "S1", "Strict mode: this message raised " + "; ".join(found)
-                          + ", so every step waits for your approval.")
+                          + ", so this step waits for your approval.")
         return decision
     except Exception as exc:  # noqa: BLE001 - fail closed on anything
         return _d("BLOCK", "P0", f"The policy engine could not evaluate this action ({type(exc).__name__}), so it is blocked.")
@@ -277,7 +292,7 @@ class PolicyStore:
 
     config: PolicyConfig = field(default_factory=load_config)
     on_change: Callable[[dict], None] | None = None
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
 
     def get(self) -> PolicyConfig:
         with self._lock:
@@ -290,27 +305,44 @@ class PolicyStore:
         self.config = new
         return new
 
-    def set_mode(self, mode: str, *, confirm: bool = False, actor: str = "human") -> PolicyConfig:
+    def plan_mode(self, mode: str, *, confirm: bool = False, actor: str = "human") -> tuple[PolicyConfig, dict | None]:
+        """Validate a mode change without applying it: (new config, change record or None)."""
         if mode not in ("strict", "balanced"):
             raise ValueError(f"unknown policy mode {mode!r}")
+        old = self.get()
+        if mode == old.mode:
+            return old, None
+        if mode == "balanced" and not confirm:
+            raise PermissionError("Switching to balanced mode loosens the policy and needs confirm=True.")
+        return replace(old, mode=mode), {"field": "policy_mode", "previous": old.mode, "new": mode, "actor": actor}
+
+    def plan_domains(self, new_domains: list[str], *, confirm: bool = False,
+                     actor: str = "human") -> tuple[PolicyConfig, dict | None]:
+        """Validate an allowlist change without applying it: (new config, change record or None)."""
+        cleaned = tuple(sorted({validate_domain(d) for d in new_domains}))
+        old = self.get()
+        added = set(cleaned) - set(old.allowed_domains)
+        if added and not confirm:
+            raise PermissionError(f"Adding trusted domains needs confirm=True: {sorted(added)}")
+        if cleaned == old.allowed_domains:
+            return old, None
+        return replace(old, allowed_domains=cleaned), {"field": "allowed_domains", "previous": list(old.allowed_domains),
+                                                       "new": list(cleaned), "actor": actor}
+
+    def apply(self, new: PolicyConfig, expected: PolicyConfig) -> None:
+        """Apply a planned config, only if nothing changed since it was planned (the change must
+        already be in the audit log)."""
         with self._lock:
-            old = self.config
-            if mode == old.mode:
-                return old
-            if mode == "balanced" and not confirm:
-                raise PermissionError("Switching to balanced mode loosens the policy and needs confirm=True.")
-            return self._commit(replace(old, mode=mode),
-                                {"field": "policy_mode", "previous": old.mode, "new": mode, "actor": actor})
+            if self.config != expected:
+                raise RuntimeError("the policy changed while this change was being recorded; try again")
+            self.config = new
+
+    def set_mode(self, mode: str, *, confirm: bool = False, actor: str = "human") -> PolicyConfig:
+        with self._lock:
+            new, change = self.plan_mode(mode, confirm=confirm, actor=actor)
+            return self._commit(new, change) if change else new
 
     def set_allowed_domains(self, new_domains: list[str], *, confirm: bool = False, actor: str = "human") -> PolicyConfig:
-        cleaned = tuple(sorted({validate_domain(d) for d in new_domains}))
         with self._lock:
-            old = self.config
-            added = set(cleaned) - set(old.allowed_domains)
-            if added and not confirm:
-                raise PermissionError(f"Adding trusted domains needs confirm=True: {sorted(added)}")
-            if cleaned == old.allowed_domains:
-                return old
-            return self._commit(replace(old, allowed_domains=cleaned),
-                                {"field": "allowed_domains", "previous": list(old.allowed_domains),
-                                 "new": list(cleaned), "actor": actor})
+            new, change = self.plan_domains(new_domains, confirm=confirm, actor=actor)
+            return self._commit(new, change) if change else new

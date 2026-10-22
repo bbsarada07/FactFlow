@@ -113,6 +113,8 @@ def _flags_for(url: str, host: str | None) -> tuple[list[str], list[Lookalike]]:
         flags.append("shortener_not_expanded")
     if "xn--" in host:
         flags.append("punycode")
+    if lower.startswith("http://"):
+        flags.append("no_https")
     lookalikes = domains.lookalikes(host)
     if lookalikes:
         flags.append("lookalike_domain")
@@ -122,7 +124,7 @@ def _flags_for(url: str, host: str | None) -> tuple[list[str], list[Lookalike]]:
 _FLAG_SEVERITY = {
     "script_or_data_uri": "high", "at_sign_in_url": "high", "ip_address_host": "high", "lookalike_domain": "high",
     "punycode": "medium", "non_standard_port": "medium", "obfuscated": "medium", "many_subdomains": "medium",
-    "shortener_not_expanded": "medium", "very_long_url": "low", "unparseable": "low",
+    "shortener_not_expanded": "medium", "very_long_url": "low", "no_https": "low", "unparseable": "low",
 }
 
 

@@ -92,6 +92,31 @@ class Settings(BaseSettings):
     REPEAT_SIMILARITY: float = 85.0  # rapidfuzz token_set_ratio, 0-100
     REPEAT_CORPUS_SIZE: int = 500
 
+    # Shield / inbox. Empty secrets keep the features that need them switched off (fail closed).
+    OPERATOR_TOKEN: str = ""  # required by approvals, policy changes, audit and inbox listing routes
+    APPROVAL_SECRET: str = ""  # signs approval tokens; at least 32 characters
+    OPERATOR_FAILURES_PER_MINUTE: int = 5
+    INBOX_USE_LLM: bool = True  # False = rules-only analysis (no model calls)
+    INBOX_MAX_CLAIMS: int = 3
+    INBOX_FACTCHECK_CONCURRENCY: int = 2
+    # Upper bound for one inbox model call including retries; past it the analysis continues
+    # rules-only (a rate-limited provider would otherwise be retried for over a minute).
+    INBOX_LLM_TIMEOUT_SECONDS: float = 25.0
+    MAX_INBOX_PER_MINUTE: int = 10
+    ENABLE_LINK_EXPANSION: bool = False  # follow shortened links (HEAD only, SSRF-guarded)
+    ENABLE_DNS_CHECKS: bool = False  # look up SPF and DMARC records of the sender's domain
+
+    # Mail agent and read-only Gmail (docs/GMAIL_SETUP.md). Empty values keep Gmail disconnected.
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/mail/gmail/callback"
+    TOKEN_ENCRYPTION_KEY: str = ""  # Fernet key that encrypts stored OAuth tokens
+    MAIL_POLL_ENABLED: bool = True
+    MAIL_POLL_SECONDS: float = 45.0
+    MAIL_FIRST_SYNC: int = 20  # on first connect, only the most recent messages
+    MAIL_MAX_PER_SYNC: int = 50
+    MAIL_AGENT_MAX_PER_MINUTE: int = 20
+
     # Allow-listed URLs for user-facing "checks to do" (never model-generated)
     GOOGLE_SEARCH_URL: str = "https://www.google.com/search?q="
     REVERSE_IMAGE_SEARCH_URL: str = "https://lens.google.com/"

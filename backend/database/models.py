@@ -15,6 +15,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -367,6 +368,115 @@ class AuditLog(Base):
     payload_json: Mapped[dict] = mapped_column(JSON, default=dict)
     prev_hash: Mapped[str] = mapped_column(String(64), unique=True)
     hash: Mapped[str] = mapped_column(String(64), unique=True)
+    # Copied from payload["email_id"] for filtering; not part of the hash.
+    email_id: Mapped[str | None] = mapped_column(String(64), index=True)
+
+
+class Email(Base):
+    """An analysed email or pasted message and its unified verdict (see agents/inbox_pipeline.py).
+
+    Subject and sender come from the message itself: show them as text, never as HTML."""
+
+    __tablename__ = "emails"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(16), default="paste")  # upload | paste | demo | gmail | whatsapp
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    pipeline_version: Mapped[str] = mapped_column(String(16))
+    mode: Mapped[str] = mapped_column(String(8), default="full")  # rules | full
+    language: Mapped[str] = mapped_column(String(8), default="auto")
+    status: Mapped[str] = mapped_column(String(16), default="processing", index=True)  # processing | complete | failed
+    subject: Mapped[str | None] = mapped_column(Text)
+    from_addr: Mapped[str | None] = mapped_column(String(320))
+    label: Mapped[str | None] = mapped_column(String(16), index=True)
+    score: Mapped[int | None] = mapped_column(Integer)
+    verdict: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    tokens: Mapped[int | None] = mapped_column(Integer)
+    agent_log: Mapped[list] = mapped_column(JSON, default=list)
+    # Mail agent: where the message came from, and the FactFlow-internal flags set by its steps.
+    provider: Mapped[str | None] = mapped_column(String(16))
+    provider_message_id: Mapped[str | None] = mapped_column(String(128), index=True)
+    quarantined: Mapped[bool] = mapped_column(Boolean, default=False)
+    reported_phishing: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    def summary(self) -> dict:
+        """Row for the inbox list."""
+        reasons = ((self.verdict or {}).get("overall") or {}).get("reasons") or []
+        return {
+            "email_id": self.id, "created_at": iso(self.created_at), "source": self.source, "status": self.status,
+            "mode": self.mode, "subject": self.subject, "from_addr": self.from_addr, "label": self.label,
+            "score": self.score, "top_reason": reasons[0] if reasons else None,
+            "provider": self.provider, "quarantined": bool(self.quarantined),
+            "reported_phishing": bool(self.reported_phishing),
+            "llm_state": ((self.verdict or {}).get("llm_status") or {}).get("state"),
+        }
+
+
+class MailAccount(Base):
+    """A connected mailbox (one per provider in this prototype). Tokens are Fernet-encrypted at rest
+    and never returned by any route or written to logs."""
+
+    __tablename__ = "mail_accounts"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    provider: Mapped[str] = mapped_column(String(16), unique=True)  # gmail
+    email_address: Mapped[str | None] = mapped_column(String(320))
+    status: Mapped[str] = mapped_column(String(24), default="disconnected")  # connected | reconnect_required | disconnected
+    scope: Mapped[str | None] = mapped_column(Text)
+    refresh_token_enc: Mapped[str | None] = mapped_column(Text)
+    access_token_enc: Mapped[str | None] = mapped_column(Text)
+    access_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sync_cursor: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # list mail after this time
+    last_error: Mapped[str | None] = mapped_column(Text)  # a short code or sentence; never a token
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class MailTask(Base):
+    """One mail-agent task per (provider, message id): its state, steps and every transition."""
+
+    __tablename__ = "mail_tasks"
+    __table_args__ = (UniqueConstraint("provider", "message_id", name="uq_mail_tasks_provider_message"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    provider: Mapped[str] = mapped_column(String(16))
+    message_id: Mapped[str] = mapped_column(String(128))
+    email_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    state: Mapped[str] = mapped_column(String(24), default="FETCHED", index=True)
+    policy_mode: Mapped[str | None] = mapped_column(String(16))
+    steps: Mapped[list] = mapped_column(JSON, default=list)
+    transitions: Mapped[list] = mapped_column(JSON, default=list)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class SimulatedOutbox(Base):
+    """Where approved outgoing actions land. Nothing in FactFlow sends real mail or opens links:
+    this table is the only effect of a forward, share, link or calendar step."""
+
+    __tablename__ = "simulated_outbox"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    task_id: Mapped[str] = mapped_column(String(32), index=True)
+    step_id: Mapped[str] = mapped_column(String(32), unique=True)  # a step can reach the outbox only once
+    email_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    kind: Mapped[str] = mapped_column(String(24))  # forward | share_data | open_link | calendar_event
+    target: Mapped[str | None] = mapped_column(Text)
+    subject: Mapped[str | None] = mapped_column(Text)
+    body_preview: Mapped[str | None] = mapped_column(Text)
+    approved_by: Mapped[str | None] = mapped_column(String(128))
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "created_at": iso(self.created_at), "task_id": self.task_id, "step_id": self.step_id,
+                "email_id": self.email_id, "kind": self.kind, "target": self.target, "subject": self.subject,
+                "body_preview": self.body_preview, "approved_by": self.approved_by, "simulated": True}
 
 
 class ShieldApproval(Base):

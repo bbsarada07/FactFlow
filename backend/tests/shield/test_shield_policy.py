@@ -105,21 +105,35 @@ def test_p8_default_requires_approval():
     assert rule("summarize", None, "user", "SAFE", mode="balanced") != "P8"
 
 
-def test_s1_strict_mode_pauses_on_any_signal():
-    d = decide("summarize", None, "user", "SAFE", mode="strict", signals=Signals(findings=1))
+@pytest.mark.parametrize("action", ["extract_action_items", "draft_reply"])
+def test_s1_strict_mode_pauses_on_any_signal(action):
+    d = decide(action, None, "user", "SAFE", mode="strict", signals=Signals(findings=1))
     assert (d.decision, d.rule_id) == ("REQUIRE_APPROVAL", "S1") and "1 detector finding" in d.reason
-    clean = decide("summarize", None, "user", "SAFE", mode="strict", signals=Signals())
-    assert clean.decision == "ALLOW"
+    clean = decide(action, None, "user", "SAFE", mode="strict", signals=Signals())
+    assert clean.decision == "ALLOW" and clean.notice is None
+
+
+@pytest.mark.parametrize("action", ["summarize", "report_phishing", "quarantine_email"])
+def test_strict_mode_runs_protective_steps_automatically_with_a_notice(action):
+    d = decide(action, None, "user", "DANGEROUS", mode="strict", signals=Signals(findings=3))
+    assert d.decision == "ALLOW" and d.rule_id == "P7" and "ran automatically" in d.notice
+    assert decide(action, None, "user", "DANGEROUS", mode="balanced", signals=Signals(findings=3)).notice is None
+
+
+def test_strict_mode_says_when_the_ai_check_is_unavailable():
+    d = decide("draft_reply", None, "user", "SAFE", mode="strict", signals=Signals(llm_state="quota_exhausted"))
+    assert d.rule_id == "S1" and "daily model quota used up" in d.reason
+    assert Signals(llm_state="not_used").any() is False and Signals(llm_state="ok").any() is False
 
 
 def test_strict_without_signals_uses_the_label():
-    assert rule("summarize", None, "user", "SUSPICIOUS", mode="strict") == "S1"
-    assert rule("summarize", None, "user", "SAFE", mode="strict") == "P7"
+    assert rule("draft_reply", None, "user", "SUSPICIOUS", mode="strict") == "S1"
+    assert rule("draft_reply", None, "user", "SAFE", mode="strict") == "P7"
 
 
 def test_default_mode_comes_from_policy_yml():
     assert policy.load_config().mode == "strict"
-    assert rule("summarize", None, "user", "SUSPICIOUS") == "S1"
+    assert rule("draft_reply", None, "user", "SUSPICIOUS") == "S1"
 
 
 # --------------------------------------------------------------------- origin
@@ -157,7 +171,7 @@ def test_property_untrusted_origin_is_never_allowed_outside_exceptions():
             if origin == "untrusted_content" and d.decision == "ALLOW":
                 assert action in P1_EXCEPTIONS, (action, target, label, mode)
             checked += 1
-    assert checked == 13 * 2 * 3 * 5 * 4 * 3 * 2 * 2  # every combination, in both modes
+    assert checked == (len(ACTIONS) + 1) * 2 * 3 * 5 * 4 * 3 * 2 * 2  # every combination, in both modes
 
 
 def test_property_strict_is_never_looser_than_balanced():

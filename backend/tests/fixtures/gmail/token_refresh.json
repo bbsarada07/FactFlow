@@ -1,0 +1,6 @@
+{
+ "access_token": "FAKE-access-token-2",
+ "expires_in": 3599,
+ "scope": "https://www.googleapis.com/auth/gmail.readonly",
+ "token_type": "Bearer"
+}

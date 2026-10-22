@@ -51,8 +51,10 @@ class SqlAuditLog:
             for _ in range(APPEND_RETRIES):
                 async with self.sf() as s:
                     rec = make_record(await self.head(s), actor, event_type, payload)
+                    email_id = rec.payload.get("email_id")
                     s.add(AuditLog(seq=rec.seq, ts=rec.ts, actor=rec.actor, event_type=rec.event_type,
-                                   payload_json=rec.payload, prev_hash=rec.prev_hash, hash=rec.hash))
+                                   payload_json=rec.payload, prev_hash=rec.prev_hash, hash=rec.hash,
+                                   email_id=str(email_id)[:64] if email_id else None))
                     try:
                         await s.commit()
                         return rec
@@ -60,10 +62,14 @@ class SqlAuditLog:
                         await s.rollback()  # another process appended first; retry on its head
             raise RuntimeError("could not append to the audit log after repeated conflicts")
 
-    async def page(self, offset: int = 0, limit: int = 50) -> tuple[list[AuditRecord], int]:
+    async def page(self, offset: int = 0, limit: int = 50, email_id: str | None = None) -> tuple[list[AuditRecord], int]:
+        """Records in sequence order, optionally only those about one email."""
         async with self.sf() as s:
-            total = await s.scalar(select(func.count()).select_from(AuditLog)) or 0
-            rows = (await s.scalars(select(AuditLog).order_by(AuditLog.seq).offset(offset).limit(limit))).all()
+            count_q, q = select(func.count()).select_from(AuditLog), select(AuditLog).order_by(AuditLog.seq)
+            if email_id:
+                count_q, q = count_q.where(AuditLog.email_id == email_id), q.where(AuditLog.email_id == email_id)
+            total = await s.scalar(count_q) or 0
+            rows = (await s.scalars(q.offset(offset).limit(limit))).all()
             return [_record(r) for r in rows], total
 
     async def head_hash(self) -> str | None:

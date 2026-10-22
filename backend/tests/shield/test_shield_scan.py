@@ -84,9 +84,45 @@ def test_deterministic_stages_are_fast():
     assert time.perf_counter() - t0 < 1.0 and v.latency_ms.total < 1000 and v.latency_ms.per_stage
 
 
-def test_truncated_body_is_reported_as_analysis_failure():
+def test_truncated_body_is_never_treated_as_clean():
     v = scan_raw("word " * 50_000, "paste")
-    assert v.analysis_failures and v.overall.score >= 15
+    assert v.analysis_failures and "200,000" in v.analysis_failures[0]
+    assert v.overall.label == "SUSPICIOUS" and v.overall.score >= 25
+    assert any("never treated as safe" in r for r in v.overall.reasons)
+
+
+def _with_attachment(name: str, data: bytes, mtype: str) -> bytes:
+    m = EmailMessage()
+    m["From"], m["To"], m["Subject"] = "a@example.org", "b@example.org", "Report"
+    m["Authentication-Results"] = "mx.example.com; spf=pass; dkim=pass; dmarc=pass"
+    m.set_content("Please see the attached report.")
+    main, sub = mtype.split("/")
+    m.add_attachment(data, maintype=main, subtype=sub, filename=name)
+    return m.as_bytes()
+
+
+def test_unreadable_pdf_is_never_treated_as_clean():
+    v = scan_raw(_with_attachment("report.pdf", b"%PDF-1.4 broken", "application/pdf"), "upload")
+    assert any("could not be read" in f for f in v.analysis_failures) and v.overall.label != "SAFE"
+
+
+def test_long_pdf_is_partially_scanned_and_flagged():
+    import io
+
+    from pypdf import PdfWriter
+
+    w = PdfWriter()
+    for _ in range(25):
+        w.add_blank_page(width=100, height=100)
+    buf = io.BytesIO()
+    w.write(buf)
+    v = scan_raw(_with_attachment("long.pdf", buf.getvalue(), "application/pdf"), "upload")
+    assert any("first 20 of 25 pages" in f for f in v.analysis_failures) and v.overall.label != "SAFE"
+
+
+def test_fully_scanned_attachment_keeps_a_clean_email_safe():
+    v = scan_raw(_with_attachment("notes.txt", b"Agenda: budget review at 3pm.", "text/plain"), "upload")
+    assert v.overall.label == "SAFE" and v.analysis_failures == []
 
 
 def test_shield_package_does_not_import_the_web_app_or_database():

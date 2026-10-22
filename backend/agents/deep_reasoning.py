@@ -4,21 +4,29 @@ Runs when the preliminary confidence is below DEEP_REASONING_THRESHOLD or the
 claim is CRITICAL. Performs multi-hop reasoning over sub-claims and evidence and
 surfaces contradictions and manipulation markers.
 """
-from agents.context import HONESTY_RULE, VERDICTS, AgentOutput, PipelineContext, clamp, norm_verdict, str_list
+from agents.context import (
+    HONESTY_RULE,
+    UNTRUSTED_NOTICE,
+    VERDICTS,
+    AgentOutput,
+    PipelineContext,
+    clamp,
+    norm_verdict,
+    str_list,
+    untrusted,
+)
 from config import settings
 from models.groq_client import call_ultra
 
 SYSTEM = """You are the Deep Reasoning agent of FactFlow — a senior forensic fact-checker who has investigated
 viral misinformation in India for years. You reason step by step, separate what the evidence shows from
 assumptions, and never overstate certainty.
-""" + HONESTY_RULE
+""" + HONESTY_RULE + "\n" + UNTRUSTED_NOTICE
 
 PROMPT = """Today's date: {today}
 
 ORIGINAL CONTENT (as received):
-\"\"\"
 {raw}
-\"\"\"
 
 CORE CLAIM: {claim}
 Type: {claim_type} | Urgency: {urgency} | Language: {language}
@@ -64,7 +72,7 @@ async def run(ctx: PipelineContext) -> AgentOutput:
         SYSTEM,
         PROMPT.format(
             today=ctx.today,
-            raw=ctx.raw_text[:2500],
+            raw=untrusted(ctx.raw_text[:2500], "content"),
             claim=ctx.claim,
             claim_type=ctx.claim_type,
             urgency=ctx.urgency,

@@ -9,7 +9,16 @@ import asyncio
 import re
 from datetime import date, timedelta
 
-from agents.context import HONESTY_RULE, VERDICTS, AgentOutput, PipelineContext, clamp, norm_verdict, str_list
+from agents.context import (
+    HONESTY_RULE,
+    UNTRUSTED_NOTICE,
+    VERDICTS,
+    AgentOutput,
+    PipelineContext,
+    clamp,
+    norm_verdict,
+    str_list,
+)
 from agents.grounding import assign_refs, remap_candidate_citations
 from agents.query_variants import expand_queries, gdelt_query, keyword_query, variant_queries
 from config import settings
@@ -23,7 +32,7 @@ _YEAR = re.compile(r"\b(19\d{2}|20\d{2})\b")
 
 SYSTEM = """You are the Source Tracer agent of FactFlow, a misinformation forensics system.
 You judge evidence against a claim with the rigour of a professional fact-checker.
-""" + HONESTY_RULE
+""" + HONESTY_RULE + "\n" + UNTRUSTED_NOTICE
 
 PROMPT = """Today's date: {today}
 CLAIM: {claim}

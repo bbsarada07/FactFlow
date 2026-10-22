@@ -1,9 +1,10 @@
-"""Minimal CSS resolution for hidden-content detection: inline styles, simple <style> blocks,
-presentational attributes, colours and WCAG contrast.
+"""Minimal CSS resolution for hidden-content detection: inline styles, <style> blocks with
+specificity and !important, @media evaluation, presentational attributes, colours and WCAG contrast.
 
-This is not a browser. `<style>` rules are applied in document order without specificity, and
-only selectors that soupsieve understands are used; @-rules (such as @media) are skipped. The
-simplifications are listed in docs/DECISIONS.md.
+This is not a browser. The page is evaluated as a desktop-width screen (800px) in light mode:
+content that is hidden only on phones, only in dark mode, or only when printed is not reported
+(known misses, documented in docs/DECISIONS.md and pinned by tests). Only selectors that soupsieve
+understands are used; @supports, @font-face and other @-rules are skipped.
 """
 from __future__ import annotations
 
@@ -60,21 +61,74 @@ class RGBA:
         )
 
 
-def parse_declarations(style: str) -> dict[str, str]:
-    """'color: red; FONT-SIZE:0' -> {'color': 'red', 'font-size': '0'} (lowercased, !important dropped)."""
-    out: dict[str, str] = {}
+VIEWPORT_WIDTH_PX = 800.0  # desktop email client
+
+
+def parse_declarations_full(style: str) -> list[tuple[str, str, bool]]:
+    """'color: red !important; FONT-SIZE:0' -> [('color', 'red', True), ('font-size', '0', False)]."""
+    out: list[tuple[str, str, bool]] = []
     for decl in _COMMENT.sub("", style or "").split(";"):
         if ":" not in decl:
             continue
         prop, _, value = decl.partition(":")
-        prop, value = prop.strip().lower(), _IMPORTANT.sub("", value.strip()).lower()
+        prop, raw = prop.strip().lower(), value.strip()
+        important = bool(_IMPORTANT.search(raw))
+        value = _IMPORTANT.sub("", raw).lower()
         if prop and value:
-            out[prop] = value
+            out.append((prop, value, important))
     return out
 
 
+def parse_declarations(style: str) -> dict[str, str]:
+    """'color: red; FONT-SIZE:0' -> {'color': 'red', 'font-size': '0'} (lowercased, !important dropped)."""
+    return {p: v for p, v, _ in parse_declarations_full(style)}
+
+
+# ------------------------------------------------------------------------------ @media
+
+
+def _media_feature(feature: str, width: float) -> bool:
+    name, _, value = feature.partition(":")
+    name, value = name.strip(), value.strip()
+    if name in ("max-width", "max-device-width"):
+        px = length_px(value)
+        return px is not None and width <= px
+    if name in ("min-width", "min-device-width"):
+        px = length_px(value)
+        return px is not None and width >= px
+    if name == "prefers-color-scheme":
+        return value == "light"
+    if name == "orientation":
+        return value == "landscape"
+    return False  # unknown features are treated as not matching
+
+
+def media_matches(query: str, width: float = VIEWPORT_WIDTH_PX) -> bool:
+    """Whether an @media query applies to a desktop screen of `width` px in light mode."""
+    query = (query or "").strip().lower()
+    if not query:
+        return True
+    for part in query.split(","):
+        part = part.strip()
+        negate = part.startswith("not ")
+        part = part[4:] if negate else part[5:] if part.startswith("only ") else part
+        ok = True
+        for term in re.split(r"\s+and\s+", part):
+            term = term.strip()
+            if not term:
+                continue
+            if term.startswith("("):
+                ok = ok and _media_feature(term.strip("() "), width)
+            else:
+                ok = ok and term in ("all", "screen")
+        if ok != negate:
+            return True
+    return False
+
+
 def _split_rules(css: str) -> list[tuple[str, str]]:
-    """Top-level 'selector { declarations }' pairs; @-rules and their nested blocks are skipped."""
+    """'selector { declarations }' pairs in order, including rules inside matching @media blocks.
+    Other @-rules (@supports, @font-face, @keyframes, @import ...) are skipped."""
     css = _COMMENT.sub("", css or "")
     rules: list[tuple[str, str]] = []
     i, n = 0, len(css)
@@ -83,6 +137,8 @@ def _split_rules(css: str) -> list[tuple[str, str]]:
         if brace == -1:
             break
         selector = css[i:brace].strip()
+        if ";" in selector and selector.lstrip().startswith("@"):  # @import/@charset statements before a rule
+            selector = selector.rsplit(";", 1)[1].strip()
         depth, j = 1, brace + 1
         while j < n and depth:
             if css[j] == "{":
@@ -91,18 +147,51 @@ def _split_rules(css: str) -> list[tuple[str, str]]:
                 depth -= 1
             j += 1
         body = css[brace + 1 : j - 1]
-        if selector and not selector.startswith("@") and "{" not in body:
+        if selector.lower().startswith("@media"):
+            if media_matches(selector[6:]):
+                rules.extend(_split_rules(body))
+        elif selector and not selector.startswith("@") and "{" not in body:
             rules.append((selector, body))
         i = j
     return rules
 
 
-def stylesheet_map(soup: BeautifulSoup) -> dict[int, dict[str, str]]:
-    """Declarations from <style> blocks per element (keyed by id(element)), in document order."""
-    applied: dict[int, dict[str, str]] = {}
+# --------------------------------------------------------------------------- specificity
+
+_STRINGS = re.compile(r"\"[^\"]*\"|'[^']*'")
+
+
+def specificity(selector: str) -> tuple[int, int, int]:
+    """CSS specificity (ids, classes/attributes/pseudo-classes, types/pseudo-elements). :where()
+    counts zero; :not(), :is() and :has() count their arguments."""
+    s = _STRINGS.sub("", selector)
+    s = re.sub(r":where\([^)]*\)", "", s)
+    s = re.sub(r":(?:not|is|has)\(", " ", s).replace(")", " ")
+    ids = len(re.findall(r"#[\w-]+", s))
+    classes = (len(re.findall(r"\.[\w-]+", s)) + len(re.findall(r"\[[^\]]*\]", s))
+               + len(re.findall(r"(?<!:):(?!:)[\w-]+", s)))
+    s_no_attr = re.sub(r"\[[^\]]*\]", " ", s)
+    types = len(re.findall(r"(?:^|[\s>+~,])([a-zA-Z][\w-]*)", s_no_attr)) + len(re.findall(r"::[\w-]+", s))
+    return ids, classes, types
+
+
+@dataclass(frozen=True)
+class SheetDecl:
+    prop: str
+    value: str
+    important: bool
+    specificity: tuple[int, int, int]
+    order: int
+
+
+def stylesheet_map(soup: BeautifulSoup) -> dict[int, list[SheetDecl]]:
+    """Declarations from <style> blocks per element (keyed by id(element)), with the specificity
+    and source order needed for the cascade."""
+    applied: dict[int, list[SheetDecl]] = {}
+    order = 0
     for style_tag in soup.find_all("style"):
         for selector, body in _split_rules(style_tag.get_text()):
-            decls = parse_declarations(body)
+            decls = parse_declarations_full(body)
             if not decls:
                 continue
             for sel in selector.split(","):
@@ -113,13 +202,18 @@ def stylesheet_map(soup: BeautifulSoup) -> dict[int, dict[str, str]]:
                     matches = soup.select(sel)
                 except Exception:  # noqa: BLE001 - selectors soupsieve can't handle are skipped
                     continue
-                for el in matches:
-                    applied.setdefault(id(el), {}).update(decls)
+                spec = specificity(sel)
+                for prop, value, important in decls:
+                    order += 1
+                    for el in matches:
+                        applied.setdefault(id(el), []).append(SheetDecl(prop, value, important, spec, order))
     return applied
 
 
-def element_style(el: Tag, sheet: dict[int, dict[str, str]]) -> dict[str, str]:
-    """Own declared style of an element: presentational attributes < <style> rules < inline style."""
+def element_style(el: Tag, sheet: dict[int, list[SheetDecl]]) -> dict[str, str]:
+    """Own declared style of an element. Cascade, lowest to highest: presentational attributes,
+    <style> rules (by specificity, then order), inline style, !important <style> rules,
+    !important inline style."""
     style: dict[str, str] = {}
     if el.name == "font" and el.get("color"):
         style["color"] = str(el["color"]).lower()
@@ -128,8 +222,20 @@ def element_style(el: Tag, sheet: dict[int, dict[str, str]]) -> dict[str, str]:
     for attr in ("width", "height"):
         if el.get(attr) is not None and el.name in ("table", "td", "div", "img", "span", "p"):
             style[attr] = str(el[attr]).lower()
-    style.update(sheet.get(id(el), {}))
-    style.update(parse_declarations(str(el.get("style") or "")))
+    rules = sorted(sheet.get(id(el), []), key=lambda d: (d.specificity, d.order))
+    inline = parse_declarations_full(str(el.get("style") or ""))
+    for d in rules:
+        if not d.important:
+            style[d.prop] = d.value
+    for prop, value, important in inline:
+        if not important:
+            style[prop] = value
+    for d in rules:
+        if d.important:
+            style[d.prop] = d.value
+    for prop, value, important in inline:
+        if important:
+            style[prop] = value
     return style
 
 

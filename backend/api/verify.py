@@ -63,25 +63,38 @@ class VerifyResponse(BaseModel):
 class RateLimiter:
     """In-memory sliding-window limiter: at most `per_minute` hits per key in any 60 seconds."""
 
-    def __init__(self, per_minute: int, clock=time.monotonic) -> None:
+    def __init__(self, per_minute: int, clock=time.monotonic, noun: str = "verifications") -> None:
         self.per_minute = per_minute
         self.clock = clock
+        self.noun = noun
         self.hits: dict[str, deque] = defaultdict(deque)
 
-    def check(self, key: str) -> None:
-        """Record a hit for `key`, raising HTTP 429 (with Retry-After) when over the limit."""
+    def _window(self, key: str) -> deque:
         now = self.clock()
         q = self.hits[key]
         while q and now - q[0] >= 60:
             q.popleft()
+        return q
+
+    def _too_many(self, q: deque) -> HTTPException:
+        retry = int(60 - (self.clock() - q[0])) + 1
+        return HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit: {self.per_minute} {self.noun} per minute. Try again in {retry}s.",
+            headers={"Retry-After": str(retry)},
+        )
+
+    def blocked(self, key: str) -> HTTPException | None:
+        """The 429 error to raise if `key` is already at its limit, without recording a hit."""
+        q = self._window(key)
+        return self._too_many(q) if len(q) >= self.per_minute else None
+
+    def check(self, key: str) -> None:
+        """Record a hit for `key`, raising HTTP 429 (with Retry-After) when over the limit."""
+        q = self._window(key)
         if len(q) >= self.per_minute:
-            retry = int(60 - (now - q[0])) + 1
-            raise HTTPException(
-                status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit: {self.per_minute} verifications per minute. Try again in {retry}s.",
-                headers={"Retry-After": str(retry)},
-            )
-        q.append(now)
+            raise self._too_many(q)
+        q.append(self.clock())
 
 
 limiter = RateLimiter(settings.MAX_REQUESTS_PER_MINUTE)

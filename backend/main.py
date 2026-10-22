@@ -2,6 +2,8 @@
 
 Run:  uvicorn main:app --reload --port 8000
 """
+import asyncio
+import contextlib
 import sys
 from contextlib import asynccontextmanager
 
@@ -10,10 +12,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from sqlalchemy import text
 
-from api import accuracy, history, incidents, public_config, registry, result, stats, stream, verify
+from api import (
+    accuracy, approvals, audit, history, inbox, incidents, mail, policy, public_config, registry, result, stats,
+    stream, verify,
+)
 from config import settings
 from database import connection
 from models.gemini_client import vision_available
+from services import mail_agent
 from services.cache_service import redis_ping
 
 logger.remove()
@@ -26,7 +32,12 @@ async def lifespan(app: FastAPI):
     if not settings.GROQ_API_KEY:
         logger.error("GROQ_API_KEY missing — verifications will fail until it is set in backend/.env")
     logger.info(f"FactFlow ready · db={dialect} · nano={settings.NANO_MODEL} · ultra={settings.ULTRA_MODEL}")
+    poller = asyncio.create_task(mail_agent.poll_forever()) if settings.MAIL_POLL_ENABLED else None
     yield
+    if poller is not None:
+        poller.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await poller
     await connection.close_db()
 
 
@@ -42,11 +53,12 @@ app.add_middleware(
     allow_origins=[settings.FRONTEND_URL, "http://localhost:3000", "http://127.0.0.1:3000"],
     allow_origin_regex=r"chrome-extension://.*",
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "OPTIONS"],
     allow_headers=["*"],
 )
 
-for module in (verify, stream, result, history, incidents, stats, registry, public_config, accuracy):
+for module in (verify, stream, result, history, incidents, stats, registry, public_config, accuracy,
+               inbox, approvals, audit, policy, mail):
     app.include_router(module.router)
 
 

@@ -1,0 +1,14 @@
+From: "PhonePe Rewards" <rewards@phonepe-cashback.example>
+To: Ravi Kumar <ravi.kumar@home.example>
+Subject: You have received Rs 2,000 cashback
+Date: Wed, 21 Oct 2026 10:12:00 +0530
+Message-ID: <demo-12@factflow.example>
+Authentication-Results: mx.inbox.example; spf=fail
+ smtp.mailfrom=phonepe-cashback.example; dkim=none; dmarc=fail (p=reject)
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Congratulations! You have received a cashback of Rs 2,000. To receive the mon=
+ey, approve the collect request in your UPI app and enter your UPI PIN to rec=
+eive it. Offer expires today.

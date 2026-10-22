@@ -19,6 +19,7 @@ ClaimVerdict = Literal["TRUE", "FALSE", "MISLEADING", "UNVERIFIED"]
 
 Action = Literal[
     "summarize",
+    "extract_action_items",
     "draft_reply",
     "send_reply",
     "forward_email",
@@ -129,6 +130,7 @@ class LinkItem(BaseModel):
     host: str | None = None
     flags: list[str] = Field(default_factory=list)
     severity: Severity | None = None
+    expanded_to: str | None = None  # where a shortened link really goes (only with ENABLE_LINK_EXPANSION)
 
 
 class AttemptedAction(BaseModel):
@@ -213,6 +215,7 @@ class PolicyDecision(BaseModel):
     decision: Decision
     rule_id: str
     reason: str
+    notice: str | None = None  # set when strict mode let a protective step run automatically
 
 
 class ProposedAction(BaseModel):
@@ -238,11 +241,83 @@ class Explanation(BaseModel):
 
 class Latency(BaseModel):
     total: int = 0
-    per_stage: dict[str, int] = Field(default_factory=dict)
+    per_stage: dict[str, float] = Field(default_factory=dict)  # milliseconds, one decimal
+
+
+HarmType = Literal["FINANCIAL_FRAUD", "CREDENTIAL_THEFT", "DATA_EXFILTRATION", "MISINFORMATION", "IMPERSONATION"]
+InputType = Literal["claim", "email", "phishing_or_scam", "injection_attempt", "qr", "voice_note"]
+
+
+class Harm(BaseModel):
+    """What could go wrong if the reader acts on the message (Agent 5, scam/fraud extension)."""
+
+    types: list[HarmType] = Field(default_factory=list)
+    level: Literal["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"] = "NONE"
+    reasons: list[str] = Field(default_factory=list)
+
+
+class MessageSummary(BaseModel):
+    """Header facts about the message. All of it comes from the sender: show as text only."""
+
+    source: str
+    has_headers: bool
+    subject: str = ""
+    from_addr: str = ""
+    from_display: str = ""
+    reply_to: str = ""
+    to: list[str] = Field(default_factory=list)
+    date: str = ""
+    attachments: list[dict] = Field(default_factory=list)
+
+
+class ActionItem(BaseModel):
+    task: str = Field(max_length=200)
+    due: str | None = Field(default=None, max_length=80)
+    amount: str | None = Field(default=None, max_length=80)
+
+
+class Meeting(BaseModel):
+    title: str = Field(default="", max_length=200)
+    when: str = Field(default="", max_length=120)
+    where: str | None = Field(default=None, max_length=200)
+
+
+class ReaderNotes(BaseModel):
+    """What the quarantined reader extracted for the mail agent. All of it comes from the message:
+    it is data for display and planning, never an instruction."""
+
+    summary: str = Field(default="", max_length=400)
+    action_items: list[ActionItem] = Field(default_factory=list)
+    reply_requested: bool = False
+    meeting: Meeting | None = None
+
+
+LLMState = Literal["ok", "not_used", "disabled", "llm_unavailable", "quota_exhausted"]
+
+
+class LLMStatus(BaseModel):
+    """Whether the AI part of the analysis ran. Anything other than "ok" or "not_used" means the
+    verdict is rules-only and says why, instead of degrading silently."""
+
+    state: LLMState = "not_used"
+    reason: str | None = None
+    retry_after_seconds: int | None = None
+
+
+class LLMUsage(BaseModel):
+    llm_calls: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    by_stage: dict[str, int] = Field(default_factory=dict)
+    claims_from_registry: int = 0
 
 
 class UnifiedVerdict(BaseModel):
-    """The single verdict FactFlow returns for an email or message (master prompt section 4.6)."""
+    """The single verdict FactFlow returns for an email or message (master prompt section 4.6).
+
+    Fields after `audit_head_hash` are FactFlow additions (all optional for older verdicts).
+    """
 
     email_id: str
     overall: Overall
@@ -253,6 +328,14 @@ class UnifiedVerdict(BaseModel):
     analysis_failures: list[str] = Field(default_factory=list)
     latency_ms: Latency = Field(default_factory=Latency)
     audit_head_hash: str | None = None
+    mode: Literal["rules", "full"] = "rules"
+    pipeline_version: str = ""
+    input_type: InputType = "email"
+    message: MessageSummary | None = None
+    harm: Harm = Field(default_factory=Harm)
+    llm_usage: LLMUsage | None = None
+    llm_status: LLMStatus = Field(default_factory=LLMStatus)
+    reader_notes: ReaderNotes | None = None  # null in rules mode
 
 
 ApprovalStatus = Literal["pending", "approved", "denied", "expired"]

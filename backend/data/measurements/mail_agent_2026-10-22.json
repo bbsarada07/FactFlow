@@ -1,0 +1,337 @@
+{
+  "date": "2026-10-22",
+  "mode": "rules",
+  "database": "SQLite (throwaway)",
+  "rows": [
+    {
+      "name": "01_benign_newsletter",
+      "label": "SAFE",
+      "state": "AWAITING_APPROVAL",
+      "task_ms": 273.3,
+      "analysis_ms": 109,
+      "agent_overhead_ms": 164.3,
+      "per_stage": {
+        "parse": 6.4,
+        "hidden_html": 58.2,
+        "hidden_other": 2.3,
+        "injection_rules": 0.7,
+        "qr": 0.0,
+        "authenticity_links": 2.7,
+        "scam_rules": 12.6,
+        "score_policy": 0.3,
+        "audit": 22.0
+      },
+      "llm_calls": 0,
+      "steps": 2,
+      "transitions": 6
+    },
+    {
+      "name": "02_benign_meeting_invite",
+      "label": "SAFE",
+      "state": "DONE",
+      "task_ms": 180.0,
+      "analysis_ms": 30,
+      "agent_overhead_ms": 150.0,
+      "per_stage": {
+        "parse": 2.5,
+        "hidden_html": 1.2,
+        "hidden_other": 1.0,
+        "injection_rules": 0.6,
+        "qr": 0.0,
+        "authenticity_links": 1.0,
+        "scam_rules": 0.9,
+        "score_policy": 0.5,
+        "audit": 21.3
+      },
+      "llm_calls": 0,
+      "steps": 2,
+      "transitions": 7
+    },
+    {
+      "name": "03_benign_bank_alert",
+      "label": "SAFE",
+      "state": "DONE",
+      "task_ms": 169.1,
+      "analysis_ms": 29,
+      "agent_overhead_ms": 140.1,
+      "per_stage": {
+        "parse": 2.6,
+        "hidden_html": 1.0,
+        "hidden_other": 0.9,
+        "injection_rules": 0.6,
+        "qr": 0.0,
+        "authenticity_links": 0.5,
+        "scam_rules": 0.8,
+        "score_policy": 0.1,
+        "audit": 22.4
+      },
+      "llm_calls": 0,
+      "steps": 2,
+      "transitions": 7
+    },
+    {
+      "name": "04_white_on_white_injection",
+      "label": "DANGEROUS",
+      "state": "DONE",
+      "task_ms": 214.5,
+      "analysis_ms": 50,
+      "agent_overhead_ms": 164.5,
+      "per_stage": {
+        "parse": 2.6,
+        "hidden_html": 1.3,
+        "hidden_other": 0.6,
+        "injection_rules": 0.8,
+        "qr": 0.0,
+        "authenticity_links": 0.3,
+        "scam_rules": 0.4,
+        "score_policy": 0.8,
+        "audit": 42.5
+      },
+      "llm_calls": 0,
+      "steps": 4,
+      "transitions": 7
+    },
+    {
+      "name": "05_font_size_zero_injection",
+      "label": "DANGEROUS",
+      "state": "DONE",
+      "task_ms": 213.6,
+      "analysis_ms": 46,
+      "agent_overhead_ms": 167.6,
+      "per_stage": {
+        "parse": 3.2,
+        "hidden_html": 2.0,
+        "hidden_other": 0.7,
+        "injection_rules": 0.7,
+        "qr": 0.0,
+        "authenticity_links": 0.4,
+        "scam_rules": 0.4,
+        "score_policy": 0.2,
+        "audit": 37.2
+      },
+      "llm_calls": 0,
+      "steps": 4,
+      "transitions": 7
+    },
+    {
+      "name": "06_unicode_tags_injection",
+      "label": "DANGEROUS",
+      "state": "DONE",
+      "task_ms": 222.4,
+      "analysis_ms": 50,
+      "agent_overhead_ms": 172.4,
+      "per_stage": {
+        "parse": 1.4,
+        "hidden_html": 0.0,
+        "hidden_other": 2.1,
+        "injection_rules": 1.0,
+        "qr": 0.0,
+        "authenticity_links": 0.3,
+        "scam_rules": 0.3,
+        "score_policy": 0.2,
+        "audit": 44.0
+      },
+      "llm_calls": 0,
+      "steps": 4,
+      "transitions": 7
+    },
+    {
+      "name": "07_html_comment_injection",
+      "label": "DANGEROUS",
+      "state": "DONE",
+      "task_ms": 209.7,
+      "analysis_ms": 44,
+      "agent_overhead_ms": 165.7,
+      "per_stage": {
+        "parse": 2.0,
+        "hidden_html": 1.1,
+        "hidden_other": 0.7,
+        "injection_rules": 1.0,
+        "qr": 0.0,
+        "authenticity_links": 0.4,
+        "scam_rules": 0.5,
+        "score_policy": 0.2,
+        "audit": 37.6
+      },
+      "llm_calls": 0,
+      "steps": 4,
+      "transitions": 7
+    },
+    {
+      "name": "08_alt_text_injection",
+      "label": "DANGEROUS",
+      "state": "DONE",
+      "task_ms": 232.1,
+      "analysis_ms": 44,
+      "agent_overhead_ms": 188.1,
+      "per_stage": {
+        "parse": 2.0,
+        "hidden_html": 0.9,
+        "hidden_other": 0.6,
+        "injection_rules": 0.7,
+        "qr": 0.0,
+        "authenticity_links": 0.3,
+        "scam_rules": 0.3,
+        "score_policy": 0.2,
+        "audit": 38.6
+      },
+      "llm_calls": 0,
+      "steps": 4,
+      "transitions": 7
+    },
+    {
+      "name": "09_fake_kyc_lookalike",
+      "label": "DANGEROUS",
+      "state": "DONE",
+      "task_ms": 189.0,
+      "analysis_ms": 39,
+      "agent_overhead_ms": 150.0,
+      "per_stage": {
+        "parse": 2.5,
+        "hidden_html": 1.1,
+        "hidden_other": 0.4,
+        "injection_rules": 0.3,
+        "qr": 0.0,
+        "authenticity_links": 0.4,
+        "scam_rules": 0.4,
+        "score_policy": 0.2,
+        "audit": 32.8
+      },
+      "llm_calls": 0,
+      "steps": 3,
+      "transitions": 7
+    },
+    {
+      "name": "10_digital_arrest_hindi",
+      "label": "DANGEROUS",
+      "state": "DONE",
+      "task_ms": 210.3,
+      "analysis_ms": 39,
+      "agent_overhead_ms": 171.3,
+      "per_stage": {
+        "parse": 1.4,
+        "hidden_html": 0.0,
+        "hidden_other": 1.3,
+        "injection_rules": 0.6,
+        "qr": 0.0,
+        "authenticity_links": 0.4,
+        "scam_rules": 0.9,
+        "score_policy": 0.1,
+        "audit": 34.1
+      },
+      "llm_calls": 0,
+      "steps": 3,
+      "transitions": 7
+    },
+    {
+      "name": "11_telugu_fake_scheme",
+      "label": "DANGEROUS",
+      "state": "DONE",
+      "task_ms": 208.0,
+      "analysis_ms": 44,
+      "agent_overhead_ms": 164.0,
+      "per_stage": {
+        "parse": 2.4,
+        "hidden_html": 0.0,
+        "hidden_other": 1.0,
+        "injection_rules": 0.6,
+        "qr": 0.0,
+        "authenticity_links": 0.5,
+        "scam_rules": 0.7,
+        "score_policy": 0.1,
+        "audit": 37.9
+      },
+      "llm_calls": 0,
+      "steps": 3,
+      "transitions": 7
+    },
+    {
+      "name": "12_upi_collect_scam",
+      "label": "DANGEROUS",
+      "state": "DONE",
+      "task_ms": 198.1,
+      "analysis_ms": 40,
+      "agent_overhead_ms": 158.1,
+      "per_stage": {
+        "parse": 1.4,
+        "hidden_html": 0.0,
+        "hidden_other": 0.7,
+        "injection_rules": 0.4,
+        "qr": 0.0,
+        "authenticity_links": 0.3,
+        "scam_rules": 0.5,
+        "score_policy": 0.2,
+        "audit": 36.0
+      },
+      "llm_calls": 0,
+      "steps": 3,
+      "transitions": 7
+    },
+    {
+      "name": "13_quishing_qr",
+      "label": "SUSPICIOUS",
+      "state": "AWAITING_APPROVAL",
+      "task_ms": 375.3,
+      "analysis_ms": 236,
+      "agent_overhead_ms": 139.3,
+      "per_stage": {
+        "parse": 3.5,
+        "hidden_html": 2.1,
+        "hidden_other": 0.5,
+        "injection_rules": 0.3,
+        "qr": 208.0,
+        "authenticity_links": 0.9,
+        "scam_rules": 0.4,
+        "score_policy": 0.1,
+        "audit": 19.3
+      },
+      "llm_calls": 0,
+      "steps": 2,
+      "transitions": 6
+    },
+    {
+      "name": "14_mixed_false_claim_and_injection",
+      "label": "DANGEROUS",
+      "state": "DONE",
+      "task_ms": 237.1,
+      "analysis_ms": 56,
+      "agent_overhead_ms": 181.1,
+      "per_stage": {
+        "parse": 2.5,
+        "hidden_html": 1.5,
+        "hidden_other": 0.7,
+        "injection_rules": 0.7,
+        "qr": 0.0,
+        "authenticity_links": 0.2,
+        "scam_rules": 0.4,
+        "score_policy": 0.1,
+        "audit": 49.8
+      },
+      "llm_calls": 0,
+      "steps": 4,
+      "transitions": 7
+    }
+  ],
+  "summary": {
+    "task_ms": {
+      "p50": 210.3,
+      "p95": 273.3
+    },
+    "agent_overhead_ms": {
+      "p50": 164.3,
+      "p95": 181.1
+    },
+    "stage_median_ms": {
+      "parse": 2.5,
+      "hidden_html": 1.1,
+      "hidden_other": 0.7,
+      "injection_rules": 0.6,
+      "qr": 0.0,
+      "authenticity_links": 0.4,
+      "scam_rules": 0.5,
+      "score_policy": 0.2,
+      "audit": 36.6
+    },
+    "llm_calls_total": 0
+  }
+}
