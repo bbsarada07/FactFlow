@@ -1,0 +1,14 @@
+From: KBC Lottery Dept <manager@kbc-lottery-winner.example>
+To: User <user@home.example>
+Subject: Congratulations! You won 25 Lakhs in KBC Lucky Draw
+Date: Thu, 22 Oct 2026 12:43:00 +0530
+Message-ID: <bench-043@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=kbc-lottery-winner.example; dkim=pass
+ header.d=kbc-lottery-winner.example; dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Dear customer, your mobile number has won Rs 25 Lakh in Kaun Banega Crorepati=
+ lottery. Pay processing fee of Rs 12,500 to claim your prize.

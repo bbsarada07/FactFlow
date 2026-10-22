@@ -1,0 +1,27 @@
+From: Blue Dart Express <tracking@bluedart.example>
+To: User <user@home.example>
+Subject: Out for Delivery: Blue Dart Tracking #38192019
+Date: Thu, 22 Oct 2026 12:29:00 +0530
+Message-ID: <bench-089@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=bluedart.example; dkim=pass header.d=bluedart.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-089-0"
+
+--bench-boundary-089-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Your shipment from Bookstores Ltd is out for delivery with courier associate =
+Ramesh. Delivery will be attempted by 5:00 PM today.
+
+--bench-boundary-089-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Ship=
+ment #38192019 is out for delivery today by 5:00 PM.</p></body></html>
+
+--bench-boundary-089-0--

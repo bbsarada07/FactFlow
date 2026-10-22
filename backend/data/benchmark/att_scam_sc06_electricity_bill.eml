@@ -1,0 +1,15 @@
+From: Electricity Board <officer@state-electricity.example>
+To: User <user@home.example>
+Subject: Urgent: Power disconnection notice tonight at 9:30 PM
+Date: Thu, 22 Oct 2026 12:46:00 +0530
+Message-ID: <bench-046@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=state-electricity.example; dkim=pass
+ header.d=state-electricity.example; dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Dear consumer, your electricity power supply will be disconnected tonight at =
+9:30 PM because your previous month bill was not updated. Contact our officer=
+ immediately at 9876543210.

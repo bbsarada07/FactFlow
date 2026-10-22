@@ -1,0 +1,15 @@
+From: Customs Dept <seizure@delhi-customs.example>
+To: User <user@home.example>
+Subject: Customs Department courier seizure notice
+Date: Thu, 22 Oct 2026 12:38:00 +0530
+Message-ID: <bench-038@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=delhi-customs.example; dkim=pass
+ header.d=delhi-customs.example; dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Your courier from abroad was seized with illegal contraband. Case registered =
+under money laundering. Stay on the call and deposit money into RBI verificat=
+ion account.

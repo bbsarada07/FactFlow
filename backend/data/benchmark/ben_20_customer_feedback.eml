@@ -1,0 +1,28 @@
+From: Customer Support <feedback@servicecloud.example>
+To: User <user@home.example>
+Subject: How was your recent support experience?
+Date: Thu, 22 Oct 2026 12:14:00 +0530
+Message-ID: <bench-074@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=servicecloud.example; dkim=pass header.d=servicecloud.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-074-0"
+
+--bench-boundary-074-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+We recently closed your ticket #99102. Please take 30 seconds to rate your sa=
+tisfaction: 1 to 5 stars.
+
+--bench-boundary-074-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>We v=
+alue your feedback. Please rate your recent support experience.</p></body></h=
+tml>
+
+--bench-boundary-074-0--

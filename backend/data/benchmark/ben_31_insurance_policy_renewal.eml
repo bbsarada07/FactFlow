@@ -1,0 +1,28 @@
+From: Star Health <renewals@starhealth.example>
+To: User <user@home.example>
+Subject: Health Insurance Renewal Notice: Policy #H-771920
+Date: Thu, 22 Oct 2026 12:25:00 +0530
+Message-ID: <bench-085@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=starhealth.example; dkim=pass header.d=starhealth.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-085-0"
+
+--bench-boundary-085-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Policyholder, your Family Health Optima plan expires on 15 Nov 2026. Cum=
+ulative bonus of Rs 1,00,000 is preserved upon on-time renewal.
+
+--bench-boundary-085-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Your=
+ health insurance policy expires on 15 Nov 2026. Renew on time to keep your c=
+umulative bonus.</p></body></html>
+
+--bench-boundary-085-0--

@@ -1,0 +1,30 @@
+From: Python Weekly <newsletter@pythonweekly.example>
+To: User <user@home.example>
+Subject: Developer Weekly: Python 3.14 features
+Date: Thu, 22 Oct 2026 12:02:00 +0530
+Message-ID: <bench-062@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=pythonweekly.example; dkim=pass header.d=pythonweekly.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-062-0"
+
+--bench-boundary-062-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Welcome to Python Weekly issue 640. Check out the latest PEP updates and comm=
+unity tutorials.
+
+--bench-boundary-062-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><h1>Pyt=
+hon Weekly #640</h1><p>Exploring new concurrency models and performance optim=
+izations in Python 3.14.</p><img src=3D"https://analytics.pythonweekly.exampl=
+e/track/pixel.gif" width=3D"1" height=3D"1" alt=3D"" /><p><a href=3D"https://=
+pythonweekly.example/640">Read on the web</a></p></body></html>
+
+--bench-boundary-062-0--

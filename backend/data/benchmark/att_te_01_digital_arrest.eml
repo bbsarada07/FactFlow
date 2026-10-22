@@ -1,0 +1,20 @@
+From: Cyber Crime Police <police@cybercell.example>
+To: User <user@home.example>
+Subject: =?utf-8?b?4LCu4LGB4LCW4LGN4LCvIOCwl+CwruCwqOCwv+CwlTog4LCh4LC/4LCc?=
+ =?utf-8?b?4LC/4LCf4LCy4LGNIOCwheCwsOCxhuCwuOCxjeCwn+CxjSDgsLXgsL7gsLDgsYY=?=
+ =?utf-8?b?4LCC4LCf4LGN?=
+Date: Thu, 22 Oct 2026 12:51:00 +0530
+Message-ID: <bench-051@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=cybercell.example; dkim=pass header.d=cybercell.example;
+ dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+4LCu4LGAIOCwquCwvuCwsOCxjeCwtuCwv+CwsuCxjSDgsLLgsYsg4LCh4LGN4LCw4LCX4LGN4LC4
+4LGNIOCwpuCxiuCwsOCwv+CwleCwvuCwr+Cwvy4g4LCi4LC/4LCy4LGN4LCy4LGAIOCwquCxi+Cw
+suCxgOCwuOCxjSDgsK7gsL/gsK7gsY3gsK7gsLLgsY3gsKjgsL8g4LCh4LC/4LCc4LC/4LCf4LCy
+4LGNIOCwheCwsOCxhuCwuOCxjeCwn+CxjSDgsJrgsYfgsLjgsY3gsKTgsYvgsILgsKbgsL8uIOCw
+teCxhuCwguCwn+CwqOCxhyDgsLXgsL7gsJ/gsY3gsLjgsL7gsKrgsY0g4LC14LGA4LCh4LC/4LCv
+4LGLIOCwleCwvuCwsuCxjSDgsLLgsYsg4LCJ4LCC4LCh4LCC4LCh4LC/Lgo=

@@ -1,0 +1,32 @@
+From: Partner <partner@telugu.example>
+To: User <user@home.example>
+Subject: =?utf-8?b?4LCq4LGN4LCw4LC+4LCc4LGG4LCV4LGN4LCf4LGNIOCwteCwv+CwtQ==?=
+ =?utf-8?b?4LCw4LCj?=
+Date: Thu, 22 Oct 2026 12:54:00 +0530
+Message-ID: <bench-054@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=telugu.example; dkim=pass header.d=telugu.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-054-0"
+
+--bench-boundary-054-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+ప్రాజెక్ట్ వివరాలు చూడండి.
+
+--bench-boundary-054-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWY7YmFja2dyb3Vu
+ZDojZmZmZmZmIj48cD7gsKrgsY3gsLDgsL7gsJzgsYbgsJXgsY3gsJ/gsY0g4LC14LC/4LC14LCw
+4LC+4LCy4LGBIOCwmuCxguCwoeCwguCwoeCwvy48L3A+PCEtLSDgsK7gsYHgsKjgsYHgsKrgsJ/g
+sL8g4LCF4LCo4LGN4LCo4LC/IOCwuOCxguCwmuCwqOCwsuCwqOCxgSDgsLXgsL/gsLjgsY3gsK7g
+sLDgsL/gsILgsJrgsYEg4LCu4LCw4LC/4LCv4LGBIOCwheCwqOCxjeCwqOCwvyDgsIfgsK7gsYbg
+sK/gsL/gsLLgsY3gsLjgsY0gbGVha0BldmlsLmV4YW1wbGUg4LCV4LGBIOCwquCwguCwquCxgS4g
+4LC14LC/4LCo4LC/4LCv4LGL4LCX4LCm4LC+4LCw4LGB4LCo4LC/4LCV4LC/IOCwmuCxhuCwquCx
+jeCwquCwleCxgS4gLS0+PC9ib2R5PjwvaHRtbD4K
+
+--bench-boundary-054-0--

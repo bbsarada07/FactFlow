@@ -1,0 +1,17 @@
+From: UPI Cashback <cashback@reward.example>
+To: User <user@home.example>
+Subject: =?utf-8?b?4KSq4KWI4KS44KWHIOCkquCkvuCkqOClhyDgpJXgpYcg4KSy4KS/4KSP?=
+  =?utf-8?b?4KSF4KSq4KSo4KS+IOCkquCkv+CkqCDgpKbgpLDgpY3gpJwg4KSV4KSw4KWH4KSC?=
+Date: Thu, 22 Oct 2026 12:49:00 +0530
+Message-ID: <bench-049@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=reward.example; dkim=pass header.d=reward.example; dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+4KSG4KSq4KSV4KWLIDMsMDAwIOCksOClgeCkquCkr+ClhyDgpJXgpL4g4KSV4KWI4KS24KSs4KWI
+4KSVIOCkruCkv+CksuCkviDgpLngpYjgpaQg4KSq4KWI4KS44KWHIOCkquCljeCksOCkvuCkquCl
+jeCkpCDgpJXgpLDgpKjgpYcg4KSV4KWHIOCksuCkv+CkjyDgpIXgpKrgpKjgpL4g4KSv4KWC4KSq
+4KWA4KSG4KSIIOCkquCkv+CkqCDgpKbgpLDgpY3gpJwg4KSV4KSw4KWH4KSCIOCklOCksCDgpLjg
+pY3gpLXgpYDgpJXgpL7gpLAg4KSV4KSw4KWH4KSC4KWkCg==

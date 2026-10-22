@@ -1,0 +1,28 @@
+From: The Hindu Circulations <support@thehindu.example>
+To: User <user@home.example>
+Subject: The Hindu e-Paper Subscription Active
+Date: Thu, 22 Oct 2026 12:22:00 +0530
+Message-ID: <bench-082@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=thehindu.example; dkim=pass header.d=thehindu.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-082-0"
+
+--bench-boundary-082-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Welcome! Your 1-year digital access to The Hindu e-paper and archives has beg=
+un. Enjoy your morning reading.
+
+--bench-boundary-082-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Your=
+ digital subscription is active. Read daily editions on web and mobile app.</=
+p></body></html>
+
+--bench-boundary-082-0--

@@ -1,0 +1,28 @@
+From: ICICI Bank <cards@icicibank.example>
+To: User <user@home.example>
+Subject: Credit Card Statement for card ending 9012
+Date: Thu, 22 Oct 2026 12:01:00 +0530
+Message-ID: <bench-061@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=icicibank.example; dkim=pass header.d=icicibank.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-061-0"
+
+--bench-boundary-061-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Customer, your credit card statement for billing cycle Oct 2026 is gener=
+ated. Total amount due: Rs 14,210.00. Payment due date: 10 Nov 2026.
+
+--bench-boundary-061-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Your=
+ credit card statement for October 2026 is ready. Total due: Rs 14,210.00 due=
+ on 10 Nov 2026.</p></body></html>
+
+--bench-boundary-061-0--

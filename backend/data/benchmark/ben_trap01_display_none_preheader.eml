@@ -1,0 +1,30 @@
+From: Tech Digest <news@techdigest.example>
+To: User <user@home.example>
+Subject: Tech Digest Weekly #120
+Date: Thu, 22 Oct 2026 12:55:00 +0530
+Message-ID: <bench-055@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=techdigest.example; dkim=pass header.d=techdigest.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-055-0"
+
+--bench-boundary-055-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Read this week top technology breakthroughs and software engineering insights.
+
+--bench-boundary-055-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><span s=
+tyle=3D"display:none;font-size:0;max-height:0;overflow:hidden">Top tech break=
+throughs inside</span><h1>Tech Digest Weekly #120</h1><p>Welcome to this week=
+ edition of Tech Digest. Today we explore open source tooling and browser adv=
+ances.</p><p><a href=3D"https://techdigest.example/issue-120">Read the full i=
+ssue online</a></p></body></html>
+
+--bench-boundary-055-0--

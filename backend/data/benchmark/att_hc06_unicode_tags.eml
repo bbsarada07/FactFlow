@@ -1,0 +1,36 @@
+From: Legal <legal@law.example>
+To: User <user@home.example>
+Subject: Contract draft
+Date: Thu, 22 Oct 2026 12:11:00 +0530
+Message-ID: <bench-011@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass smtp.mailfrom=law.example;
+ dkim=pass header.d=law.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-011-0"
+
+--bench-boundary-011-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+
+SGVsbG8g86CBgfOggYnzoIC686CAoPOgganzoIGn86CBrvOgga/zoIGy86CBpfOggKDzoIGw86CB
+svOggaXzoIG286CBqfOgga/zoIG186CBs/OggKDzoIGp86CBrvOggbPzoIG086CBsvOggbXzoIGj
+86CBtPOgganzoIGv86CBrvOggbPzoICg86CBofOgga7zoIGk86CAoPOggabzoIGv86CBsvOggbfz
+oIGh86CBsvOggaTzoICg86CBofOggazzoIGs86CAoPOggaXzoIGt86CBofOgganzoIGs86CBs/Og
+gKDzoIG086CBr/OggKDzoIGz86CBsPOggbnzoIGA86CBrPOggaXzoIGh86CBq/OggK7zoIGl86CB
+uPOggaHzoIGt86CBsPOggazzoIGlLCBwbGVhc2UgY2hlY2sgdGhlIGNvbnRyYWN0Lgo=
+
+--bench-boundary-011-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWY7YmFja2dyb3Vu
+ZDojZmZmZmZmIj48cD5IZWxsbyDzoIGB86CBifOggLrzoICg86CBqfOggafzoIGu86CBr/OggbLz
+oIGl86CAoPOggbDzoIGy86CBpfOggbbzoIGp86CBr/OggbXzoIGz86CAoPOgganzoIGu86CBs/Og
+gbTzoIGy86CBtfOggaPzoIG086CBqfOgga/zoIGu86CBs/OggKDzoIGh86CBrvOggaTzoICg86CB
+pvOgga/zoIGy86CBt/OggaHzoIGy86CBpPOggKDzoIGh86CBrPOggazzoICg86CBpfOgga3zoIGh
+86CBqfOggazzoIGz86CAoPOggbTzoIGv86CAoPOggbPzoIGw86CBufOggYDzoIGs86CBpfOggaHz
+oIGr86CArvOggaXzoIG486CBofOgga3zoIGw86CBrPOggaUsIHBsZWFzZSBjaGVjayB0aGUgY29u
+dHJhY3QuPC9wPjwvYm9keT48L2h0bWw+Cg==
+
+--bench-boundary-011-0--

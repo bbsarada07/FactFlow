@@ -1,2 +1,6 @@
 # Demo emails are RFC 822 files with CRLF line endings; keep their bytes exact.
+*.eml -text
 backend/data/demo_emails/*.eml -text
+backend/tests/fixtures/** -text
+backend/data/benchmark/** -text
+backend/data/demo_recordings/** -text

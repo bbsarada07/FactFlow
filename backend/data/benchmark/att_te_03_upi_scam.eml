@@ -1,0 +1,16 @@
+From: UPI Rewards <rewards@upi-te.example>
+To: User <user@home.example>
+Subject: =?utf-8?b?4LCw4LGCLiA1MDAwIOCwleCxjeCwr+CwvuCwt+CxjSDgsKzgsY3gsK8=?=
+ =?utf-8?b?4LC+4LCV4LGNIOCwquCxiuCwguCwpuCwguCwoeCwvw==?=
+Date: Thu, 22 Oct 2026 12:53:00 +0530
+Message-ID: <bench-053@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=upi-te.example; dkim=pass header.d=upi-te.example; dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+4LCu4LGA4LCV4LGBIOCwsOCxgi4gNTAwMCDgsLDgsL/gsLXgsL7gsLDgsY3gsKHgsY0g4LC14LCa
+4LGN4LCa4LC/4LCC4LCm4LC/LiDgsKHgsKzgsY3gsKzgsYEg4LCq4LGK4LCC4LCm4LCh4LC+4LCo
+4LC/4LCV4LC/IOCwruCxgCDgsK/gsYLgsKrgsYDgsJAg4LCq4LC/4LCo4LGNIOCwqOCwruCxi+Cw
+puCxgSDgsJrgsYfgsK/gsILgsKHgsL8uCg==

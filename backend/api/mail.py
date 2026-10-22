@@ -180,3 +180,12 @@ async def add_step(task_id: str, body: StepRequest, actor: str = Depends(require
 async def simulated_outbox(limit: int = Query(50, ge=1, le=200), _actor: str = Depends(require_operator)):
     """Everything the agent 'sent': simulated only. Nothing here left FactFlow."""
     return {"simulated": True, "items": await mail_agent.outbox(limit)}
+
+
+@router.delete("/outbox")
+@router.post("/outbox/clear")
+async def clear_outbox(_actor: str = Depends(require_operator)):
+    """Clear the simulated outbox."""
+    from shield.sandbox_agent import clear_simulated_outbox
+    cleared = await clear_simulated_outbox()
+    return {"simulated": True, "cleared": cleared}

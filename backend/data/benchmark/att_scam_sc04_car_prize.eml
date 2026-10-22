@@ -1,0 +1,14 @@
+From: Mega Draw <draw@winner-circle.example>
+To: User <user@home.example>
+Subject: Lucky winner of Brand New Car
+Date: Thu, 22 Oct 2026 12:44:00 +0530
+Message-ID: <bench-044@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=winner-circle.example; dkim=pass
+ header.d=winner-circle.example; dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+You have been selected as the grand lottery winner of an SUV car. Deposit GST=
+ charges of Rs 25,000 to release the vehicle.

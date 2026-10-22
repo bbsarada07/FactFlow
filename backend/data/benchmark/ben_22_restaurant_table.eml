@@ -1,0 +1,26 @@
+From: Zomato Dining <dining@zomato.example>
+To: User <user@home.example>
+Subject: Table Reservation Confirmed: O Pedro for 4 guests
+Date: Thu, 22 Oct 2026 12:16:00 +0530
+Message-ID: <bench-076@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=zomato.example; dkim=pass header.d=zomato.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-076-0"
+
+--bench-boundary-076-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Your table for 4 at O Pedro Mumbai is confirmed for Saturday at 8:00 PM. Book=
+ing ID: ZOM-5519.
+
+--bench-boundary-076-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Tabl=
+e for 4 confirmed at O Pedro on Saturday at 8:00 PM.</p></body></html>
+
+--bench-boundary-076-0--

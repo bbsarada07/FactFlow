@@ -1,0 +1,28 @@
+From: JetBrains Sales <sales@jetbrains.example>
+To: User <user@home.example>
+Subject: JetBrains License Certificate #JB-90182
+Date: Thu, 22 Oct 2026 12:19:00 +0530
+Message-ID: <bench-079@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=jetbrains.example; dkim=pass header.d=jetbrains.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-079-0"
+
+--bench-boundary-079-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Your subscription for All Products Pack has been renewed for 1 year. License =
+key available in your JetBrains Account.
+
+--bench-boundary-079-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Your=
+ annual JetBrains subscription renewal is active. License ID: JB-90182.</p></=
+body></html>
+
+--bench-boundary-079-0--

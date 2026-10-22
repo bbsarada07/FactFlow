@@ -1,0 +1,14 @@
+From: Telecom Department <trai@sim-verify.example>
+To: User <user@home.example>
+Subject: TRAI Notice: Your SIM card will be deactivated tonight
+Date: Thu, 22 Oct 2026 12:40:00 +0530
+Message-ID: <bench-040@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=sim-verify.example; dkim=pass header.d=sim-verify.example;
+ dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Your mobile number will be disconnected by Department of Telecom due to incom=
+plete e-KYC. Click http://sim-kyc-verify.example immediately.

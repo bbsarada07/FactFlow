@@ -1,0 +1,26 @@
+From: GitHub Notifications <notifications@github.example>
+To: User <user@home.example>
+Subject: [GitHub] Pull request #84 merged into main
+Date: Thu, 22 Oct 2026 12:08:00 +0530
+Message-ID: <bench-068@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=github.example; dkim=pass header.d=github.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-068-0"
+
+--bench-boundary-068-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+PR #84 'feat: add telemetry dashboard' was reviewed and merged by alice. Buil=
+d passed cleanly.
+
+--bench-boundary-068-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>PR #=
+84 merged into main by alice.</p></body></html>
+
+--bench-boundary-068-0--

@@ -1,0 +1,28 @@
+From: Manager <manager@workplace.example>
+To: User <user@home.example>
+Subject: Rescheduling our 1:1 to Thursday afternoon
+Date: Thu, 22 Oct 2026 12:04:00 +0530
+Message-ID: <bench-064@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=workplace.example; dkim=pass header.d=workplace.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-064-0"
+
+--bench-boundary-064-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Hi Ravi, can we push our weekly 1:1 from Wednesday to Thursday at 3:30 PM? Le=
+t me know if that works. Thanks!
+
+--bench-boundary-064-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Hi R=
+avi, can we push our weekly 1:1 from Wednesday to Thursday at 3:30 PM? Let me=
+ know if that works. Thanks!</p></body></html>
+
+--bench-boundary-064-0--

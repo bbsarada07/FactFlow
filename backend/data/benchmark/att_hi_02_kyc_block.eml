@@ -1,0 +1,20 @@
+From: Bank Alert <alert@bank-kyc.example>
+To: User <user@home.example>
+Subject: =?utf-8?b?4KSV4KWH4KS14KS+4KSI4KS44KWAIOCkheCkquCkoeClh+CknyDgpJU=?=
+ =?utf-8?b?4KSw4KWH4KSCIC0g4KSs4KWI4KSC4KSVIOCkluCkvuCkpOCkviDgpKzgpILgpKYg?=
+ =?utf-8?b?4KS54KWLIOCknOCkvuCkj+Ckl+Ckvg==?=
+Date: Thu, 22 Oct 2026 12:48:00 +0530
+Message-ID: <bench-048@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=bank-kyc.example; dkim=pass header.d=bank-kyc.example;
+ dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+4KSq4KWN4KSw4KS/4KSvIOCkl+CljeCksOCkvuCkueCklSwg4KSG4KSq4KSV4KS+IOCkrOCliOCk
+guCklSDgpJbgpL7gpKTgpL4g4KSG4KScIOCkrOCkguCkpiDgpLngpYsg4KSc4KS+4KSP4KSX4KS+
+IOCkleCljeCkr+Cli+CkguCkleCkvyDgpJXgpYfgpLXgpL7gpIjgpLjgpYAg4KSF4KSq4KSh4KWH
+4KSfIOCkqOCkueClgOCkgiDgpLngpYHgpIYg4KS54KWI4KWkIOCkpOClgeCksOCkguCkpCBodHRw
+Oi8va3ljLXVwZGF0ZS5leGFtcGxlIOCkquCksCDgpJzgpL7gpJXgpLAg4KSF4KSq4KSo4KS+IOCk
+quCliOCkqCDgpJXgpL7gpLDgpY3gpKEg4KSy4KS/4KSC4KSVIOCkleCksOClh+CkguClpAo=

@@ -1,0 +1,26 @@
+From: Security <sec@bank.example>
+To: User <user@home.example>
+Subject: Security notice: update your =?utf-8?q?p=D0=B0ssw=D0=BErd?=
+Date: Thu, 22 Oct 2026 12:13:00 +0530
+Message-ID: <bench-013@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass smtp.mailfrom=bank.example;
+ dkim=pass header.d=bank.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-013-0"
+
+--bench-boundary-013-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Please visit https://www.bаnk.example to reset your credentials immediately.
+
+--bench-boundary-013-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Plea=
+se visit <a href=3D"https://www.b=D0=B0nk.example">b=D0=B0nk.example</a> to r=
+eset credentials.</p></body></html>
+
+--bench-boundary-013-0--

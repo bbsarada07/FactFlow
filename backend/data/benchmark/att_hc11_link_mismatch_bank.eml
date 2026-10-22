@@ -1,0 +1,27 @@
+From: Bank Alert <alert@officialbank.example>
+To: User <user@home.example>
+Subject: Security verification required
+Date: Thu, 22 Oct 2026 12:21:00 +0530
+Message-ID: <bench-021@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=officialbank.example; dkim=pass header.d=officialbank.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-021-0"
+
+--bench-boundary-021-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Please verify your account at https://secure.officialbank.example
+
+--bench-boundary-021-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Plea=
+se verify at <a href=3D"https://phish-login.evil-attacker.example/bank">https=
+://secure.officialbank.example</a></p></body></html>
+
+--bench-boundary-021-0--

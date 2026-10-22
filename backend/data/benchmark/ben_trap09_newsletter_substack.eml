@@ -1,0 +1,29 @@
+From: Econ Notes <econ@substack-author.example>
+To: User <user@home.example>
+Subject: Economics Digest: Global Trade Trends
+Date: Thu, 22 Oct 2026 12:03:00 +0530
+Message-ID: <bench-063@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=substack-author.example; dkim=pass
+ header.d=substack-author.example; dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-063-0"
+
+--bench-boundary-063-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Today analysis covers shipping corridors and supply chain resilience in South=
+east Asia.
+
+--bench-boundary-063-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><h2>Glo=
+bal Trade Trends 2026</h2><p>Analyzing freight shipping indices and commodity=
+ price stabilization across Asia.</p><img src=3D"https://img.substack-author.=
+example/beacon.png" width=3D"1" height=3D"1" alt=3D"" /></body></html>
+
+--bench-boundary-063-0--

@@ -1,0 +1,28 @@
+From: Delhi Public School <office@dpschool.example>
+To: User <user@home.example>
+Subject: Parent Teacher Meeting on Saturday 9:00 AM
+Date: Thu, 22 Oct 2026 12:26:00 +0530
+Message-ID: <bench-086@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=dpschool.example; dkim=pass header.d=dpschool.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-086-0"
+
+--bench-boundary-086-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Parents, Term 1 Parent Teacher Meeting is scheduled for Saturday, 24 Oct=
+ober from 9:00 AM to 1:00 PM. Roll number wise slots are in the school app.
+
+--bench-boundary-086-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Term=
+ 1 Parent Teacher Meeting on Saturday from 9:00 AM to 1:00 PM.</p></body></ht=
+ml>
+
+--bench-boundary-086-0--

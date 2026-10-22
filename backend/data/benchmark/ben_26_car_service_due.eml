@@ -1,0 +1,28 @@
+From: Service Center <service@marutisuzuki.example>
+To: User <user@home.example>
+Subject: Maruti Suzuki Service Reminder for KA-01-MJ-9921
+Date: Thu, 22 Oct 2026 12:20:00 +0530
+Message-ID: <bench-080@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=marutisuzuki.example; dkim=pass header.d=marutisuzuki.example;
+ dmarc=pass
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="bench-boundary-080-0"
+
+--bench-boundary-080-0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Ravi, your vehicle is due for its 20,000 km scheduled periodic maintenan=
+ce this month. Book your slot at our workshop.
+
+--bench-boundary-080-0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial,sans-serif;background:#ffffff"><p>Peri=
+odic maintenance reminder for vehicle KA-01-MJ-9921. Book online or call our =
+workshop.</p></body></html>
+
+--bench-boundary-080-0--

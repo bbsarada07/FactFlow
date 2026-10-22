@@ -1,0 +1,14 @@
+From: Bank Alert <alert@banking-kyc.example>
+To: User <user@home.example>
+Subject: Urgent: Your Bank Account will be blocked today - Update KYC
+Date: Thu, 22 Oct 2026 12:39:00 +0530
+Message-ID: <bench-039@factflow.example>
+Authentication-Results: mx.inbox.example; spf=pass
+ smtp.mailfrom=banking-kyc.example; dkim=pass header.d=banking-kyc.example;
+ dmarc=pass
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Dear Customer, your bank account will be blocked within 24 hours because PAN-=
+Aadhaar is not linked. Click http://kyc-update-portal.example to verify now.
