@@ -156,3 +156,29 @@ The `emails`, `simulated_outbox` and `benchmark_runs` tables arrive with the fea
 
 `cryptography==50.0.2` (already installed through `google-auth`; now pinned directly) for Fernet.
 No Google client libraries (D56).
+
+## Phase 4 review (2026-10-23)
+
+The review of commit `427136e` is logged in `docs/REVIEW_PHASE4_5.md`. Decisions taken there:
+
+| # | Decision | Why |
+|---|---|---|
+| D72 | Every figure in `docs/BENCHMARK.md` is generated from a saved run output (`docs/benchmark_runs/`) and cites its run id. Anything without a run says "pending, not measured". | Fabricated attack-success figures were found and removed. |
+| D73 | Benchmark expected labels and detectors are not tuned to the benchmark output. The high false-positive rate is explained case by case instead (mostly test data whose plain and HTML parts differ). | Tuning to our own test set would inflate the numbers. |
+
+## Phase 5: WhatsApp checks
+
+### Design choices
+
+| # | Decision | Why |
+|---|---|---|
+| D74 | Twilio is the default provider (the WhatsApp sandbox needs no business verification). `shield/providers/whatsapp.py` has a provider interface with Twilio and Meta Cloud API classes. Meta signature checks and parsing work; Meta sending and media download are not implemented, so Meta replies are DRY RUN. | Spec 5A: Twilio sandbox by default, generic interface for Meta. |
+| D75 | Twilio signatures follow Twilio's own validator: names sorted, a repeated name's values sorted and de-duplicated, and the URL tried as given, without its port and with the default port. The URL is `PUBLIC_BASE_URL` + path, because behind a tunnel the local URL differs. Constant-time compare, 403 before anything else is read. Tests use Twilio's published vectors. There is no bypass setting. | A webhook must never be processed unsigned. |
+| D76 | The webhook answers at once with empty TwiML and checks the message in the background. The reply is a separate REST call to the sender of that message only. Without send credentials, the reply is written to the audit log as DRY RUN and nothing is sent. | Providers time out slow webhooks; delivery is never faked. |
+| D77 | Privacy: only `sha256(WHATSAPP_HASH_SALT + ":" + number)` is stored (`whatsapp_checks`, `whatsapp_opt_outs`, audit actor `whatsapp:<first 12 hex>`). The analysis row (`emails`, `source=whatsapp`) keeps a verdict with the message text and every excerpt of it removed (`strip_message_text`). The app's log sink runs with `diagnose=False`, so tracebacks never print variables. | Spec 5C: number and message bodies never in logs or the database. |
+| D78 | Exception to D77, flagged for the team: claims extracted from a WhatsApp message are fact-checked by the existing six-agent pipeline, which needs a `claims` row. These rows are PII-redacted, private (never in the public registry) and hold one claim sentence, not the message. | The spec asks for both a claim fact-check and no stored bodies; this is the narrowest way to do both. |
+| D79 | Replies are built only from fixed templates (`shield/config/whatsapp_templates.yml`, en/hi/te) and FactFlow's own findings, never from model output or the message. "Limited check" marks any reply where the AI part did not run. Hindi and Telugu texts need native-speaker review. | A hostile message cannot write FactFlow's reply; the quota fallback is the normal path. |
+| D80 | Helplines (`shield/config/helplines.yml`: 1930 and cybercrime.gov.in) are shown for scam-like results and are marked HUMAN MUST VERIFY until a person confirms them against the source and fills in `verified_by` / `verified_on`. | Spec 5B. |
+| D81 | Abuse controls: STOP/START (also UNSUBSCRIBE/UNSTOP) are handled before the rate limit, so opting out always works. 10 checks per sender per sliding hour (the existing `RateLimiter`, now with a `window`); over the limit nothing is sent (no amplification). Text up to 4096 characters, media up to 5 MB (one item), webhook body up to 64 KB. A retried webhook (same message id) is answered once. | Spec 5C. |
+| D82 | Images: the existing screenshot reader (Gemma when configured, otherwise Tesseract) plus the QR decoder. When Tesseract lacks `hin`/`tel` data and the image looks Hindi or Telugu, or no text was read, the reply says so. Voice notes get "not supported yet". | Spec 5B. |
+| D83 | The report link is `FRONTEND_URL/inbox/<id>?view_token=...`, included only when `FRONTEND_URL` is https. The page itself is built by the frontend team. | No localhost links in messages to people. |

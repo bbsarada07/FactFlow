@@ -1,0 +1,17 @@
+{
+  "SmsMessageSid": "SM00000000000000000000000000000001",
+  "NumMedia": "0",
+  "ProfileName": "Test Person",
+  "MessageType": "text",
+  "SmsSid": "SM00000000000000000000000000000001",
+  "WaId": "919999900001",
+  "SmsStatus": "received",
+  "Body": "URGENT: your KYC is pending. Your SBI account will be blocked today. Update KYC now at http://sbi-kyc-update.example/verify and share the OTP.",
+  "To": "whatsapp:+14155238886",
+  "NumSegments": "1",
+  "ReferralNumMedia": "0",
+  "MessageSid": "SM00000000000000000000000000000001",
+  "AccountSid": "AC00000000000000000000000000000000",
+  "From": "whatsapp:+919999900001",
+  "ApiVersion": "2010-04-01"
+}

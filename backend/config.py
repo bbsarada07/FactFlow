@@ -125,6 +125,18 @@ class Settings(BaseSettings):
     # Sandbox assistant demo (must default to False, required for vulnerable mode)
     ALLOW_VULNERABLE_DEMO: bool = False
 
+    # WhatsApp checks (docs/WHATSAPP_SETUP.md). Missing values keep the webhook closed (503); the app still starts.
+    WHATSAPP_PROVIDER: Literal["twilio", "meta"] = "twilio"
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""  # also the key that signs Twilio's webhook requests
+    TWILIO_WHATSAPP_FROM: str = ""  # e.g. +14155238886 (the Twilio sandbox number)
+    META_APP_SECRET: str = ""  # only for WHATSAPP_PROVIDER=meta (X-Hub-Signature-256)
+    PUBLIC_BASE_URL: str = ""  # the public https origin the provider calls, e.g. https://abc.example
+    WHATSAPP_HASH_SALT: str = ""  # salts the SHA-256 of sender numbers; at least 16 characters
+    WHATSAPP_MAX_PER_HOUR: int = 10  # checks per sender
+    WHATSAPP_MAX_TEXT_CHARS: int = 4096
+    WHATSAPP_MAX_MEDIA_BYTES: int = 5 * 1024 * 1024
+
 
 @lru_cache
 def get_settings() -> Settings:

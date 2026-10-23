@@ -192,7 +192,8 @@ or `failed` with the reason in `preview`. A finished analysis is replayed when y
 ### GET /api/inbox (operator)
 
 Query: `limit` (1-100, default 30), `offset`, `label` (`SAFE | SUSPICIOUS | DANGEROUS`), `source`
-(`paste | upload | demo | gmail`).
+(`paste | upload | demo | gmail | whatsapp | sandbox | benchmark`). For `whatsapp` rows the stored verdict has the
+message text and every excerpt of it removed, and `subject` / `from_addr` are empty.
 
 ```json
 {"total": 42, "items": [{"email_id": "...", "created_at": "...", "source": "gmail", "status": "complete", "mode": "full",
@@ -652,3 +653,44 @@ Fetch a specific benchmark run by ID.
 
 - **Headers:** `X-Operator-Token`
 - **Response:** Full benchmark run object.
+
+
+## WhatsApp (Phase 5)
+
+Setup: docs/WHATSAPP_SETUP.md. There are no operator routes; checks appear in `GET /api/inbox?source=whatsapp`.
+
+### POST /api/whatsapp/webhook (called by Twilio or Meta, not by the UI)
+
+- **Twilio** (default): `application/x-www-form-urlencoded` webhook fields, header `X-Twilio-Signature`. The signature
+  is checked over `PUBLIC_BASE_URL` + `/api/whatsapp/webhook` (+ query) and all form fields.
+- **Meta** (`WHATSAPP_PROVIDER=meta`): JSON body, header `X-Hub-Signature-256` (`sha256=` + HMAC-SHA256 of the raw
+  body with `META_APP_SECRET`).
+- Responses:
+  - `200` Twilio: empty TwiML `<Response></Response>` (the reply is sent separately through the REST API).
+    Meta: `{"received": <number of messages>}`.
+  - `403` missing or invalid signature (nothing is processed).
+  - `413` body over 64 KB.
+  - `503` WhatsApp is not configured (missing `TWILIO_AUTH_TOKEN` / `PUBLIC_BASE_URL` / `META_APP_SECRET`, or
+    `WHATSAPP_HASH_SALT` shorter than 16 characters). The log names the missing settings.
+- After a `200`, the message is checked in the background and one reply goes to the sender (at most 900
+  characters). Without `TWILIO_ACCOUNT_SID` / `TWILIO_WHATSAPP_FROM` (and always for Meta), the reply is recorded in
+  the audit log as `whatsapp_reply` with `delivery: "dry_run"` and is not sent.
+
+### Audit events (actor `whatsapp:<first 12 hex of the salted number hash>`)
+
+| event_type | payload |
+|---|---|
+| `whatsapp_received` | `message_id`, `chars`, `media` (content type or null) |
+| `whatsapp_reply` | `delivery` (`sent` / `dry_run` / `failed`), `chars`, `language`; `reply` and `note` for a dry run; `provider_message_id` when sent |
+| `whatsapp_opt_out` / `whatsapp_opt_in` | (empty) |
+| `whatsapp_ignored` | `reason` (opted out) |
+| `whatsapp_rate_limited` | `limit_per_hour` |
+
+The analysis itself uses the normal inbox audit events (`email_received`, `scan_summary`, `policy_decision`,
+`verdict`) with `source: "whatsapp"`.
+
+### Stored row: `whatsapp_checks`
+
+`id`, `created_at`, `sender` (`whatsapp:<hash prefix>`), `input_type` (`text | image | voice | unsupported |
+too_large | command`), `language` (`en | hi | te`), `label`, `score`, `llm_state`, `email_id` (the `emails` row with
+`source=whatsapp`), `reply_chars`, `delivery`. No phone number and no message text.

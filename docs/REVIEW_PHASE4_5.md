@@ -3,7 +3,8 @@
 Running log of the review of the Phase 4/5 work built by another agent. Updated after each step so the
 review can be resumed. Baseline (user override): `e6df05d` (chore: tidy gitignore). Commit under review: `427136e`.
 
-Status: **Review fixes committed (fc2620c, 960ef7e, 84064ed, ca8deeb and the docs commit that adds this line); push to origin/shield-integration is next. Phase 5 not started.** The RED FLAG was reported; the user approved the correction on 2026-10-23
+Status: **Review done and pushed** (`fc2620c`, `960ef7e`, `84064ed`, `ca8deeb`, `0f2cf52` on origin/shield-integration,
+2026-10-23). **Phase 5 built** in its own commit (see the Phase 5 section at the end). The RED FLAG was reported; the user approved the correction on 2026-10-23
 and added review items 1-7 (provenance of every number, false-positive investigation, demo recording, duplicate
 scripts, editor config, commit-message note, then Phase 5 as a separate commit).
 
@@ -189,3 +190,44 @@ Each version was run twice with identical counts (`577704ad` = `5bf450da`, `3137
   operator-only and not rate-limited. Left in place because a teammate's UI may already use it.
 - The attack-success measurement (`measure_attacks.py`) and LLM-mode benchmark: pending, not measured (needs quota).
 - Unused imports in `shield/benchmark.py` and the scripts were left alone (no style churn).
+
+## Step 5: push of the review fixes
+
+Staged by name. Secret scan of `427136e..HEAD`: 0 hits, no sensitive paths. `git fetch`: origin had not moved
+(0 behind / 5 ahead), so it was a plain fast-forward push with no pull needed. `git push -u origin shield-integration`:
+`427136e..0f2cf52`. `git log origin/shield-integration` shows the 5 commits on top of `427136e`.
+
+## Phase 5 (WhatsApp), built after the review (user item 7)
+
+Separate commit. Spec items:
+
+| Item | Status | Where |
+|---|---|---|
+| 5A Twilio provider (default), generic interface, Meta Cloud API | MET for Twilio; Meta PARTLY (signature and parsing; sending, media download and the GET handshake not implemented, so replies are DRY RUN) | `shield/providers/whatsapp.py` |
+| 5A `POST /api/whatsapp/webhook`, Twilio signature over PUBLIC_BASE_URL + sorted params, Meta X-Hub-Signature-256, constant time, 403 before processing | MET; Twilio's published vectors (basic, repeated params, port) pass; no bypass flag exists | `api/whatsapp.py`, `tests/shield/test_shield_whatsapp.py` |
+| 5A `.env.example` names only | MET (plus `WHATSAPP_PROVIDER`, `META_APP_SECRET`, `WHATSAPP_MAX_PER_HOUR`) | `backend/.env.example` |
+| 5A missing settings: webhook refuses with one clear log line, app starts | MET (503; names only) | test |
+| 5A replies through the REST API; DRY RUN audit entry without credentials; reply only to the sender | MET | `services/whatsapp_service.py` |
+| 5B reuses inbox_pipeline, verdict schema, audit (actor `whatsapp:<hash prefix>`) | MET | |
+| 5B text: triage, claim fact-check, Shield checks, PII redaction before model calls | MET (the quarantined reader and the claim checks redact) | |
+| 5B image: OCR + QR; Hindi/Telugu without OCR data says so | MET | |
+| 5B voice notes "not supported yet" | MET | |
+| 5B en/hi/te detection | MET (by script) | |
+| 5B reply of 900 characters or less: label, 2-3 reasons, next steps, report link | MET (report link only for an https FRONTEND_URL; the page is the frontend team's) | |
+| 5B helpline marked HUMAN MUST VERIFY with a source | MET | `shield/config/helplines.yml` |
+| 5B quota fallback: localized templates, "limited check", hi/te marked for native-speaker review | MET; replies always come from templates | `shield/config/whatsapp_templates.yml` |
+| 5C 10 per sender per hour (existing RateLimiter), text and media size limits | MET (`RateLimiter` gained an optional `window`; the default of 60 s is unchanged) | |
+| 5C `whatsapp_checks` with the salted hash + result; number and bodies never in logs or DB | MET with one documented exception: claim sentences (PII-redacted, private) are stored by the fact-check pipeline (DECISIONS D78). Test dumps every table and the logs. | |
+| 5C consent notice on the first message; STOP/START via an opt-out table | MET | |
+| 5C inbox filter `source=whatsapp` | MET (existing filter; test) | |
+| 5D API_CONTRACT and WHATSAPP_SETUP | MET | `docs/` |
+
+Changes to earlier code, with the reason for each:
+- `api/verify.RateLimiter` gained `window`; the default keeps the old behaviour.
+- `agents/inbox_pipeline.InboxOptions.store_message_text` defaults to True, so the old behaviour is unchanged.
+- `main.py` log sink now uses `diagnose=False`. This is a privacy hardening: tracebacks no longer print local
+  variable values. No automated test covers it, because the sink is configured at import.
+
+Tests: +43 (`tests/test_whatsapp.py` 24, `tests/shield/test_shield_whatsapp.py` 19). They pass on SQLite and on
+PostgreSQL. Live Twilio has not been tried: everything runs on recorded-format fixtures and a fake Twilio API.
+Manual steps are in docs/WHATSAPP_SETUP.md.

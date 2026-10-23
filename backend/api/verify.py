@@ -61,26 +61,29 @@ class VerifyResponse(BaseModel):
 
 
 class RateLimiter:
-    """In-memory sliding-window limiter: at most `per_minute` hits per key in any 60 seconds."""
+    """In-memory sliding-window limiter: at most `per_minute` hits per key in any 60 seconds
+    (or in any `window` seconds when given, e.g. 3600 for a per-hour limit)."""
 
-    def __init__(self, per_minute: int, clock=time.monotonic, noun: str = "verifications") -> None:
+    def __init__(self, per_minute: int, clock=time.monotonic, noun: str = "verifications", window: float = 60) -> None:
         self.per_minute = per_minute
         self.clock = clock
         self.noun = noun
+        self.window = window
         self.hits: dict[str, deque] = defaultdict(deque)
 
     def _window(self, key: str) -> deque:
         now = self.clock()
         q = self.hits[key]
-        while q and now - q[0] >= 60:
+        while q and now - q[0] >= self.window:
             q.popleft()
         return q
 
     def _too_many(self, q: deque) -> HTTPException:
-        retry = int(60 - (self.clock() - q[0])) + 1
+        retry = int(self.window - (self.clock() - q[0])) + 1
+        period = {60: "minute", 3600: "hour"}.get(self.window, f"{self.window:g} seconds")
         return HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Rate limit: {self.per_minute} {self.noun} per minute. Try again in {retry}s.",
+            detail=f"Rate limit: {self.per_minute} {self.noun} per {period}. Try again in {retry}s.",
             headers={"Retry-After": str(retry)},
         )
 

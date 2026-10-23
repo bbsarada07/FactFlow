@@ -546,3 +546,38 @@ class BenchmarkRun(Base):
             "summary": self.summary or {},
             "error": self.error,
         }
+
+
+class WhatsAppCheck(Base):
+    """One WhatsApp message FactFlow checked (api/whatsapp.py). Privacy by design: only a salted SHA-256
+    of the sender's number and the result are stored, never the number or the message text."""
+
+    __tablename__ = "whatsapp_checks"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    sender_hash: Mapped[str] = mapped_column(String(64), index=True)
+    message_id: Mapped[str | None] = mapped_column(String(64), unique=True)  # provider id, for retried webhooks
+    input_type: Mapped[str] = mapped_column(String(16))  # text | image | voice | unsupported | too_large | command
+    language: Mapped[str] = mapped_column(String(8), default="en")
+    label: Mapped[str | None] = mapped_column(String(16))
+    score: Mapped[int | None] = mapped_column(Integer)
+    llm_state: Mapped[str | None] = mapped_column(String(24))
+    email_id: Mapped[str | None] = mapped_column(String(32), index=True)  # the analysis (emails row, source=whatsapp)
+    reply_chars: Mapped[int] = mapped_column(Integer, default=0)
+    delivery: Mapped[str] = mapped_column(String(16), default="none")  # sent | dry_run | failed | none
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "created_at": iso(self.created_at), "sender": f"whatsapp:{self.sender_hash[:12]}",
+                "input_type": self.input_type, "language": self.language, "label": self.label, "score": self.score,
+                "llm_state": self.llm_state, "email_id": self.email_id, "reply_chars": self.reply_chars,
+                "delivery": self.delivery}
+
+
+class WhatsAppOptOut(Base):
+    """Senders who sent STOP (salted hash only). START removes the row."""
+
+    __tablename__ = "whatsapp_opt_outs"
+
+    sender_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
