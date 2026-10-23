@@ -1,0 +1,21 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "000000000000000",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": {"display_phone_number": "15550000000", "phone_number_id": "000000000000001"},
+        "contacts": [{"profile": {"name": "Test Person"}, "wa_id": "919999900002"}],
+        "messages": [{
+          "from": "919999900002",
+          "id": "wamid.TEST0000000000000000000000000001",
+          "timestamp": "1792800000",
+          "type": "text",
+          "text": {"body": "Congratulations! You won a lottery of Rs 25 lakh. Pay a processing fee of Rs 5,000 to claim your prize today."}
+        }]
+      }
+    }]
+  }]
+}

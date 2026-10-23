@@ -1,0 +1,19 @@
+{
+  "SmsMessageSid": "MM00000000000000000000000000000003",
+  "NumMedia": "1",
+  "ProfileName": "Test Person",
+  "MessageType": "audio",
+  "SmsSid": "MM00000000000000000000000000000003",
+  "WaId": "919999900001",
+  "SmsStatus": "received",
+  "Body": "",
+  "To": "whatsapp:+14155238886",
+  "NumSegments": "1",
+  "ReferralNumMedia": "0",
+  "MessageSid": "MM00000000000000000000000000000003",
+  "AccountSid": "AC00000000000000000000000000000000",
+  "From": "whatsapp:+919999900001",
+  "MediaContentType0": "audio/ogg",
+  "MediaUrl0": "https://api.twilio.com/2010-04-01/Accounts/AC00000000000000000000000000000000/Messages/MM00000000000000000000000000000003/Media/ME00000000000000000000000000000003",
+  "ApiVersion": "2010-04-01"
+}

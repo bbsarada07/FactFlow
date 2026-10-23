@@ -18,10 +18,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Setup paths
-SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parent if SCRIPT_DIR.name == "scripts" else SCRIPT_DIR
-BACKEND_DIR = REPO_ROOT / "backend"
+BACKEND_DIR = Path(__file__).resolve().parents[1]  # this file lives in backend/scripts/
 sys.path.insert(0, str(BACKEND_DIR))
 
 from config import settings

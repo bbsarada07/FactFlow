@@ -18,9 +18,8 @@ import os
 from email.message import EmailMessage
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent
-REPO_ROOT = BASE_DIR.parent if BASE_DIR.name == "scripts" else BASE_DIR
-BENCH_DIR = REPO_ROOT / "backend" / "data" / "benchmark"
+BACKEND_DIR = Path(__file__).resolve().parents[1]  # this file lives in backend/scripts/
+BENCH_DIR = BACKEND_DIR / "data" / "benchmark"
 MANIFEST_PATH = BENCH_DIR / "manifest.csv"
 
 DATE_TMPL = "Thu, 22 Oct 2026 12:{minute:02d}:00 +0530"
@@ -1052,7 +1051,8 @@ def main() -> None:
                 f.write(eml_bytes)
             new_created += 1
 
-        all_manifest.append({
+        # Never overwrite a teammate's manifest row either (they may have corrected a label)
+        all_manifest.append(existing_manifest_rows.get(fname) or {
             "file": fname,
             "category": c["category"],
             "expected_label": c["expected_label"],

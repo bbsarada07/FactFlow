@@ -1,0 +1,12 @@
+# Helplines shown in WhatsApp replies for scam and impersonation verdicts (shield/whatsapp_reply.py).
+#
+# HUMAN MUST VERIFY: these values were written from general knowledge while building Phase 5, not checked by a
+# person against the official source on a known date. Before any public launch, open the source, confirm both
+# values, then fill in verified_by and verified_on (and record it in docs/DECISIONS.md).
+human_must_verify: true
+verified_by: null
+verified_on: null
+india:
+  cyber_fraud_helpline: "1930"
+  cyber_crime_portal: "cybercrime.gov.in"
+  source: "https://cybercrime.gov.in (National Cyber Crime Reporting Portal, Ministry of Home Affairs)"

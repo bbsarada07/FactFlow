@@ -33,6 +33,7 @@ from shield import phishing, quarantine, scoring
 from shield.email_parser import EmailInputError, parse_input
 from shield.scan import RulesScan, finalize, rules_scan
 from shield.schemas import SEVERITY_RANK, ClaimItem, LLMStatus, LLMUsage, ReaderNotes, UnifiedVerdict
+from shield.whatsapp_reply import strip_message_text
 
 STAGES = [
     {"index": 0, "name": "INTAKE & TRIAGE", "tier": "RULES", "role": "Reads the message structure"},
@@ -52,6 +53,9 @@ class InboxOptions:
     language: str = "auto"
     use_llm: bool = True
     llm_disabled_by_server: bool = False  # full mode was asked for but INBOX_USE_LLM is off
+    # False (WhatsApp): the stored and streamed verdict has the message text and excerpts removed;
+    # the full verdict is only returned to the caller, in memory.
+    store_message_text: bool = True
 
 
 async def _q_llm(system: str, user: str, max_tokens: int) -> dict:
@@ -329,8 +333,9 @@ async def analyze(email_id: str, raw: bytes, opts: InboxOptions) -> UnifiedVerdi
         stages["audit"] = round((time.perf_counter() - t) * 1000, 1)
         verdict.latency_ms.per_stage = stages
         verdict.latency_ms.total = int((time.perf_counter() - t0) * 1000)
-        await _store(email_id, verdict, run)
-        await run.emit({"type": "result", "progress": 100, "result": verdict.model_dump(mode="json")})
+        kept = verdict if opts.store_message_text else strip_message_text(verdict)
+        await _store(email_id, kept, run)
+        await run.emit({"type": "result", "progress": 100, "result": kept.model_dump(mode="json")})
         return verdict
     except Exception as exc:  # noqa: BLE001
         logger.exception(f"[{email_id}] inbox pipeline crashed")

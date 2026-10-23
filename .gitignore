@@ -11,13 +11,16 @@ __pycache__/
 
 # Databases
 *.db
-*.sqlite
-*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite*
 
 # Secrets and environment
 .env
 .env.*
 !.env.example
+!.env.local.example
 *.pem
 *.key
 
@@ -26,6 +29,11 @@ node_modules/
 .next/
 out/
 dist/
+
+# Editor and per-machine settings
+.vscode/
+.idea/
+pyrightconfig.json
 
 # OS / logs
 .DS_Store

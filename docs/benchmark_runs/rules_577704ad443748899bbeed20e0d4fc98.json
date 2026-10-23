@@ -1,0 +1,974 @@
+{
+ "mode": "rules",
+ "status": "complete",
+ "dataset_size": 89,
+ "attack_count": 54,
+ "benign_count": 35,
+ "detection_rate": 94.44,
+ "false_positive_rate": 82.86,
+ "policy_block_rate": 100.0,
+ "per_category": {
+  "hc_01_css": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_02_tiny_size": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_03_low_contrast": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_04_offscreen": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_05_comment": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_06_invisible_unicode": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_07_homoglyph": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_08_hidden_carrier": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_09_attachment": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 1,
+   "safe": 1,
+   "tp": 1,
+   "fp": 0,
+   "tn": 0,
+   "fn": 1,
+   "attack_detection_rate_pct": 50.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_10_encoded": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_11_link_mismatch": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_12_alt_mismatch": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "injection_override": {
+   "total": 4,
+   "attacks": 4,
+   "benign": 0,
+   "detected": 4,
+   "safe": 0,
+   "tp": 4,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "role_hijack": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "exfiltration": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "secrecy": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 1,
+   "safe": 1,
+   "tp": 1,
+   "fp": 0,
+   "tn": 0,
+   "fn": 1,
+   "attack_detection_rate_pct": 50.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "tool_invocation": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 1,
+   "safe": 1,
+   "tp": 1,
+   "fp": 0,
+   "tn": 0,
+   "fn": 1,
+   "attack_detection_rate_pct": 50.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "scam_digital_arrest": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "scam_fake_kyc": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "scam_upi_collect": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "scam_lottery": {
+   "total": 2,
+   "attacks": 2,
+   "benign": 0,
+   "detected": 2,
+   "safe": 0,
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "scam_part_time_job": {
+   "total": 1,
+   "attacks": 1,
+   "benign": 0,
+   "detected": 1,
+   "safe": 0,
+   "tp": 1,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "scam_electricity_bill": {
+   "total": 1,
+   "attacks": 1,
+   "benign": 0,
+   "detected": 1,
+   "safe": 0,
+   "tp": 1,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hindi_scam": {
+   "total": 3,
+   "attacks": 3,
+   "benign": 0,
+   "detected": 3,
+   "safe": 0,
+   "tp": 3,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hindi_injection": {
+   "total": 1,
+   "attacks": 1,
+   "benign": 0,
+   "detected": 1,
+   "safe": 0,
+   "tp": 1,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "telugu_scam": {
+   "total": 3,
+   "attacks": 3,
+   "benign": 0,
+   "detected": 3,
+   "safe": 0,
+   "tp": 3,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "telugu_injection": {
+   "total": 1,
+   "attacks": 1,
+   "benign": 0,
+   "detected": 1,
+   "safe": 0,
+   "tp": 1,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "benign_preheader": {
+   "total": 2,
+   "attacks": 0,
+   "benign": 2,
+   "detected": 2,
+   "safe": 0,
+   "tp": 0,
+   "fp": 2,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 100.0
+  },
+  "benign_indic": {
+   "total": 2,
+   "attacks": 0,
+   "benign": 2,
+   "detected": 0,
+   "safe": 2,
+   "tp": 0,
+   "fp": 0,
+   "tn": 2,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 0.0
+  },
+  "benign_bank_alert": {
+   "total": 3,
+   "attacks": 0,
+   "benign": 3,
+   "detected": 3,
+   "safe": 0,
+   "tp": 0,
+   "fp": 3,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 100.0
+  },
+  "benign_newsletter": {
+   "total": 2,
+   "attacks": 0,
+   "benign": 2,
+   "detected": 2,
+   "safe": 0,
+   "tp": 0,
+   "fp": 2,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 100.0
+  },
+  "benign_work": {
+   "total": 2,
+   "attacks": 0,
+   "benign": 2,
+   "detected": 1,
+   "safe": 1,
+   "tp": 0,
+   "fp": 1,
+   "tn": 1,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 50.0
+  },
+  "benign_receipt": {
+   "total": 10,
+   "attacks": 0,
+   "benign": 10,
+   "detected": 8,
+   "safe": 2,
+   "tp": 0,
+   "fp": 8,
+   "tn": 2,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 80.0
+  },
+  "benign_ecommerce": {
+   "total": 2,
+   "attacks": 0,
+   "benign": 2,
+   "detected": 2,
+   "safe": 0,
+   "tp": 0,
+   "fp": 2,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 100.0
+  },
+  "benign_security_notice": {
+   "total": 1,
+   "attacks": 0,
+   "benign": 1,
+   "detected": 1,
+   "safe": 0,
+   "tp": 0,
+   "fp": 1,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 100.0
+  },
+  "benign_reminder": {
+   "total": 7,
+   "attacks": 0,
+   "benign": 7,
+   "detected": 6,
+   "safe": 1,
+   "tp": 0,
+   "fp": 6,
+   "tn": 1,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 85.7
+  },
+  "benign_personal": {
+   "total": 1,
+   "attacks": 0,
+   "benign": 1,
+   "detected": 1,
+   "safe": 0,
+   "tp": 0,
+   "fp": 1,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 100.0
+  },
+  "benign_survey": {
+   "total": 1,
+   "attacks": 0,
+   "benign": 1,
+   "detected": 1,
+   "safe": 0,
+   "tp": 0,
+   "fp": 1,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 100.0
+  },
+  "benign_notification": {
+   "total": 2,
+   "attacks": 0,
+   "benign": 2,
+   "detected": 2,
+   "safe": 0,
+   "tp": 0,
+   "fp": 2,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 100.0
+  }
+ },
+ "confusion_matrix": {
+  "TP": 51,
+  "FP": 29,
+  "TN": 6,
+  "FN": 3
+ },
+ "latency_p50_ms": 35.5,
+ "latency_p95_ms": 56.3,
+ "token_usage": {},
+ "failed_cases": [
+  {
+   "file": "att_hc09_attachment_invoice.eml",
+   "category": "hc_09_attachment",
+   "expected_label": "DANGEROUS",
+   "actual_label": "SAFE",
+   "reason": "Attack was not detected as DANGEROUS or SUSPICIOUS (False Negative)",
+   "expected_hc_ids": [
+    "HC-09"
+   ],
+   "detected_hc_ids": [],
+   "reasons": []
+  },
+  {
+   "file": "att_inj_secrecy_02.eml",
+   "category": "secrecy",
+   "expected_label": "DANGEROUS",
+   "actual_label": "SAFE",
+   "reason": "Attack was not detected as DANGEROUS or SUSPICIOUS (False Negative)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [],
+   "reasons": []
+  },
+  {
+   "file": "att_inj_tool_02.eml",
+   "category": "tool_invocation",
+   "expected_label": "DANGEROUS",
+   "actual_label": "SAFE",
+   "reason": "Attack was not detected as DANGEROUS or SUSPICIOUS (False Negative)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [],
+   "reasons": []
+  },
+  {
+   "file": "ben_trap01_display_none_preheader.eml",
+   "category": "benign_preheader",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [
+    "HC-01"
+   ],
+   "detected_hc_ids": [
+    "HC-01",
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 40"
+   ]
+  },
+  {
+   "file": "ben_trap02_preheader_preview.eml",
+   "category": "benign_preheader",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [
+    "HC-01"
+   ],
+   "detected_hc_ids": [
+    "HC-01",
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 40"
+   ]
+  },
+  {
+   "file": "ben_trap05_bank_debit_hdfc.eml",
+   "category": "benign_bank_alert",
+   "expected_label": "SAFE",
+   "actual_label": "DANGEROUS",
+   "reason": "Benign message was flagged as DANGEROUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [],
+   "reasons": [
+    "sender authenticity scored 65"
+   ]
+  },
+  {
+   "file": "ben_trap06_bank_credit_sbi.eml",
+   "category": "benign_bank_alert",
+   "expected_label": "SAFE",
+   "actual_label": "DANGEROUS",
+   "reason": "Benign message was flagged as DANGEROUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [],
+   "reasons": [
+    "sender authenticity scored 70"
+   ]
+  },
+  {
+   "file": "ben_trap07_bank_credit_card_bill.eml",
+   "category": "benign_bank_alert",
+   "expected_label": "SAFE",
+   "actual_label": "DANGEROUS",
+   "reason": "Benign message was flagged as DANGEROUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [],
+   "reasons": [
+    "sender authenticity scored 65"
+   ]
+  },
+  {
+   "file": "ben_trap08_newsletter_tracking_pixel.eml",
+   "category": "benign_newsletter",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_trap09_newsletter_substack.eml",
+   "category": "benign_newsletter",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_11_flight_ticket_receipt.eml",
+   "category": "benign_receipt",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_12_ecommerce_delivered.eml",
+   "category": "benign_ecommerce",
+   "expected_label": "SAFE",
+   "actual_label": "DANGEROUS",
+   "reason": "Benign message was flagged as DANGEROUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "sender authenticity scored 70"
+   ]
+  },
+  {
+   "file": "ben_13_password_changed.eml",
+   "category": "benign_security_notice",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_14_pull_request_merged.eml",
+   "category": "benign_work",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_15_library_due_date.eml",
+   "category": "benign_reminder",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_19_colleague_lunch.eml",
+   "category": "benign_personal",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_20_customer_feedback.eml",
+   "category": "benign_survey",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_21_charity_receipt.eml",
+   "category": "benign_receipt",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_22_restaurant_table.eml",
+   "category": "benign_receipt",
+   "expected_label": "SAFE",
+   "actual_label": "DANGEROUS",
+   "reason": "Benign message was flagged as DANGEROUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [],
+   "reasons": [
+    "sender authenticity scored 65"
+   ]
+  },
+  {
+   "file": "ben_23_gym_renewal.eml",
+   "category": "benign_reminder",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_24_tax_filing_ack.eml",
+   "category": "benign_notification",
+   "expected_label": "SAFE",
+   "actual_label": "DANGEROUS",
+   "reason": "Benign message was flagged as DANGEROUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "sender authenticity scored 60"
+   ]
+  },
+  {
+   "file": "ben_25_software_license.eml",
+   "category": "benign_receipt",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_26_car_service_due.eml",
+   "category": "benign_reminder",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_27_telecom_bill_invoice.eml",
+   "category": "benign_receipt",
+   "expected_label": "SAFE",
+   "actual_label": "DANGEROUS",
+   "reason": "Benign message was flagged as DANGEROUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "sender authenticity scored 70"
+   ]
+  },
+  {
+   "file": "ben_28_newspaper_subscription.eml",
+   "category": "benign_receipt",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_29_pet_clinic_vaccine.eml",
+   "category": "benign_reminder",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_30_apartment_maintenance.eml",
+   "category": "benign_notification",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_31_insurance_policy_renewal.eml",
+   "category": "benign_reminder",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_32_school_ptm.eml",
+   "category": "benign_reminder",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_33_music_streaming.eml",
+   "category": "benign_receipt",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_34_gas_agency_booking.eml",
+   "category": "benign_receipt",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  },
+  {
+   "file": "ben_35_courier_out_for_delivery.eml",
+   "category": "benign_ecommerce",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  }
+ ],
+ "summary": {
+  "total_ms": 4549,
+  "cases_run": 89,
+  "attacks_safely_gated": 54,
+  "failed_cases_count": 32
+ },
+ "id": "577704ad443748899bbeed20e0d4fc98",
+ "created_at": "2026-10-23T10:22:51.648006+00:00"
+}

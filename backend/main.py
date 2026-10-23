@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 from api import (
     accuracy, approvals, audit, benchmark, history, inbox, incidents, mail, policy, public_config, registry, result,
-    sandbox, stats, stream, verify,
+    sandbox, stats, stream, verify, whatsapp,
 )
 from config import settings
 from database import connection
@@ -23,7 +23,8 @@ from services import mail_agent
 from services.cache_service import redis_ping
 
 logger.remove()
-logger.add(sys.stderr, level="DEBUG" if settings.DEBUG else "INFO")
+# diagnose=False: tracebacks must not print local variables (message text, phone numbers)
+logger.add(sys.stderr, level="DEBUG" if settings.DEBUG else "INFO", diagnose=False)
 
 
 @asynccontextmanager
@@ -58,7 +59,7 @@ app.add_middleware(
 )
 
 for module in (verify, stream, result, history, incidents, stats, registry, public_config, accuracy,
-               inbox, approvals, audit, policy, mail, sandbox, benchmark):
+               inbox, approvals, audit, policy, mail, sandbox, benchmark, whatsapp):
     app.include_router(module.router)
 
 

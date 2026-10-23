@@ -35,6 +35,8 @@ from shield.schemas import UnifiedVerdict
 DEFAULT_BENCH_DIR = BASE_DIR / "data" / "benchmark"
 DEFAULT_MANIFEST = DEFAULT_BENCH_DIR / "manifest.csv"
 
+LLM_DEFAULT_SAMPLE = 10  # LLM mode spends quota, so it runs a sample unless a size is given
+
 CONSEQUENTIAL_ACTIONS = {
     "forward_email",
     "share_data",
@@ -62,6 +64,13 @@ def load_manifest(manifest_path: Path | None = None) -> list[dict]:
     return cases
 
 
+def _spread_sample(cases: list[dict], size: int) -> list[dict]:
+    """`size` cases spread evenly over the manifest (attacks come first, so the first N would be attacks only)."""
+    if size >= len(cases):
+        return cases
+    return [cases[(i * len(cases)) // size] for i in range(size)]
+
+
 def _percentile(values: list[float], p: float) -> float:
     if not values:
         return 0.0
@@ -87,11 +96,17 @@ async def run_benchmark(
     manifest_file = target_dir / "manifest.csv"
     cases = load_manifest(manifest_file)
 
+    if mode == "llm" and sample_size is None:
+        sample_size = LLM_DEFAULT_SAMPLE
     if sample_size is not None and sample_size > 0:
-        cases = cases[:sample_size]
+        cases = _spread_sample(cases, sample_size)
 
     use_llm = mode == "llm" and settings.INBOX_USE_LLM
+    requested_mode, mode = mode, ("llm" if use_llm else "rules")  # the mode that really ran
     meter = groq_client.track_usage() if use_llm else None
+    errors = 0
+    llm_states: dict[str, int] = {}
+    flagged_by_label = {"attack": {"SUSPICIOUS": 0, "DANGEROUS": 0}, "benign": {"SUSPICIOUS": 0, "DANGEROUS": 0}}
 
     t_start = time.perf_counter()
     latencies: list[float] = []
@@ -149,11 +164,27 @@ async def run_benchmark(
         latencies.append(round(elapsed_ms, 1))
 
         if verdict is None:
+            # Reported, never dropped: an analysis failure is neither a detection nor a miss.
+            errors += 1
+            failed_cases.append({
+                "file": c["file"],
+                "category": cat,
+                "expected_label": c["expected_label"],
+                "actual_label": None,
+                "reason": "The pipeline produced no verdict (analysis error); excluded from the rates",
+                "expected_hc_ids": c["expected_hc_ids"],
+                "detected_hc_ids": [],
+                "reasons": [],
+            })
             continue
 
         actual_label = verdict.overall.label.upper()
         detected_hc_ids = [f.id for f in verdict.components.hidden_content.findings]
         is_attack = c["expected_label"] in ("DANGEROUS", "SUSPICIOUS")
+        llm_state = verdict.llm_status.state
+        llm_states[llm_state] = llm_states.get(llm_state, 0) + 1
+        if actual_label in ("SUSPICIOUS", "DANGEROUS"):
+            flagged_by_label["attack" if is_attack else "benign"][actual_label] += 1
 
         # Evaluate policy level: plan steps and check whether any consequential action executes without approval
         planned_steps = rules.plan(verdict)
@@ -254,6 +285,7 @@ async def run_benchmark(
 
     result = {
         "mode": mode,
+        "requested_mode": requested_mode,
         "status": "complete",
         "dataset_size": len(cases),
         "attack_count": attack_cases_total,
@@ -272,6 +304,11 @@ async def run_benchmark(
             "cases_run": len(cases),
             "attacks_safely_gated": policy_safe_attacks,
             "failed_cases_count": len(failed_cases),
+            "errors": errors,
+            "requested_mode": requested_mode,
+            "llm_states": llm_states,
+            "attack_flagged_by_label": flagged_by_label["attack"],
+            "benign_flagged_by_label": flagged_by_label["benign"],
         },
     }
 

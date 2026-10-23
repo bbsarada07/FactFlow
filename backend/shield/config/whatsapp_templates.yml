@@ -1,0 +1,105 @@
+# Fixed WhatsApp reply texts (shield/whatsapp_reply.py). Replies are built only from these templates and
+# FactFlow's own findings, never from model output or the message itself, so they read the same whether or
+# not the AI part ran. "limited" marks a rules-only check.
+#
+# Review status: en written by the team. hi and te NEED NATIVE-SPEAKER REVIEW before launch (machine-drafted).
+review:
+  en: reviewed by the team
+  hi: needs native-speaker review
+  te: needs native-speaker review
+
+en:
+  label:
+    SAFE: "✅ Looks safe"
+    SUSPICIOUS: "⚠️ Suspicious"
+    DANGEROUS: "🚫 Dangerous"
+  limited: "(limited check: the AI part was unavailable, rules only)"
+  reasons:
+    hidden_content: "It contains hidden text that people cannot see but an AI can read."
+    injection: "It contains instructions aimed at AI assistants."
+    impersonation: "The sender seems to imitate a known brand or office."
+    scam: "It matches a known scam pattern: {names}."
+    links: "It has links that look risky."
+    false_claim: "A claim in it was checked and found false or misleading."
+    unverified_claim: "A claim in it could not be confirmed."
+    none_found: "The checks found no warning signs."
+  next:
+    SAFE: "Still, never share OTPs, PINs or passwords."
+    SUSPICIOUS: "Do not click links or pay. Check with the sender on a number you already know."
+    DANGEROUS: "Do not click, reply, pay or share any code. Block the sender."
+  helpline: "Lost money? Call {helpline} or report at {portal}."
+  report: "Full report: {url}"
+  consent: "FactFlow checks messages you send here. We keep only a coded (hashed) form of your number and the result, never your number or your message. Reply STOP to opt out."
+  stopped: "You will get no more replies from FactFlow. Send START to turn replies back on."
+  started: "Replies are on again. Send a message or screenshot to check it."
+  voice: "Voice notes are not supported yet. Please send the message as text or a screenshot."
+  unsupported: "This kind of file is not supported. Please send text or an image."
+  too_large: "This message is too large to check. Please send a shorter text or a smaller image."
+  no_text: "No text could be read from this image."
+  ocr_missing: "Hindi/Telugu text in images cannot be read on this server yet (OCR language data is missing), so this check may be incomplete."
+  empty: "Send a message or a screenshot to check it."
+  failed: "Sorry, this message could not be checked. Please try again later."
+
+hi:
+  label:
+    SAFE: "✅ सुरक्षित लगता है"
+    SUSPICIOUS: "⚠️ संदिग्ध"
+    DANGEROUS: "🚫 खतरनाक"
+  limited: "(सीमित जाँच: AI वाला हिस्सा उपलब्ध नहीं था, केवल नियमों से जाँच)"
+  reasons:
+    hidden_content: "इसमें छिपा हुआ टेक्स्ट है जो लोगों को नहीं दिखता, पर AI पढ़ सकता है।"
+    injection: "इसमें AI सहायकों के लिए निर्देश हैं।"
+    impersonation: "भेजने वाला किसी जाने-माने ब्रांड या दफ़्तर की नकल करता लगता है।"
+    scam: "यह धोखाधड़ी के एक जाने-पहचाने तरीके से मेल खाता है: {names}।"
+    links: "इसमें जोखिम भरे लिंक हैं।"
+    false_claim: "इसमें किया गया एक दावा जाँच में गलत या भ्रामक निकला।"
+    unverified_claim: "इसमें किए गए एक दावे की पुष्टि नहीं हो सकी।"
+    none_found: "जाँच में कोई चेतावनी संकेत नहीं मिला।"
+  next:
+    SAFE: "फिर भी, OTP, PIN या पासवर्ड कभी साझा न करें।"
+    SUSPICIOUS: "लिंक पर क्लिक न करें, भुगतान न करें। पहले से पता नंबर पर भेजने वाले से पुष्टि करें।"
+    DANGEROUS: "क्लिक, जवाब या भुगतान न करें, कोई कोड साझा न करें। भेजने वाले को ब्लॉक करें।"
+  helpline: "पैसे गए? {helpline} पर कॉल करें या {portal} पर शिकायत करें।"
+  report: "पूरी रिपोर्ट: {url}"
+  consent: "FactFlow यहाँ भेजे गए संदेशों की जाँच करता है। हम आपका नंबर या संदेश नहीं रखते, केवल नंबर का कोड (हैश) और नतीजा रखते हैं। बंद करने के लिए STOP भेजें।"
+  stopped: "अब FactFlow से कोई जवाब नहीं आएगा। जवाब फिर से चालू करने के लिए START भेजें।"
+  started: "जवाब फिर से चालू हैं। जाँच के लिए कोई संदेश या स्क्रीनशॉट भेजें।"
+  voice: "वॉइस नोट अभी समर्थित नहीं हैं। कृपया संदेश टेक्स्ट या स्क्रीनशॉट के रूप में भेजें।"
+  unsupported: "इस तरह की फ़ाइल समर्थित नहीं है। कृपया टेक्स्ट या तस्वीर भेजें।"
+  too_large: "यह संदेश जाँच के लिए बहुत बड़ा है। कृपया छोटा टेक्स्ट या छोटी तस्वीर भेजें।"
+  no_text: "इस तस्वीर से कोई टेक्स्ट पढ़ा नहीं जा सका।"
+  ocr_missing: "इस सर्वर पर अभी तस्वीरों में हिंदी/तेलुगु टेक्स्ट नहीं पढ़ा जा सकता (OCR भाषा डेटा नहीं है), इसलिए यह जाँच अधूरी हो सकती है।"
+  empty: "जाँच के लिए कोई संदेश या स्क्रीनशॉट भेजें।"
+  failed: "क्षमा करें, यह संदेश जाँचा नहीं जा सका। कृपया बाद में फिर कोशिश करें।"
+
+te:
+  label:
+    SAFE: "✅ సురక్షితంగా కనిపిస్తోంది"
+    SUSPICIOUS: "⚠️ అనుమానాస్పదం"
+    DANGEROUS: "🚫 ప్రమాదకరం"
+  limited: "(పరిమిత తనిఖీ: AI భాగం అందుబాటులో లేదు, నియమాలతో మాత్రమే తనిఖీ)"
+  reasons:
+    hidden_content: "ఇందులో ప్రజలకు కనిపించని, కానీ AI చదవగల దాచిన వచనం ఉంది."
+    injection: "ఇందులో AI సహాయకుల కోసం సూచనలు ఉన్నాయి."
+    impersonation: "పంపినవారు ప్రసిద్ధ బ్రాండ్ లేదా కార్యాలయాన్ని అనుకరిస్తున్నట్లు ఉంది."
+    scam: "ఇది తెలిసిన మోసం పద్ధతికి సరిపోతుంది: {names}."
+    links: "ఇందులో ప్రమాదకరంగా కనిపించే లింకులు ఉన్నాయి."
+    false_claim: "ఇందులోని ఒక వాదన తనిఖీలో తప్పు లేదా తప్పుదారి పట్టించేదిగా తేలింది."
+    unverified_claim: "ఇందులోని ఒక వాదనను నిర్ధారించలేకపోయాం."
+    none_found: "తనిఖీలో ఎలాంటి హెచ్చరిక సంకేతాలు కనిపించలేదు."
+  next:
+    SAFE: "అయినా, OTP, PIN లేదా పాస్‌వర్డ్‌లను ఎప్పుడూ పంచుకోవద్దు."
+    SUSPICIOUS: "లింకులపై క్లిక్ చేయవద్దు, చెల్లించవద్దు. మీకు ముందే తెలిసిన నంబర్‌లో పంపినవారితో నిర్ధారించుకోండి."
+    DANGEROUS: "క్లిక్ చేయవద్దు, జవాబివ్వవద్దు, చెల్లించవద్దు, ఏ కోడ్‌నూ పంచుకోవద్దు. పంపినవారిని బ్లాక్ చేయండి."
+  helpline: "డబ్బు పోయిందా? {helpline}కి కాల్ చేయండి లేదా {portal}లో ఫిర్యాదు చేయండి."
+  report: "పూర్తి నివేదిక: {url}"
+  consent: "FactFlow ఇక్కడికి పంపిన సందేశాలను తనిఖీ చేస్తుంది. మీ నంబర్‌ను, సందేశాన్ని మేము ఉంచుకోము; నంబర్ కోడ్ (హాష్), ఫలితం మాత్రమే ఉంచుతాం. ఆపడానికి STOP పంపండి."
+  stopped: "ఇకపై FactFlow నుండి జవాబులు రావు. మళ్లీ ప్రారంభించడానికి START పంపండి."
+  started: "జవాబులు మళ్లీ ప్రారంభమయ్యాయి. తనిఖీ కోసం సందేశం లేదా స్క్రీన్‌షాట్ పంపండి."
+  voice: "వాయిస్ నోట్‌లకు ఇంకా మద్దతు లేదు. దయచేసి సందేశాన్ని టెక్స్ట్ లేదా స్క్రీన్‌షాట్‌గా పంపండి."
+  unsupported: "ఈ రకమైన ఫైల్‌కు మద్దతు లేదు. దయచేసి టెక్స్ట్ లేదా చిత్రాన్ని పంపండి."
+  too_large: "ఈ సందేశం తనిఖీకి చాలా పెద్దది. దయచేసి చిన్న టెక్స్ట్ లేదా చిన్న చిత్రాన్ని పంపండి."
+  no_text: "ఈ చిత్రం నుండి ఏ వచనాన్నీ చదవలేకపోయాం."
+  ocr_missing: "ఈ సర్వర్‌లో ఇంకా చిత్రాల్లోని హిందీ/తెలుగు వచనాన్ని చదవలేము (OCR భాషా డేటా లేదు), కాబట్టి ఈ తనిఖీ అసంపూర్ణంగా ఉండవచ్చు."
+  empty: "తనిఖీ కోసం సందేశం లేదా స్క్రీన్‌షాట్ పంపండి."
+  failed: "క్షమించండి, ఈ సందేశాన్ని తనిఖీ చేయలేకపోయాం. దయచేసి తర్వాత మళ్లీ ప్రయత్నించండి."
