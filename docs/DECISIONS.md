@@ -149,7 +149,7 @@ The `emails`, `simulated_outbox` and `benchmark_runs` tables arrive with the fea
 | D67 | `GET /api/inbox/{id}` and its stream need the operator token or a view token. The view token is an HMAC of the email id under `SECRET_KEY`, never stored, and given only to whoever submitted the message. Messages from the mail agent have none. | "Protect everything that shows message content." |
 | D68 | `llm_status` reports `ok`, `not_used`, `disabled`, `llm_unavailable` or `quota_exhausted`. A daily-quota 429 trips a breaker until the provider's retry time, so later messages go straight to rules-only without waiting. In strict mode the policy reason states why steps paused. A malformed reader answer counts as `llm_unavailable`. | Visible degradation, never silent. |
 | D69 | The provider setting `auto` uses Gmail when connected and the demo inbox otherwise, but not when Gmail needs reconnecting: sync then answers 409 instead of quietly reading the demo inbox. | The user must see that Gmail needs attention. |
-| D70 | The provider choice, the OAuth states and the policy settings are kept in memory; a restart resets them. | Prototype; audit entries keep the history. |
+| D70 | The provider choice, the OAuth states and the policy settings are kept in memory; a restart resets them. **Partly superseded by D84** (policy mode and provider choice are now stored). | Prototype; audit entries keep the history. |
 | D71 | Database tests run on SQLite by default and on PostgreSQL when `FACTFLOW_TEST_DATABASE_URL` points to a disposable database (tables are dropped before each test). A `factflow_test` database was created on the local PostgreSQL 16 for this. | Both supported back-ends tested. |
 
 ### Dependencies
@@ -182,3 +182,10 @@ The review of commit `427136e` is logged in `docs/REVIEW_PHASE4_5.md`. Decisions
 | D81 | Abuse controls: STOP/START (also UNSUBSCRIBE/UNSTOP) are handled before the rate limit, so opting out always works. 10 checks per sender per sliding hour (the existing `RateLimiter`, now with a `window`); over the limit nothing is sent (no amplification). Text up to 4096 characters, media up to 5 MB (one item), webhook body up to 64 KB. A retried webhook (same message id) is answered once. | Spec 5C. |
 | D82 | Images: the existing screenshot reader (Gemma when configured, otherwise Tesseract) plus the QR decoder. When Tesseract lacks `hin`/`tel` data and the image looks Hindi or Telugu, or no text was read, the reply says so. Voice notes get "not supported yet". | Spec 5B. |
 | D83 | The report link is `FRONTEND_URL/inbox/<id>?view_token=...`, included only when `FRONTEND_URL` is https. The page itself is built by the frontend team. | No localhost links in messages to people. |
+
+## Final build (2026-10-23)
+
+| # | Decision | Why |
+|---|---|---|
+| D84 | The policy mode and the chosen mail provider are stored in a `runtime_settings` table (SQLite and PostgreSQL) and restored at startup, with a `settings_restored` audit entry. A missing or invalid stored mode starts in `strict`, and an invalid provider in `auto`. A change is audited, then saved, then applied in memory; if saving fails, the change is refused (503) and a `policy_change_not_saved` entry is written. Loosening still needs `confirm=true`. | Hosts restart services without warning. A restart must keep the operator's choice and must never loosen the policy. |
+| D85 | Still kept in memory: pending Gmail OAuth connections (single-use, 10 minutes; a restart cancels an unfinished connect), rate limiters, the benchmark run lock and the trusted-domain list (a restart empties it, which is tighter). | Short-lived state; losing it is safe. |

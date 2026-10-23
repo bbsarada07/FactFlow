@@ -581,3 +581,15 @@ class WhatsAppOptOut(Base):
 
     sender_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RuntimeSetting(Base):
+    """Operator settings that must survive a restart (services/runtime_settings.py): the policy mode and the
+    chosen mail provider. Pending OAuth connections stay in memory on purpose (short-lived)."""
+
+    __tablename__ = "runtime_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str | None] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    updated_by: Mapped[str | None] = mapped_column(String(128))

@@ -8,7 +8,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from services import shield_runtime
+from services import runtime_settings, shield_runtime
 from services.operator_auth import require_operator
 
 router = APIRouter(prefix="/api/policy", tags=["policy"])
@@ -47,6 +47,15 @@ async def _change(plan, actor: str) -> dict:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from None
         if change is not None:
             await shield_runtime.audit().append(f"human:{actor}", "policy_changed", change)
+            if change["field"] == "policy_mode":
+                # Saved before it is applied, so a restart never comes back looser than what is running.
+                try:
+                    await runtime_settings.save(runtime_settings.POLICY_MODE, new.mode, f"human:{actor}")
+                except Exception as exc:  # noqa: BLE001
+                    await shield_runtime.audit().append(f"human:{actor}", "policy_change_not_saved",
+                                                        {**change, "error": type(exc).__name__})
+                    raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                                        "The policy mode could not be saved, so it was not changed. Try again.") from None
             store.apply(new, before)
     return _view()
 

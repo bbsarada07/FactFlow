@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from api.verify import RateLimiter
 from config import settings
-from services import gmail_account, llm_status, mail_agent, shield_runtime
+from services import gmail_account, llm_status, mail_agent, runtime_settings, shield_runtime
 from services.operator_auth import require_operator
 from shield.email_parser import MAX_BYTES
 from shield.providers.base import ProviderAuthError, ProviderTemporaryError, RawMessageRef
@@ -65,7 +65,13 @@ async def mail_status(_actor: str = Depends(require_operator)):
 
 @router.put("/provider")
 async def set_provider(body: ProviderRequest, actor: str = Depends(require_operator)):
-    """Choose the inbox: 'gmail' (live), 'eml' (demo inbox) or 'auto' (Gmail when connected)."""
+    """Choose the inbox: 'gmail' (live), 'eml' (demo inbox) or 'auto' (Gmail when connected). The choice is saved
+    so it survives a restart."""
+    try:
+        await runtime_settings.save(runtime_settings.MAIL_PROVIDER, body.provider, f"human:{actor}")
+    except Exception:  # noqa: BLE001
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "The provider choice could not be saved, so it was not changed. Try again.") from None
     mail_agent.set_active(body.provider)
     await shield_runtime.audit().append(f"human:{actor}", "mail_provider_changed", {"provider": body.provider})
     return await mail_status(actor)

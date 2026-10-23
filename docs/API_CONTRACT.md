@@ -234,7 +234,8 @@ message text and every excerpt of it removed, and `subject` / `from_addr` are em
 `{"provider": "auto" | "gmail" | "eml"}`. With `auto`, the agent reads Gmail when it is connected
 and the demo inbox otherwise. If Gmail needs reconnecting, `auto` does **not** fall back
 silently: sync answers `409`. Use this for the "Live Gmail / Demo inbox" switch. Answers like
-`GET /api/mail/status`.
+`GET /api/mail/status`. The choice is saved in the database and survives a restart. If it cannot be saved, the
+answer is `503` and nothing changes.
 
 ### Gmail connect, callback, disconnect
 
@@ -418,8 +419,11 @@ log was changed: `ok: false`, `first_broken_seq: N`. Show "Chain intact" or "TAM
 - Loosening (switching to `balanced`, or adding a domain) needs `confirm: true`; without it the
   answer is `409` with the reason. Use that to show a confirmation dialog.
 - An invalid domain answers `422`.
-- Every change is in the audit log. Changes are kept in memory; a restart goes back to
-  `shield/config/policy.yml`.
+- Every change is in the audit log.
+- **The mode is saved in the database and survives a restart.** A missing or invalid stored value starts in
+  `strict`; a restart never loosens the policy. If the mode cannot be saved, the answer is `503` and the mode stays
+  as it was. Each start writes a `settings_restored` audit entry.
+- Trusted domains are still kept in memory, so a restart empties the list (tighter, never looser).
 
 ## The verdict object
 

@@ -19,7 +19,7 @@ from api import (
 from config import settings
 from database import connection
 from models.gemini_client import vision_available
-from services import mail_agent
+from services import mail_agent, runtime_settings
 from services.cache_service import redis_ping
 
 logger.remove()
@@ -30,6 +30,7 @@ logger.add(sys.stderr, level="DEBUG" if settings.DEBUG else "INFO", diagnose=Fal
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     dialect = await connection.init_db()
+    await runtime_settings.restore()  # policy mode and mail provider survive restarts
     if not settings.GROQ_API_KEY:
         logger.error("GROQ_API_KEY missing — verifications will fail until it is set in backend/.env")
     logger.info(f"FactFlow ready · db={dialect} · nano={settings.NANO_MODEL} · ultra={settings.ULTRA_MODEL}")

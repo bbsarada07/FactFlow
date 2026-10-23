@@ -47,4 +47,25 @@ every step. If a session ends, resume at **Next action**.
   - `/api/config` and `/health` list evidence sources without GDELT, although the source tracer uses it.
   - `README.md` (teammate-owned) still describes `CACHE_TTL_HOURS` and "missing from .env.example".
 
-**Next action:** Step 2 (persist policy mode and provider choice).
+Commit: `c362f74` (pushed).
+
+## Step 2: persist policy mode and provider choice (2026-10-23)
+
+- **New table and service:** a `runtime_settings` table (`database/models.py` `RuntimeSetting`), created by the existing
+  `create_all`, and `services/runtime_settings.py` to read, save and restore.
+- **At startup** (`main.py` lifespan), the stored mode and provider are restored. A missing or invalid mode becomes
+  `strict`, and a missing or invalid provider becomes `auto`. An audit entry `settings_restored` is written.
+- **`PUT /api/policy/mode`:** audit, then save, then apply. If the save fails, the answer is 503, the running mode is
+  unchanged, and an audit entry `policy_change_not_saved` is written. Loosening still needs `confirm=true` and is
+  audited.
+- **`PUT /api/mail/provider`:** save before apply; 503 if the save fails.
+- **Still in memory, on purpose** (documented in DECISIONS D84-D85): OAuth connect states, rate limiters, the
+  benchmark lock and trusted domains.
+- **Tests:** `tests/test_settings_persistence.py` (7 tests). It does real restarts: two app starts with lifespan on one
+  database, with memory wiped between them. Before the change, 5 failed (survive, 3 corrupted/missing-row cases,
+  failed save); the tightening and audit cases are regression guards that already passed.
+- **Test runs:** backend 728 passed on SQLite (721 + 7). On PostgreSQL `factflow_test`: the persistence, mail-agent
+  and inbox API tests, 63 passed. Frontend 3 passed; build OK.
+- **Docs:** API_CONTRACT (policy and provider sections), DECISIONS D84-D85 (D70 marked as partly superseded).
+
+**Next action:** commit and push Step 2; then Step 5 (check the quota). Step 3 is on hold (Step 0d gate).
