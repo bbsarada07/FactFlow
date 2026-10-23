@@ -517,17 +517,19 @@ Run simulated email assistant on an email with `shield=on` (protected by quarant
   {
     "raw": "optional raw RFC 822 or pasted text",
     "eml_base64": "optional base64-encoded .eml",
-    "email_id": "optional existing email id",
+    "email_id": "optional id of an analysed email to link the run to (only together with raw or eml_base64)",
     "shield": "on" | "off" | true | false,
     "mode": "full" | "rules"
   }
   ```
 - **Constraints & Behavior:**
+  - Send `raw` or `eml_base64`. Raw messages are not stored, so `email_id` alone is refused with 422; an unknown
+    `email_id` gives 404. Rate limit: 30 runs per minute per client (429 with `Retry-After`).
   - `shield=off` requires server env `ALLOW_VULNERABLE_DEMO=true`. Returns 403 Forbidden if disabled.
   - In `shield=off`, feeds raw email directly to the LLM with tool access to `simulated_outbox`. If LLM is unavailable, returns `"status": "unavailable", "detail": "unavailable, nothing executed"` and never a fake attack success.
   - In `shield=on`, runs through the real quarantine, policy and approval pipeline.
   - Every response is labelled `"simulated": true`.
-- **Response:**
+- **Response** (shape only; the values are placeholders, not measurements):
   ```json
   {
     "simulated": true,
@@ -548,7 +550,8 @@ Run simulated email assistant on an email with `shield=on` (protected by quarant
 
 - **Headers:** `X-Operator-Token`
 - **Query:** `limit=50`, `offset=0`
-- **Response:**
+- Rate limit, shared with the clear route: 60 requests per minute per client (429 with `Retry-After`).
+- **Response** (shape only; the values are placeholders):
   ```json
   {
     "simulated": true,
@@ -572,7 +575,7 @@ Run simulated email assistant on an email with `shield=on` (protected by quarant
 ### DELETE /api/sandbox/outbox (or POST /api/sandbox/outbox/clear)
 
 - **Headers:** `X-Operator-Token`
-- Clears all entries from `simulated_outbox` and appends an audit event.
+- Clears all entries from `simulated_outbox` and appends an audit event. Same rate limit as the list route.
 - **Response:** `{"simulated": true, "cleared": 2}`
 
 
@@ -580,7 +583,14 @@ Run simulated email assistant on an email with `shield=on` (protected by quarant
 
 ### POST /api/benchmark/run
 
-Run the real red-team benchmark over `backend/data/benchmark/` cases. Only one run can execute at a time.
+Run the real red-team benchmark over `backend/data/benchmark/` cases. Only one run can execute at a time (409 otherwise).
+
+- `mode` defaults to `rules` (no model calls). `llm` runs a 10-case sample spread over the manifest unless
+  `sample_size` is given; an explicit `sample_size` is also spread over the manifest (attacks and benign cases).
+- `mode` in the response is the mode that **really ran**: a request for `llm` while the server has
+  `INBOX_USE_LLM=false` comes back as `"mode": "rules"` with `"requested_mode": "llm"`.
+- A case for which the pipeline produced no verdict is listed in `failed_cases` (with `actual_label: null`), counted in
+  `summary.errors`, and excluded from the rates.
 
 - **Headers:** `X-Operator-Token`
 - **Request Body:**
@@ -590,24 +600,34 @@ Run the real red-team benchmark over `backend/data/benchmark/` cases. Only one r
     "sample_size": 20
   }
   ```
-- **Response:**
+- **Response.** The values below are from the rules-only run `31376138137544938f198afc1c9aaaed`, saved in
+  `docs/benchmark_runs/` (see docs/BENCHMARK.md). Latency is machine-dependent.
   ```json
   {
-    "id": "...",
+    "id": "31376138137544938f198afc1c9aaaed",
     "mode": "rules",
+    "requested_mode": "rules",
     "status": "complete",
     "dataset_size": 89,
     "attack_count": 54,
     "benign_count": 35,
     "detection_rate": 94.44,
-    "false_positive_rate": 82.86,
+    "false_positive_rate": 85.71,
     "policy_block_rate": 100.0,
     "per_category": { ... },
-    "confusion_matrix": { "TP": 51, "FP": 29, "TN": 6, "FN": 3 },
-    "latency_p50_ms": 19.9,
-    "latency_p95_ms": 25.0,
+    "confusion_matrix": { "TP": 51, "FP": 30, "TN": 5, "FN": 3 },
+    "latency_p50_ms": 34.3,
+    "latency_p95_ms": 43.5,
+    "token_usage": {},
     "failed_cases": [ ... ],
-    "summary": { ... }
+    "summary": {
+      "errors": 0,
+      "requested_mode": "rules",
+      "llm_states": { "not_used": 89 },
+      "attack_flagged_by_label": { "SUSPICIOUS": 2, "DANGEROUS": 49 },
+      "benign_flagged_by_label": { "SUSPICIOUS": 23, "DANGEROUS": 7 },
+      "...": "..."
+    }
   }
   ```
 
