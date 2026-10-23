@@ -539,7 +539,10 @@ def encoded_findings(text: str, location: str) -> list[HiddenFinding]:
 
 # ------------------------------------------------------------------- HC-12 alternative parts
 
-_TOKEN = re.compile(r"[^\W_]{2,}", re.UNICODE)
+# Combining marks (Unicode category M) are not \w, so without them Hindi and Telugu words split at every
+# vowel sign or virama ("धन्यवाद" became "धन" + "यव").
+_MARKS = "".join(re.escape(chr(c)) for c in range(0x300, 0x10000) if unicodedata.category(chr(c)).startswith("M"))
+_TOKEN = re.compile(rf"(?:[^\W_]|[{_MARKS}]){{2,}}", re.UNICODE)
 _URLISH = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 
 

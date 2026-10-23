@@ -318,6 +318,13 @@ def test_hc12_negative(plain):
     assert hc.alternative_mismatch(plain, HTML_TEXT) is None
 
 
+def test_hc12_tokens_keep_hindi_and_telugu_words_whole():
+    # Vowel signs and viramas are combining marks; they must not split a word.
+    assert hc._token_set("धन्यवाद आपका") == {"धन्यवाद", "आपका"}
+    assert hc._token_set("ధన్యవాదాలు మీకు") == {"ధన్యవాదాలు", "మీకు"}
+    assert hc._token_set("Thank you, Ravi") == {"thank", "you", "ravi"}
+
+
 # --------------------------------------------------------------------------------- misc
 
 def test_hidden_text_is_escaped_and_truncated():
