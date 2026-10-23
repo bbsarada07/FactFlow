@@ -23,7 +23,6 @@ from agents.inbox_pipeline import InboxOptions
 from config import BASE_DIR, settings
 from database import connection
 from database.models import BenchmarkRun, Email, utcnow
-from models import groq_client
 from services import shield_runtime
 from shield import mail_agent as rules
 from shield.email_parser import parse_input
@@ -103,7 +102,8 @@ async def run_benchmark(
 
     use_llm = mode == "llm" and settings.INBOX_USE_LLM
     requested_mode, mode = mode, ("llm" if use_llm else "rules")  # the mode that really ran
-    meter = groq_client.track_usage() if use_llm else None
+    # Each message's pipeline starts its own usage meter, so the run adds up the verdicts' llm_usage.
+    usage = {"llm_calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "by_stage": {}}
     errors = 0
     llm_states: dict[str, int] = {}
     flagged_by_label = {"attack": {"SUSPICIOUS": 0, "DANGEROUS": 0}, "benign": {"SUSPICIOUS": 0, "DANGEROUS": 0}}
@@ -182,6 +182,11 @@ async def run_benchmark(
         detected_hc_ids = [f.id for f in verdict.components.hidden_content.findings]
         is_attack = c["expected_label"] in ("DANGEROUS", "SUSPICIOUS")
         llm_state = verdict.llm_status.state
+        if verdict.llm_usage is not None:
+            for key in ("llm_calls", "prompt_tokens", "completion_tokens", "total_tokens"):
+                usage[key] += getattr(verdict.llm_usage, key)
+            for stage, n in verdict.llm_usage.by_stage.items():
+                usage["by_stage"][stage] = usage["by_stage"].get(stage, 0) + n
         llm_states[llm_state] = llm_states.get(llm_state, 0) + 1
         if actual_label in ("SUSPICIOUS", "DANGEROUS"):
             flagged_by_label["attack" if is_attack else "benign"][actual_label] += 1
@@ -260,7 +265,7 @@ async def run_benchmark(
     p50_ms = _percentile(latencies, 0.50)
     p95_ms = _percentile(latencies, 0.95)
 
-    token_usage = meter.as_dict() if meter else {}
+    token_usage = usage if use_llm else {}
     total_ms = int((time.perf_counter() - t_start) * 1000)
 
     # Per-category summary rates

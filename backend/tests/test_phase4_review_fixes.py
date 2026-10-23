@@ -87,3 +87,31 @@ def test_benchmark_reports_flagged_benign_cases_by_label(mail_env, tmp_path):
     bench = _bench_subset(tmp_path, {"ben_trap05_bank_debit_hdfc.eml", "ben_19_colleague_lunch.eml"})
     res = mail_env.client.portal.call(benchmark.run_benchmark, "rules", None, bench, False)
     assert res["summary"]["benign_flagged_by_label"] == {"SUSPICIOUS": 1, "DANGEROUS": 1}
+
+
+def test_benchmark_llm_mode_reports_the_tokens_it_used(mail_env, tmp_path, monkeypatch):
+    # The pipeline starts its own usage meter per message, so the run must add up the verdicts' llm_usage
+    # instead of reading a meter of its own (which stayed at 0). Real call_nano path, fake OpenAI client.
+    import json
+    from types import SimpleNamespace
+
+    from models import groq_client
+    from standins import reading_for
+
+    monkeypatch.setattr("agents.inbox_pipeline.call_nano", groq_client.call_nano)
+    monkeypatch.setattr("agents.explainer.call_nano", groq_client.call_nano)
+
+    class Completions:
+        async def create(self, **kw):
+            user = kw["messages"][1]["content"]
+            data = reading_for(user) if "VISIBLE TEXT" in user else {"explanation": "ok", "whatsapp_warning": "ok"}
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(data)),
+                                                            finish_reason="stop")],
+                                   usage=SimpleNamespace(prompt_tokens=100, completion_tokens=20, total_tokens=120))
+
+    monkeypatch.setattr(groq_client, "client", lambda: SimpleNamespace(chat=SimpleNamespace(completions=Completions())))
+    bench = _bench_subset(tmp_path, {"att_hc01_display_none.eml", "ben_10_meeting_reschedule.eml"})
+    res = mail_env.client.portal.call(benchmark.run_benchmark, "llm", None, bench, False)
+    assert res["mode"] == "llm" and res["summary"]["llm_states"] == {"ok": 2}
+    assert res["token_usage"]["llm_calls"] == 4  # reader + explainer for each of the 2 cases
+    assert res["token_usage"]["total_tokens"] == 480
