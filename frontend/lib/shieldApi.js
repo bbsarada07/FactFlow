@@ -8,7 +8,8 @@ import dangerousVerdict from "@/mocks/verdict.dangerous.json";
 
 import { API_URL } from "@/lib/config";
 
-export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
+// Mock data only when explicitly asked for; anything else (including unset) uses the real backend.
+export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
 const OPERATOR_TOKEN_STORAGE_KEY = "shield_operator_token";
 

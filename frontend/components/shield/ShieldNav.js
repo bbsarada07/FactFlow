@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { Mail, CheckSquare, BarChart3, ShieldCheck, KeyRound, Sparkles } from "lucide-react";
+import MockBanner from "@/components/shield/MockBanner";
 import OperatorTokenModal from "@/components/shield/OperatorTokenModal";
 import { hasOperatorToken, USE_MOCKS } from "@/lib/shieldApi";
 
@@ -23,6 +24,7 @@ export default function ShieldNav() {
 
   return (
     <>
+      <MockBanner />
       <div className="mb-6 border-b border-subtle pb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
