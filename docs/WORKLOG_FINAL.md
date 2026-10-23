@@ -98,5 +98,40 @@ Commit: `f057460` (pushed).
 - **Docs:** `docs/BENCHMARK.md` section 6 is generated from the outputs, and limitation 4 is updated.
 - **Tests:** backend 732 passed (728 + 4).
 
-**Next action:** commit and push the Step 5 docs; then Step 6 (non-frontend parts: demo script figures, final
-verification). Step 3 stays on hold.
+Commits: `54ed472` (fix), `4693281` (docs), both pushed.
+
+## Step 6: demo script and final verification (non-frontend parts only, 2026-10-23)
+
+- **`docs/DEMO_SCRIPT.md`:**
+  - The attack-success figures are now measured (step (c) uses only `04_white_on_white_injection`), and the Q&A is
+    updated.
+  - New checklist item: confirm `strict` mode before the demo, because the mode now survives restarts.
+  - All 5 `[UI PENDING]` markers stay: the Shield pages are not on this branch (Step 0d gate), so no UI step was
+    walked through. `[LIVE ACCOUNT PENDING]` markers stay.
+- **Final verification:**
+  - Backend: **732 passed** on SQLite (after the last code change).
+  - PostgreSQL `factflow_test`: **731 passed, 1 failed**. The failure is
+    `tests/shield/test_shield_audit.py::test_two_writers_on_one_database_do_not_fork_the_chain`. It is flaky: re-run
+    5 times, it passed 4 and failed 1. It is pre-existing: neither the test nor `shield/audit.py`,
+    `services/shield_store.py` or `database/connection.py` changed since `408e299`. Two writers with separate locks
+    can exhaust the bounded retries ("could not append to the audit log after repeated conflicts"). It only matters
+    across processes (Celery mode), because within one process all writers share one lock. Not skipped, not fixed;
+    reported.
+  - Frontend: 3 passed; build OK.
+  - Nothing that must stay untracked is tracked (`.env`, `_reference/`, `venv/`, `node_modules/`, `*.db`,
+    `backend/data/local/`).
+  - `README.md`, `backend/data/benchmark/`, `backend/data/demo_emails/` and `extension/` are unchanged since
+    `408e299`.
+  - Secret patterns in the tracked tree and in `408e299..HEAD`: none.
+- **Commit message:** `docs: demo script figures and final verification (UI steps on hold)`. The prompt's
+  `docs: demo script with real UI steps` would be untrue, since no UI steps were added.
+
+## Resume point
+
+**Step 3 (Shield frontend) is on hold by the Step 0d gate.** Decide first whether to bring
+`origin/teammate-b/shield-ui` into `shield-integration` (see `docs/REVIEW_TEAMMATE_B.md`). Then:
+1. Do Step 3 as gap-fill on Teammate B's pages.
+2. Do Step 4 (local end-to-end).
+3. Replace the `[UI PENDING]` steps in `docs/DEMO_SCRIPT.md` with real clicks.
+
+Everything else in the prompt is done or recorded as pending.

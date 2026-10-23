@@ -21,13 +21,15 @@ Written only against what exists on branch `shield-integration` at commit `734ab
 ## Pre-demo checklist (the hour before)
 
 - [ ] **Backend started without `--reload`**, from `backend/`: `venv\Scripts\python -m uvicorn main:app --port 8000`.
-      A reload wipes what is kept in memory: the policy mode, allowed domains, the active mail
-      provider and pending Gmail connections.
+      The policy mode and the chosen mail provider are stored and survive a restart. A reload still wipes what
+      is kept in memory: allowed domains, pending Gmail connections and rate limits.
 - [ ] **Secrets set in `backend/.env`:**
   - `OPERATOR_TOKEN`;
   - `APPROVAL_SECRET` (32+ characters);
   - `SECRET_KEY` (32+ characters).
   Check `GET /api/policy`: it should show `"approvals_enabled": true`.
+- [ ] **Policy mode is `strict`** (`GET /api/policy`). The mode survives restarts, so a rehearsal that switched to
+      balanced stays balanced. Switch back with `PUT /api/policy/mode` `{"mode": "strict"}`.
 - [ ] **For step (c):** `ALLOW_VULNERABLE_DEMO=true`. Turn it back to `false` after the demo.
 - [ ] **Demo inbox loaded:** `GET /api/inbox/demo` lists 14 items, `01_benign_newsletter` to `14_mixed_false_claim_and_injection`.
 - [ ] **Base64 of the two demo emails on hand** (PowerShell, from the repo root). Keep both in a text file:
@@ -104,8 +106,10 @@ involved: this was rules-only."
 - **Expected:** `simulated: true`, `shield: "off"`, `status: "complete"`.
   - If the model follows the hidden line: `executed: true`, and `outbox_entries` has a `forward` to
     `archive@mail-backup.example` with `approved_by: "none (shield=off, unmitigated execution)"`.
-  - **A real model does not follow the injection on every run**, so `executed: false` is possible. Say so if it
-    happens.
+  - **A real model does not follow the injection on every run.** Measured on 2026-10-23 with
+    `openai/gpt-oss-20b`: 4 of 5 runs on this email executed the forward. On the other 7 attack emails, 0 of 5 each
+    did (`docs/BENCHMARK.md` section 6). So `executed: false` is possible: say so if it happens, then use the
+    backup. Use only `04_white_on_white_injection` for this step.
 - Without the flag the answer is **403** "Vulnerable demo mode is disabled on this server" (rehearsed).
 - With no quota: `status: "unavailable"`, "unavailable, nothing executed". It never fakes a success.
 
@@ -210,7 +214,9 @@ These match the saved run `31376138` in `docs/benchmark_runs/`; the rehearsal on
 - "The false-positive rate is high: 30 of 35 benign cases flagged. We checked every one. Most are test emails we
   wrote badly, with different text in the plain and HTML parts, and that is exactly what that detector exists to
   catch. These are our own cases, not an independent evaluation."
-- "Attack-success rates with a real model are not measured yet."
+- "With Shield off, a real model followed the hidden instruction in 4 of 5 runs on the white-on-white email, and
+  in none of 5 runs on each of the other 7 attack emails. That is a small sample: 5 runs per email. With Shield on,
+  nothing got through in any of the 40 runs."
 
 **Backup:** show `docs/BENCHMARK.md` sections 1 and 5.
 
@@ -230,7 +236,7 @@ These match the saved run `31376138` in `docs/benchmark_runs/`; the rehearsal on
 | How was detection measured? | 89 benchmark cases written by the team (54 attacks, 35 benign), run through the real pipeline in rules-only mode. Results are saved in `docs/benchmark_runs/` and identical on repeat runs. Not an independent evaluation. |
 | Why is the false-positive rate so high? | 26 of the 30 come from our own benign test emails, whose plain-text and HTML parts say different things, which HC-12 is built to flag. 4 show a bank or brand name on a placeholder domain. Every case is listed in `docs/BENCHMARK.md` section 5. The test data should be fixed. We did not change labels or loosen detectors to improve the number. |
 | What is simulated? | Every outgoing action: forwards, shares, links and calendar items only reach a simulated outbox. The only real outgoing message is the WhatsApp reply to the sender, and that has not been run against a live Twilio account. |
-| What is not live-tested? | Gmail (fixtures only), WhatsApp (fake Twilio API only), full LLM mode of Shield (stand-in models only), the attack-success rates and LLM-mode benchmark (pending quota). |
+| What is not live-tested? | Gmail (fixtures only) and WhatsApp (fake Twilio API only). Measured with the real model only in small samples: Shield-off attack success, 5 runs per email; an LLM-mode benchmark of 4 cases. Not measured: Shield on with the LLM, and a larger LLM-mode benchmark. |
 | What do you store about people? | For WhatsApp: a salted hash of the number and the result, never the number or the message. Claim sentences are stored, PII-redacted and private. Analysed emails keep their verdict, including the email's text, for the operator. |
 | Can a malicious email make FactFlow act? | Instructions found in a message become blocked steps (rule P1). The planner and policy are code, not a model. The one model call that reads the message has no tools. |
 | What if the model quota runs out? | Shield answers rules-only and marks it ("limited check" on WhatsApp, `llm_status` in the API). The Truth pipeline needs the model. |
