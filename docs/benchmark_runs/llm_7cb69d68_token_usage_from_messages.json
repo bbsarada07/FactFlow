@@ -1,0 +1,78 @@
+{
+ "run_id": "7cb69d68b13443888735910c0af2a519",
+ "note": "Token use of the LLM-mode benchmark sample, read from the per-message records (emails.tokens and each verdict llm_usage) in the throwaway database of that run. The run output itself reports token_usage 0 because of a bug (the pipeline starts its own usage meter per message), fixed on 2026-10-23 in the same final-build session; this file is the measured usage.",
+ "messages": [
+  {
+   "email_id": "2f5c910e63ea4c19a5f65b622e0f800e",
+   "label": "DANGEROUS",
+   "total_tokens": 1797,
+   "latency_ms": 1384,
+   "llm_usage": {
+    "llm_calls": 2,
+    "prompt_tokens": 1392,
+    "completion_tokens": 405,
+    "total_tokens": 1797,
+    "by_stage": {
+     "quarantined_reader": 1118,
+     "explainer": 679
+    },
+    "claims_from_registry": 0
+   }
+  },
+  {
+   "email_id": "dc1e1f87e0624469bf271033262e5b5b",
+   "label": "DANGEROUS",
+   "total_tokens": 5475,
+   "latency_ms": 29460,
+   "llm_usage": {
+    "llm_calls": 5,
+    "prompt_tokens": 4201,
+    "completion_tokens": 1274,
+    "total_tokens": 5475,
+    "by_stage": {
+     "quarantined_reader": 1204,
+     "fact_check": 3606,
+     "explainer": 665
+    },
+    "claims_from_registry": 0
+   }
+  },
+  {
+   "email_id": "276018b47c0243438a3d0c6147f35e7a",
+   "label": "DANGEROUS",
+   "total_tokens": 7754,
+   "latency_ms": 47193,
+   "llm_usage": {
+    "llm_calls": 6,
+    "prompt_tokens": 5652,
+    "completion_tokens": 2102,
+    "total_tokens": 7754,
+    "by_stage": {
+     "quarantined_reader": 1166,
+     "fact_check": 5935,
+     "explainer": 653
+    },
+    "claims_from_registry": 0
+   }
+  },
+  {
+   "email_id": "4b95f63aa5bb4a15b4432c3d34274ded",
+   "label": "SUSPICIOUS",
+   "total_tokens": 5802,
+   "latency_ms": 41681,
+   "llm_usage": {
+    "llm_calls": 5,
+    "prompt_tokens": 4655,
+    "completion_tokens": 1147,
+    "total_tokens": 5802,
+    "by_stage": {
+     "quarantined_reader": 1017,
+     "fact_check": 4150,
+     "explainer": 635
+    },
+    "claims_from_registry": 0
+   }
+  }
+ ],
+ "total_tokens": 20828
+}
