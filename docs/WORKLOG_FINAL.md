@@ -23,3 +23,28 @@ every step. If a session ends, resume at **Next action**.
   - Per the prompt, do Steps 1, 2, 5 and the non-frontend parts of 6, then **stop before Step 3** and report.
 
 **Next action:** Step 1 (backend cleanup).
+
+## Step 1: backend cleanup (2026-10-23)
+
+- **`DATABASE_URL`:** re-verified as not read. The earlier claim was correct; the Postgres connection comes from
+  `ASYNC_DATABASE_URL`. `.env.example` keeps `DATABASE_URL` with a comment. `CACHE_TTL_HOURS` is removed (no code
+  reads it). The stale Redis comment ("verdict cache") is corrected.
+- **Language bug fixed:** `explanation.user_language` is `"en"` unless the explainer really wrote the text
+  (`agents/inbox_pipeline.py`). Tests: `tests/test_inbox_language.py` (rules-only, quota exhausted, and the explainer
+  keeping `hi`); the first two failed before the fix.
+- **Env examples:**
+  - `backend/.env.example` adds `GEMINI_API_KEY` and `TESSERACT_CMD`, and lists the other optional settings as
+    comments (an empty assignment would override their defaults).
+  - `frontend/.env.local.example` adds `NEXT_PUBLIC_SITE_URL` and `API_URL`.
+  - Test: `tests/test_env_example.py` (3 tests; all failed on the old files).
+- **API_CONTRACT:** every served route is now documented (mail outbox clear, sandbox/benchmark/WhatsApp rows,
+  claim and public routes from real responses). The verdict schema notes `policy` can be null, and says what
+  `user_language` means now. Test: `tests/test_api_contract_complete.py` (failed on the old contract).
+- **AUDIT.md:** snapshot note at the top.
+- **Tests:** backend 721 passed on SQLite (714 + 7 new); `tests/test_inbox_language.py` and `tests/test_inbox_api.py`
+  passed on PostgreSQL `factflow_test`. Frontend 3 passed; build OK.
+- **Bugs found, not fixed:**
+  - `/api/config` and `/health` list evidence sources without GDELT, although the source tracer uses it.
+  - `README.md` (teammate-owned) still describes `CACHE_TTL_HOURS` and "missing from .env.example".
+
+**Next action:** Step 2 (persist policy mode and provider choice).

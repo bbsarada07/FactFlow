@@ -297,7 +297,9 @@ async def analyze(email_id: str, raw: bytes, opts: InboxOptions) -> UnifiedVerdi
                             ms=stages["score_policy"])
 
         user_code = opts.language if opts.language != "auto" else (reading.language if reading else "en")
-        verdict.explanation.user_language = user_code
+        # user_language names the language of explanation.text: it stays "en" (the English rules summary from
+        # finalize) unless the explainer below really writes the text in user_code.
+        verdict.explanation.user_language = "en"
         if opts.use_llm and llm_status.breaker.remaining() > 0:
             await run.set_agent(6, "skipped", "Daily model quota used up: English summary")
         elif opts.use_llm:
@@ -311,6 +313,7 @@ async def analyze(email_id: str, raw: bytes, opts: InboxOptions) -> UnifiedVerdi
                                       LANGUAGE_NAMES.get(user_code, user_code)),
                         timeout=settings.INBOX_LLM_TIMEOUT_SECONDS)
                 verdict.explanation.text, verdict.explanation.whatsapp_warning = text, warning
+                verdict.explanation.user_language = user_code
                 stages["explainer"] = round((time.perf_counter() - t) * 1000, 1)
                 await run.set_agent(6, "complete", "Explanation and WhatsApp warning ready", model=settings.NANO_MODEL,
                                     ms=stages["explainer"])

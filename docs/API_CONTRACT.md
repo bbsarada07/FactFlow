@@ -10,7 +10,8 @@ instead of hand-written mocks:
 | `task_done.json` | A mail-agent task on a DANGEROUS email: protective steps ran, the attempted forward was blocked |
 | `task_awaiting_approval.json` | A task on a SUSPICIOUS email waiting for an approval (strict mode) |
 
-The existing claim routes (`/api/verify`, `/api/stream/{id}`, `/api/result/{id}` ...) are unchanged.
+The claim (Truth) routes and the other public routes are listed at the end, in "Claim pipeline and public
+routes". Every route the backend serves (`GET /openapi.json`) is documented in this file.
 Base URL in development: `http://localhost:8000`. All bodies are JSON (UTF-8).
 
 > **Render everything as text.** Subjects, senders, `visible_text`, `raw_text`, `diff`, hidden
@@ -75,6 +76,7 @@ Over the limit they answer `429` with a `Retry-After` header.
 | `GET /api/mail/tasks/{task_id}` | **operator** | One task with all steps and transitions |
 | `POST /api/mail/tasks/{task_id}/steps` | **operator** | Ask the agent to do something with a message |
 | `GET /api/mail/outbox` | **operator** | The simulated outbox |
+| `DELETE /api/mail/outbox`, `POST /api/mail/outbox/clear` | **operator** | Empty the simulated outbox |
 | `GET /api/approvals` | **operator** | Approval requests (pending ones include their token) |
 | `POST /api/approvals/{id}/decision` | **operator** | Approve once, or deny; resumes the task |
 | `GET /api/audit` | **operator** | Audit log, paginated, optionally for one email |
@@ -82,6 +84,10 @@ Over the limit they answer `429` with a `Retry-After` header.
 | `GET /api/policy` | public | Current policy mode and trusted domains |
 | `PUT /api/policy/mode` | **operator** | Switch strict / balanced |
 | `PUT /api/policy/allowed-domains` | **operator** | Replace the trusted recipient domains |
+| `POST /api/sandbox/run`, `GET`/`DELETE /api/sandbox/outbox`, `POST /api/sandbox/outbox/clear` | **operator** | Sandbox assistant (section below) |
+| `POST /api/benchmark/run`, `GET /api/benchmark/runs`, `/latest`, `/runs/{run_id}` | **operator** | Red-team benchmark (section below) |
+| `POST /api/whatsapp/webhook` | provider signature | WhatsApp checks (section below) |
+| claim routes, `/api/registry`, `/api/v/{slug}`, `/api/config`, `/health` ... | public | See "Claim pipeline and public routes" |
 
 ### POST /api/inbox/analyze
 
@@ -341,6 +347,12 @@ The user asks the agent to do something with a message, for example forward it.
 Nothing in FactFlow sends real mail, opens links or changes the mailbox. This table is the only
 effect of an approved outgoing step.
 
+### DELETE /api/mail/outbox (or POST /api/mail/outbox/clear)
+
+**Operator.** Empties the simulated outbox (the same table the sandbox uses) and writes an `outbox_cleared` audit
+entry. Answers `{"simulated": true, "cleared": <rows removed>}`. Not rate-limited (the sandbox route of the same
+name is).
+
 ## Approvals (operator)
 
 `GET /api/approvals?status=pending&limit=100`:
@@ -437,8 +449,9 @@ interface Verdict {
     claims: { score: number; items: ClaimItem[] };   // empty in rules mode
   };
   visible_vs_raw: { visible_text: string; raw_text: string; diff: { text: string; hc_id: string }[] };
-  proposed_actions: { action: Action; target: string | null; origin: "user" | "untrusted_content"; policy: PolicyDecision }[];
-  explanation: { en: string; user_language: string; text: string /* in user_language */; whatsapp_warning: string };
+  proposed_actions: { action: Action; target: string | null; origin: "user" | "untrusted_content"; policy: PolicyDecision | null }[];
+  explanation: { en: string /* English rules summary, always set */; user_language: string /* language of `text` */;
+                 text: string; whatsapp_warning: string /* empty unless the AI explainer ran */ };
   analysis_failures: string[];             // anything here raised the score; never hide it
   latency_ms: { total: number; per_stage: Record<string, number> /* ms, one decimal */ };
   audit_head_hash: string | null;
@@ -504,6 +517,10 @@ Notes for the UI:
   `origin: untrusted_content` are attempts the message made, and they are always `BLOCK`. Actual
   agent work is in the mail tasks.
 - `explanation.whatsapp_warning` is ready to copy. It never contains links (they are removed).
+- **Explanation language:** `explanation.user_language` names the language `explanation.text` is really in. In
+  rules-only mode, when the quota is used up, or when the explainer fails, `text` is the English rules summary and
+  `user_language` is `"en"`, even if another language was requested. Offer a language label or selector only for
+  `user_language`; do not assume the requested language was delivered.
 
 
 ## Sandbox Email Assistant (operator)
@@ -694,3 +711,24 @@ The analysis itself uses the normal inbox audit events (`email_received`, `scan_
 `id`, `created_at`, `sender` (`whatsapp:<hash prefix>`), `input_type` (`text | image | voice | unsupported |
 too_large | command`), `language` (`en | hi | te`), `label`, `score`, `llm_state`, `email_id` (the `emails` row with
 `source=whatsapp`), `reply_chars`, `delivery`. No phone number and no message text.
+
+
+## Claim pipeline and public routes
+
+These are the Truth (claim-checking) routes and other public routes. All are public; `POST /api/verify` is
+rate-limited per client (`MAX_REQUESTS_PER_MINUTE`).
+
+| Method and path | What it does |
+|---|---|
+| `POST /api/verify` | Queue a claim check. Body: one of `text` (up to `MAX_CLAIM_CHARS`), `url`, `image_base64` (PNG/JPG data URL) or `image_url`; plus `language` (default `auto`), `platform`, `visibility` (`public` / `private`). Answers `202` with `{request_id, slug, status, mode, cached, matched_slug, matched_at, match_score, registry_url, stream_url, result_url, message}`. `message` is set when a claim is withheld under the private-person / self-harm rule. A claim seen within `REPEAT_WINDOW_DAYS` is answered from the registry (`cached: true`). |
+| `GET /api/stream/{request_id}` | Server-Sent Events: `start`, `agent`, `result`, `error` |
+| `GET /api/result/{request_id}` | The full Truth Autopsy Report (`200`), or `202 {status}` while it runs; `404` for an unknown id |
+| `GET /api/status/{request_id}` | `{request_id, status, progress (0-100), verdict, error, agents}`; `404` for an unknown id |
+| `GET /api/history?limit=20&offset=0` | `{total, items}`: recent completed checks (claim summaries) |
+| `GET /api/registry?q=&limit=20` | Public verdicts. Empty `q` lists the latest; otherwise a fuzzy search, and each item has `match_score`. Answers `{query, items}` |
+| `GET /api/v/{slug}?track=true` | One public verdict record for its share page, with `urgency`, `processing_ms`, `processing_time_seconds` and `versions` (other checks of the same claim). It counts a view unless `track=false`. `404` if the slug is not public |
+| `GET /api/incidents` | `{items}`: the documented incidents, each with `latest_run` |
+| `GET /api/stats` | `{total_claims, live_claims, claims_today, false_or_misleading_pct, critical_threats, avg_seconds, ultra_rate_pct, verdict_breakdown, harm_categories}` |
+| `GET /api/accuracy` | The last complete 30-claim bench run: `{complete: true, run_at, models, counts, rows, known_failures}`, or `{complete: false, message}` when there is none (the case today) |
+| `GET /api/config` | `{provider, models: {nano, ultra}, vision, evidence_sources, frontend_url, max_claim_chars, repeat_window_days}`. `vision` is null without a Gemini key. Known gap: `evidence_sources` does not list GDELT even when it is used |
+| `GET /health` | `{status, build_commit, database, database_ok, redis, llm_configured, keys_configured, reasoning_provider, vision_provider, models, queue, evidence_sources}`. `keys_configured` holds true/false flags only, never key values |

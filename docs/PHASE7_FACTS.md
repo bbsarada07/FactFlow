@@ -33,6 +33,19 @@ The facts the README and DEMO_SCRIPT rely on, each with its source. Gathered on 
 
 ## Mismatches found (listed, not fixed: docs-only task)
 
+**Update, final build Step 1 (2026-10-23):**
+- Re-verified that the backend does not read `DATABASE_URL`: it is not a settings field, extra variables are ignored,
+  and with only `DATABASE_URL` set the effective `ASYNC_DATABASE_URL` stays SQLite. The Postgres connection comes
+  from `ASYNC_DATABASE_URL`. The claim below was correct.
+- Resolved in Step 1:
+  - #1 and #3: the example env files now name every variable, and a test checks it;
+  - #2: `CACHE_TTL_HOURS` was removed from `.env.example`, and a comment now explains `DATABASE_URL`;
+  - #4 and #5: API_CONTRACT now lists every route, and a test checks it;
+  - #6: the `user_language` bug is fixed, with tests;
+  - #8: AUDIT.md now has a snapshot note.
+- Open: #7, #9 and #10. `README.md` (owned by a teammate) still has the old `.env` table rows for `CACHE_TTL_HOURS`
+  and "missing from .env.example".
+
 | # | Mismatch | Where |
 |---|---|---|
 | 1 | `GEMINI_API_KEY`, `VISION_PROVIDER`, `TESSERACT_CMD`, `GEMMA_MODEL` and other settings exist in `config.py` but are missing from `backend/.env.example` | `backend/.env.example` vs `backend/config.py` |
