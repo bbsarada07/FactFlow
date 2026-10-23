@@ -1,0 +1,111 @@
+Per-case diagnosis of the 35 benign benchmark cases (rules-only scan, no database, no model), produced on 2026-10-23
+at commit 734abfd by a review script that calls shield.scan.rules_scan on each SAFE case in
+backend/data/benchmark/manifest.csv and prints: detector findings (id/severity: location | hidden text),
+sender-authenticity score and signals, and the word overlap (jaccard) between the text/plain and the visible
+text/html parts as computed by shield.hidden_content._token_set. HC-12 fires below 0.5. Cited by docs/BENCHMARK.md.
+
+ben_trap01_display_none_preheader.eml :: benign_preheader
+     HC-01/low: body > span | 'Top tech breakthroughs inside'
+     HC-12/medium: text/plain vs text/html | 'top technology breakthroughs software engineering insights.'
+     jaccard=0.13 plain_only=['breakthroughs', 'engineering', 'insights', 'software', 'technology', 'top'] html_only=['120', 'advances', 'browser', 'digest', 'edition', 'explore', 'full', 'issue', 'of', 'online', 'open', 'source', 'tech', 'the', 'to', 'today', 'tooling', 'we', 'weekly', 'welcome']
+ben_trap02_preheader_preview.eml :: benign_preheader
+     HC-01/low: body > div | 'Your October cloud charges summary'
+     HC-12/medium: text/plain vs text/html | 'for ready to view. Total:'
+     jaccard=0.27 plain_only=['for', 'ready', 'to', 'total', 'view'] html_only=['action', 'active', 'autopay', 'been', 'cloud', 'generated', 'has', 'hello', 'if', 'monthly', 'no', 'of', 'required', 'statement']
+ben_trap03_indic_hindi_zwnj.eml :: benign_indic
+     HC-12/medium: text/plain vs text/html | 'आगामी सोमवार को बंद क्या आप सोमवार की छुट्टी लिए तैयार हैं? मानव संसाधन विभाग।'
+     jaccard=0.39 plain_only=['आगामी', 'आप', 'की', 'को', 'क्या', 'छुट्टी', 'तैयार', 'बंद', 'मानव', 'लिए', 'विभाग', 'संसाधन', 'सोमवार', 'हैं'] html_only=['अवकाश', 'एचआर', 'टीम']
+ben_trap04_indic_telugu_zwj.eml :: benign_indic
+     jaccard=0.75 plain_only=['కార్యాలయానికి', 'ధన్యవాదములు', 'సోమవారం'] html_only=[]
+ben_trap05_bank_debit_hdfc.eml :: benign_bank_alert
+     AUTH 65: ["display name says 'HDFC Alerts' (HDFC Bank) but the mail is from alerts@hdfcbank.example"]
+     jaccard=0.61 plain_only=['7102', 'bal', 'by', 'call', 'care', 'done', 'ending', 'if', 'in', 'not', 'you'] html_only=['available', 'balance', 'xx7102']
+ben_trap06_bank_credit_sbi.eml :: benign_bank_alert
+     AUTH 70: ["display name says 'SBI Alerts' (State Bank of India) but the mail is from alerts@sbi.example"]
+     jaccard=0.65 plain_only=['2026', '22', '340', '92', 'available', 'bal', 'oct', 'on'] html_only=[]
+ben_trap07_bank_credit_card_bill.eml :: benign_bank_alert
+     AUTH 65: ["display name says 'ICICI Bank' (ICICI Bank) but the mail is from cards@icicibank.example"]
+     jaccard=0.56 plain_only=['amount', 'billing', 'customer', 'cycle', 'date', 'dear', 'generated', 'oct', 'payment'] html_only=['october', 'on', 'ready']
+ben_trap08_newsletter_tracking_pixel.eml :: benign_newsletter
+     HC-12/medium: text/plain vs text/html | 'Welcome to issue Check out latest PEP updates community tutorials.'
+     jaccard=0.19 plain_only=['check', 'community', 'issue', 'latest', 'out', 'pep', 'to', 'tutorials', 'updates', 'welcome'] html_only=['14', 'concurrency', 'exploring', 'in', 'models', 'new', 'on', 'optimizations', 'performance', 'read', 'web']
+ben_trap09_newsletter_substack.eml :: benign_newsletter
+     HC-12/medium: text/plain vs text/html | 'Today analysis covers corridors supply chain resilience in Southeast'
+     jaccard=0.13 plain_only=['analysis', 'chain', 'corridors', 'covers', 'in', 'resilience', 'southeast', 'supply', 'today'] html_only=['2026', 'across', 'analyzing', 'commodity', 'freight', 'global', 'indices', 'price', 'stabilization', 'trade', 'trends']
+ben_10_meeting_reschedule.eml :: benign_work
+     jaccard=1.00 plain_only=[] html_only=[]
+ben_11_flight_ticket_receipt.eml :: benign_receipt
+     HC-12/medium: text/plain vs text/html | 'Dear Passenger, your from Delhi to Bengaluru is Web check-in opens 48 hours before departu'
+     jaccard=0.34 plain_only=['48', 'before', 'bengaluru', 'check', 'dear', 'delhi', 'departure', 'from', 'hours', 'in', 'is', 'opens', 'passenger', 'to', 'web', 'your'] html_only=['blr', 'booking', 'del']
+ben_12_ecommerce_delivered.eml :: benign_ecommerce
+     HC-12/medium: text/plain vs text/html | 'package to reception at 11:24 AM.'
+     AUTH 70: ["display name says 'Amazon.in' (Amazon) but the mail is from shipment@amazon.example"]
+     jaccard=0.44 plain_only=['11', '24', 'am', 'at', 'package', 'reception', 'to'] html_only=['order', 'today']
+ben_13_password_changed.eml :: benign_security_notice
+     HC-12/medium: text/plain vs text/html | 'Hi there, on Thursday, October 22, 2026 at 10:14 UTC. can safely ignore email.'
+     jaccard=0.31 plain_only=['10', '14', '2026', '22', 'at', 'can', 'email', 'hi', 'ignore', 'october', 'on', 'safely', 'there', 'thursday', 'utc'] html_only=['action', 'is', 'needed', 'no', 'recently']
+ben_14_pull_request_merged.eml :: benign_work
+     HC-12/medium: text/plain vs text/html | "'feat: add telemetry dashboard' was reviewed and Build passed cleanly."
+     jaccard=0.29 plain_only=['add', 'and', 'build', 'cleanly', 'dashboard', 'feat', 'passed', 'reviewed', 'telemetry', 'was'] html_only=['into', 'main']
+ben_15_library_due_date.eml :: benign_reminder
+     HC-12/medium: text/plain vs text/html | "Dear patron, (4th Edition)' October may via catalog."
+     jaccard=0.48 plain_only=['4th', 'catalog', 'dear', 'edition', 'may', 'october', 'patron', 'via'] html_only=['can', 'following', 'item', 'oct']
+ben_16_hotel_booking.eml :: benign_receipt
+     jaccard=0.56 plain_only=['cancellation', 'confirmation', 'free', 'is', 'stay', 'until', 'your'] html_only=['reservation']
+ben_17_utility_bill_paid.eml :: benign_receipt
+     jaccard=0.55 plain_only=['90123', 'consumer', 'no', 'thank', 'towards', 'was', 'water', 'you', 'your'] html_only=['number']
+ben_18_doctor_appointment.eml :: benign_reminder
+     jaccard=0.58 plain_only=['checkup', 'clinic', 'dear', 'general', 'health', 'indiranagar', 'ravi'] html_only=['appointment']
+ben_19_colleague_lunch.eml :: benign_personal
+     HC-12/medium: text/plain vs text/html | 'We can grab dosa at the cafeteria.'
+     jaccard=0.47 plain_only=['at', 'cafeteria', 'can', 'dosa', 'grab', 'the', 'we'] html_only=['know', 'let', 'me']
+ben_20_customer_feedback.eml :: benign_survey
+     HC-12/medium: text/plain vs text/html | 'recently closed ticket #99102. take 30 seconds to satisfaction: to stars.'
+     jaccard=0.21 plain_only=['30', '99102', 'closed', 'recently', 'satisfaction', 'seconds', 'stars', 'take', 'ticket', 'to'] html_only=['experience', 'feedback', 'recent', 'support', 'value']
+ben_21_charity_receipt.eml :: benign_receipt
+     HC-12/medium: text/plain vs text/html | 'your generous donation of Rs 2,000. Your tax exemption certificate is attached.'
+     jaccard=0.33 plain_only=['000', 'attached', 'certificate', 'donation', 'exemption', 'generous', 'is', 'of', 'rs', 'tax', 'your'] html_only=['child', 'education', 'section', 'supporting', 'under']
+ben_22_restaurant_table.eml :: benign_receipt
+     AUTH 65: ["display name says 'Zomato Dining' (Zomato) but the mail is from dining@zomato.example"]
+     jaccard=0.50 plain_only=['5519', 'booking', 'id', 'is', 'mumbai', 'your', 'zom'] html_only=['on']
+ben_23_gym_renewal.eml :: benign_reminder
+     HC-12/medium: text/plain vs text/html | 'Hi Ravi, Cult Elite today lock current annual'
+     jaccard=0.43 plain_only=['annual', 'cult', 'current', 'elite', 'hi', 'lock', 'ravi', 'today'] html_only=['active', 'fitness', 'keep', 'online']
+ben_24_tax_filing_ack.eml :: benign_notification
+     HC-12/medium: text/plain vs text/html | 'Your Assessment Year has been using Aadhaar OTP. Ack No:'
+     AUTH 60: []
+     jaccard=0.35 plain_only=['aadhaar', 'ack', 'assessment', 'been', 'has', 'no', 'otp', 'using', 'year', 'your'] html_only=['acknowledgment', 'ay', 'number']
+ben_25_software_license.eml :: benign_receipt
+     HC-12/medium: text/plain vs text/html | 'for All Products Pack has been renewed for year. key available in Account.'
+     jaccard=0.17 plain_only=['account', 'all', 'available', 'been', 'for', 'has', 'in', 'key', 'pack', 'products', 'renewed', 'year'] html_only=['90182', 'active', 'annual', 'id', 'is', 'jb', 'renewal']
+ben_26_car_service_due.eml :: benign_reminder
+     HC-12/medium: text/plain vs text/html | 'Dear Ravi, your is due its 20,000 km scheduled this month. your slot at'
+     jaccard=0.24 plain_only=['000', '20', 'at', 'dear', 'due', 'is', 'its', 'km', 'month', 'ravi', 'scheduled', 'slot', 'this', 'your'] html_only=['01', '9921', 'call', 'ka', 'mj', 'online', 'or', 'reminder']
+ben_27_telecom_bill_invoice.eml :: benign_receipt
+     HC-12/medium: text/plain vs text/html | 'Dear Customer, amount for cycle ending on Pay easily via Thanks app.'
+     AUTH 70: ["display name says 'Airtel eBill' (Airtel) but the mail is from ebill@airtel.example"]
+     jaccard=0.38 plain_only=['18', 'amount', 'app', 'customer', 'cycle', 'dear', 'easily', 'ending', 'for', 'oct', 'on', 'pay', 'thanks', 'via'] html_only=['date', 'generated', 'postpaid', 'your']
+ben_28_newspaper_subscription.eml :: benign_receipt
+     HC-12/medium: text/plain vs text/html | 'Welcome! 1-year access to The Hindu e-paper archives has begun. Enjoy morning reading.'
+     jaccard=0.12 plain_only=['access', 'archives', 'begun', 'enjoy', 'has', 'hindu', 'morning', 'paper', 'reading', 'the', 'to', 'welcome', 'year'] html_only=['active', 'app', 'daily', 'editions', 'is', 'mobile', 'on', 'read', 'subscription', 'web']
+ben_29_pet_clinic_vaccine.eml :: benign_reminder
+     HC-12/medium: text/plain vs text/html | 'Hello, annual rabies and 9-in-1 Please bring his booklet along.'
+     jaccard=0.32 plain_only=['along', 'and', 'annual', 'booklet', 'bring', 'hello', 'his', 'in', 'please', 'rabies'] html_only=['an', 'appointment', 'book', 'online', 'reminder']
+ben_30_apartment_maintenance.eml :: benign_notification
+     HC-12/medium: text/plain vs text/html | 'Dear overhead will take place on between and Please store required in advance.'
+     jaccard=0.32 plain_only=['advance', 'and', 'between', 'dear', 'in', 'on', 'overhead', 'place', 'please', 'required', 'store', 'take', 'will'] html_only=['for', 'notice', 'scheduled', 'to']
+ben_31_insurance_policy_renewal.eml :: benign_reminder
+     HC-12/medium: text/plain vs text/html | 'Dear Policyholder, Family Optima plan of Rs 1,00,000 is preserved upon renewal.'
+     jaccard=0.36 plain_only=['00', '000', 'dear', 'family', 'is', 'of', 'optima', 'plan', 'policyholder', 'preserved', 'renewal', 'rs', 'upon'] html_only=['insurance', 'keep', 'policy', 'renew', 'to']
+ben_32_school_ptm.eml :: benign_reminder
+     HC-12/medium: text/plain vs text/html | 'Dear Parents, is scheduled for 24 October Roll number wise slots are in the school app.'
+     jaccard=0.37 plain_only=['24', 'app', 'are', 'dear', 'for', 'in', 'is', 'number', 'october', 'parents', 'roll', 'scheduled', 'school', 'slots', 'the', 'wise'] html_only=['on']
+ben_33_music_streaming.eml :: benign_receipt
+     HC-12/medium: text/plain vs text/html | 'Thanks for listening. We to card ending 4821 for Next billing date: 22 Nov 2026.'
+     jaccard=0.33 plain_only=['2026', '22', '4821', 'billing', 'card', 'date', 'ending', 'for', 'listening', 'next', 'nov', 'thanks', 'to', 'we'] html_only=['monthly', 'receipt']
+ben_34_gas_agency_booking.eml :: benign_receipt
+     HC-12/medium: text/plain vs text/html | 'Dear Consumer 48102, cylinder #90182 has been expected within business days. Subsidized'
+     jaccard=0.36 plain_only=['48102', '90182', 'been', 'business', 'consumer', 'cylinder', 'days', 'dear', 'expected', 'has', 'subsidized', 'within'] html_only=['cash', 'on']
+ben_35_courier_out_for_delivery.eml :: benign_ecommerce
+     HC-12/medium: text/plain vs text/html | 'Your from Bookstores Ltd with courier associate Ramesh. will be attempted'
+     jaccard=0.43 plain_only=['associate', 'attempted', 'be', 'bookstores', 'courier', 'from', 'ltd', 'ramesh', 'will', 'with', 'your'] html_only=['38192019']

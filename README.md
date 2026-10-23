@@ -1,296 +1,407 @@
 # FactFlow
 
-> In April 2020, two sadhus and their driver were lynched by a mob in Palghar, Maharashtra, after child-kidnapping
-> rumours spread in the area ([source](https://en.wikipedia.org/wiki/2020_Palghar_mob_lynching)).
-> **FactFlow checks a forward like that one against published sources, live, and says plainly when it cannot tell.**
+FactFlow checks the messages people in India are asked to believe or act on: WhatsApp forwards, emails and web
+pages. Its core rule is that **untrusted content is data, never a command**, and a human approves any risky action.
 
-FactFlow is a multi-agent misinformation forensics system for India. Paste a WhatsApp forward, tweet, headline, link
-or screenshot, and six AI agents trace the evidence, reason over it, and return a verdict you can understand, share and
-forward back into the chat. Each step streams live while it runs.
+It has two halves:
+
+- **Truth** fact-checks a claim against published sources and says plainly when it cannot tell.
+- **Shield** finds hidden text, prompt injection and scam patterns in emails and messages, and puts every action an
+  AI assistant might take behind a deterministic policy gate, human approvals and a tamper-evident audit log.
 
 ![Stack](https://img.shields.io/badge/backend-FastAPI-009688) ![Stack](https://img.shields.io/badge/frontend-Next.js%2014-black) ![Stack](https://img.shields.io/badge/inference-Groq-f55036) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
-## 1. What FactFlow does
+## 1. What FactFlow is
 
-- **Verifies any input:** pasted text, a URL (the article is fetched and read), or a PNG/JPG screenshot up to 5 MB
-  (Gemma 4 reads the text; Tesseract OCR is the fallback).
-- **Streams the investigation live:** each agent's progress arrives over Server-Sent Events, so users watch the evidence
-  being gathered instead of staring at a spinner.
-- **Produces a Truth Autopsy Report:** verdict (FALSE / TRUE / MISLEADING / UNVERIFIED / SATIRE), calibrated
-  confidence, reasoning chain, contradictions, tiered and credibility-scored sources, harm assessment, a downloadable
-  Myth-vs-Fact card, and a ready-to-send WhatsApp correction in the user's language (12 Indian languages).
-- **Tracks the landscape:** a live tracker with verdict and harm breakdowns, and an incident library of documented
-  real-world harm (Palghar, Muzaffarnagar, Dhule, Manipur and more) that can be re-run with one click.
-- **Meets people where rumours spread:** a Chrome extension (right-click, keyboard shortcut and inline buttons on
-  WhatsApp Web, X and Instagram) and an Android overlay prototype.
+- **Truth:** paste a claim, a link or a PNG/JPG screenshot. A six-agent pipeline finds sources, reasons over them
+  and returns a verdict. A code gate, not the model, turns weak verdicts into UNVERIFIED.
+- **Shield:** give it an email (`.eml` or pasted) or a WhatsApp message. Deterministic detectors compare what a
+  person sees with what an AI would read, and check the sender, links and scam patterns. A single quarantined model
+  call reads the text; it has no tools. A policy engine decides every action the mail agent could take. Anything
+  that sends data out needs a human approval, and even then it only reaches a **simulated outbox**.
 
-## 2. Who decides what
+## 2. The problem
 
-In plain words:
+- Forwarded rumours spread on WhatsApp. In April 2020, two sadhus and their driver were lynched in Palghar,
+  Maharashtra, after child-kidnapping rumours spread in the area
+  ([source](https://en.wikipedia.org/wiki/2020_Palghar_mob_lynching)).
+- Scam messages copy banks, KYC deadlines, UPI collect requests, lotteries and "digital arrest" calls by fake police
+  or CBI officers. FactFlow has rule sets for these (section 3).
+- AI email assistants add a new risk: an email can hide instructions that a person never sees but an assistant
+  reads and follows (for example white-on-white text that asks the assistant to forward the inbox).
 
-- **Groq (GPT-OSS models) makes every verdict.** Claim reading, source checking, reasoning, the explanation and the
-  harm rating all run on Groq (`REASONING_PROVIDER=groq`, the only allowed value).
-- **Gemma 4, through the Gemini API, only reads screenshots** (`VISION_PROVIDER=gemini`). It returns the text it can
-  see and up to four short visible cues (for example "no source named"). The text goes into the normal Groq pipeline.
-  The cues are shown on the card but never sent to the reasoning models. If Gemma replies with a verdict or a
-  confidence, it is thrown away.
-- **The verdict gate is code, not model output.** `decide_verdict` in `backend/agents/orchestrator.py` turns the
-  model's verdict into UNVERIFIED unless there are at least 2 tier 1–2 sources, confidence is at least 0.6, and the
-  model did not report missing context without a contradiction.
+No statistics are given here because none have been cited yet.
 
-All Groq calls go through the `openai` Python client pointed at Groq's OpenAI-compatible endpoint
-(`https://api.groq.com/openai/v1/`). Keys are loaded from `backend/.env` with `python-dotenv` / `pydantic-settings`.
+## 3. What's new in FactFlow
 
-| Tier | Model (default) | Used by | Why |
+[TEAM: review and edit]
+
+Built on top of the earlier pipeline (see "Project history"), from the commit history since the rename:
+
+- **Shield package** (`backend/shield/`, Phase 1, `e0cdf7f`): pure code, no network:
+  - hidden-content detectors HC-01 to HC-12;
+  - prompt-injection rules (`config/patterns.yml`);
+  - phishing and brand-lookalike checks for Indian brands (`config/brands.yml`);
+  - India-specific scam detectors SC-01 to SC-13;
+  - PII redaction (Aadhaar with a Verhoeff check, cards with a Luhn check);
+  - deterministic scoring;
+  - the policy engine (P0 to P8, E-EGRESS, E-FINANCIAL, S1, strict and balanced modes);
+  - HMAC-signed approvals;
+  - a SHA-256 hash-chained audit log.
+- **Inbox pipeline and LLM layer** (Phase 2, `d8d91bb`):
+  - the quarantined reader;
+  - claim fact-checks through the existing Truth agents;
+  - explanations in the user's language;
+  - a model-status report and a quota breaker.
+  Phase 2 also hardened the existing pipeline: an SSRF-guarded fetcher (`services/safe_fetch.py`) and wrapping of
+  untrusted text in agent prompts.
+- **Read-only mail agent** (Phase 3, `d158060`):
+  - a Gmail provider limited to `gmail.readonly`;
+  - a demo inbox of `.eml` files;
+  - a task state machine;
+  - strict and balanced policy modes;
+  - `OPERATOR_TOKEN` for operator routes.
+- **Sandbox assistant and red-team benchmark** (Phase 4, `427136e`, reviewed and fixed in `fc2620c`..`0f2cf52`):
+  - Shield-off and Shield-on modes of a simulated email assistant;
+  - 89 team-written benchmark cases;
+  - a rules-only benchmark runner with saved run outputs.
+- **WhatsApp channel** (Phase 5, `734abfd`):
+  - a Twilio webhook with signature checks;
+  - checks of text and images;
+  - replies in English, Hindi or Telugu;
+  - storage of only a salted hash of the sender's number;
+  - STOP/START, a per-sender rate limit.
+
+## 4. How it works
+
+```mermaid
+flowchart LR
+    A[Email, WhatsApp message,<br/>claim, link or screenshot] --> B[Shield scan<br/>rules only, no model]
+    B --> C[Quarantined reader<br/>one model call, no tools]
+    C --> D[Fact-check claims<br/>Truth agents]
+    B --> E[Unified verdict<br/>SAFE / SUSPICIOUS / DANGEROUS]
+    D --> E
+    E --> F{Policy engine<br/>deterministic}
+    F -->|ALLOW| G[Runs: summary, flags,<br/>simulated outbox]
+    F -->|REQUIRE_APPROVAL| H[Human approval<br/>operator token]
+    F -->|BLOCK| I[Blocked, in audit log]
+    H --> G
+```
+
+**How the model calls are isolated, as built** (`backend/shield/quarantine.py`, `backend/agents/inbox_pipeline.py`):
+
+- **The quarantined reader** is the only component that reads the raw message with a model.
+  - Its input is PII-redacted and wrapped in `<untrusted_content>` blocks that the message cannot close.
+  - It has no tools and no memory, and its reply must be one JSON object that matches a schema. Anything else is
+    discarded and counted as an analysis failure.
+- **The explainer** only sees FactFlow's own findings plus short quoted strings, never the message.
+- **The mail agent's planner and the policy engine** are plain code. They act only on structured verdict fields.
+  An action that a message asks for is recorded as a blocked step (rule P1, untrusted origin).
+- Both model calls use the same model (`NANO_MODEL`, default `openai/gpt-oss-20b`). The isolation comes from what
+  each call is given and allowed to do, not from using two different models.
+- **Rules-only mode** (`mode: rules`, or `INBOX_USE_LLM=false`) makes no model calls at all.
+
+**Truth pipeline:**
+
+- **Intake** (Nano) extracts the claim.
+- **Source Tracer** (Nano) gathers sources from Google Fact Check, NewsAPI, GDELT and DuckDuckGo, ranks them by
+  source tier and marks stance.
+- **Deep Reasoning** (Ultra, `openai/gpt-oss-120b`) runs only on low confidence or critical claims.
+- **Explainer** and **Harm Assessor** (Nano) write the explanation and the harm rating.
+- `decide_verdict` in `backend/agents/orchestrator.py` returns UNVERIFIED unless at least 2 tier 1-2 sources exist,
+  confidence is at least 0.6, and the model did not report missing context without a contradiction.
+- Screenshots are read by Gemma 4 through the Gemini API when `GEMINI_API_KEY` is set, otherwise by Tesseract. The
+  image reader only transcribes; it never decides a verdict.
+
+## 5. Status
+
+Labels: REAL AND TESTED · TESTED WITH FIXTURES OR STAND-IN MODELS ONLY · NOT LIVE-TESTED · STUBBED · PENDING · NOT BUILT.
+
+| Feature | Status | Real vs simulated | Evidence |
 |---|---|---|---|
-| **Nano** (fast) | `openai/gpt-oss-20b` | Intake, Source Tracer, Explainer, Harm Assessor | ~0.5–1.5 s structured-JSON calls keep the pipeline fast |
-| **Ultra** (deep) | `openai/gpt-oss-120b` | Deep Reasoning | Multi-hop reasoning, only when it can change the outcome |
-| Screenshots | `gemma-4-26b-a4b-it` via the Gemini API | Reading text from screenshots only | Tesseract is used when Gemma is unavailable; the card then says "Image read without AI" |
+| Truth claim pipeline (six agents, verdict gate) | REAL AND TESTED | Real model calls and real source searches | backend tests; one live run in `docs/AUDIT.md` section 9 |
+| Truth accuracy bench (30 claims) | PENDING | | no saved result; `/api/accuracy` reports no complete run |
+| Screenshot reading (Gemma 4 / Tesseract) | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Image reader only transcribes | `tests/test_gemma.py`, `tests/test_screenshot.py` |
+| Truth web pages (home, registry, tracker, incidents, accuracy, about, verdict pages) | REAL AND TESTED | | `npm run build`; pages served by `next dev`; 3 frontend unit tests |
+| Chrome extension | NOT LIVE-TESTED | | carried over from the earlier project; no automated tests; not re-tested since the rename |
+| Android overlay | NOT BUILT | Design mockup only (`android/overlay_mockup.html`) | |
+| Shield detectors (HC-01..12, injection rules, SC-01..13, brand lookalikes) | REAL AND TESTED | Deterministic, no model | `backend/tests/shield/` |
+| Policy engine, strict/balanced modes | REAL AND TESTED | Deterministic | `tests/shield/test_shield_policy.py` |
+| Approvals (HMAC token, single use, 10 minutes) | REAL AND TESTED | An approved outgoing step only writes to the **simulated outbox** | `tests/shield/test_shield_approvals.py`, mail-agent tests |
+| Audit log (SHA-256 hash chain, `GET /api/audit/verify`) | REAL AND TESTED | | `tests/shield/test_shield_audit.py` |
+| Inbox pipeline, rules-only mode | REAL AND TESTED | No model calls | inbox tests; `docs/MEASUREMENTS.md` |
+| Inbox pipeline, full mode (quarantined reader, claim checks, explainer) | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Real model calls when quota allows | stand-in models in `tests/standins.py`; token use not measured (`docs/MEASUREMENTS.md`) |
+| Mail agent with the demo inbox (`.eml`) | REAL AND TESTED | Nothing is sent: outgoing steps reach the simulated outbox | mail-agent tests |
+| Gmail provider (`gmail.readonly`) | NOT LIVE-TESTED | Read-only; no send scope exists in the code | fixtures built from documented formats (`docs/DECISIONS.md` D57) |
+| Sandbox assistant, Shield on | REAL AND TESTED | Simulated outbox only | `tests/test_phase4_sandbox_benchmark.py` (rules mode; LLM mode with stand-ins) |
+| Sandbox assistant, Shield off (vulnerable baseline) | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Simulated outbox only; off unless `ALLOW_VULNERABLE_DEMO=true` | one recorded real run: `backend/data/demo_recordings/demo_run_20261022_174542.json` |
+| Attack-success rates (20 runs per attack, both modes) | PENDING | | `backend/scripts/measure_attacks.py` is ready; needs model quota |
+| Red-team benchmark, rules-only | REAL AND TESTED | | `docs/benchmark_runs/` |
+| Red-team benchmark, LLM mode | PENDING | | no saved run |
+| WhatsApp via Twilio | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Never run against a live Twilio account; without send credentials replies are DRY RUN audit entries | `tests/test_whatsapp.py` (fake Twilio API) |
+| WhatsApp via Meta Cloud API | STUBBED | Signature check and parsing exist; replies are dry-run only | `tests/shield/test_shield_whatsapp.py` |
+| Safe fetcher (SSRF guard), short-link expansion, DNS checks | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Expansion and DNS checks are off by default | `tests/test_safe_fetch.py` |
+| Celery queue mode (`USE_CELERY=true`) | NOT LIVE-TESTED | | no automated tests; not exercised in this project |
+| Shield web pages (inbox, approvals, sandbox, benchmark, WhatsApp) | NOT BUILT | Use the API or `/docs` for now | a teammate's UI is on branch `teammate-b/shield-ui`, not merged |
+| Gmail banner in the extension | NOT BUILT | Cut (`docs/DECISIONS.md` D54) | |
+| Hardware / edge device | NOT BUILT | Postponed | |
 
-The Ultra tier is **escalated only when needed**: when the Source Tracer's confidence is below 85%
-(`DEEP_REASONING_THRESHOLD`) or Intake marks the claim **CRITICAL** (imminent risk of violence or physical harm).
+## 6. Honest numbers
 
-**Provider-agnostic by design.** Models and base URL are plain environment variables. Any OpenAI-compatible
-endpoint, such as NVIDIA Nemotron models on Nebius, can be swapped in by editing `GROQ_BASE_URL`, `GROQ_API_KEY`,
-`NANO_MODEL` and `ULTRA_MODEL` with no code changes. (The Llama 3.1 8B / 3.3 70B models were retired from Groq, which is
-why the defaults are the gpt-oss pair.)
+Rules-only red-team benchmark, run `31376138137544938f198afc1c9aaaed`, 2026-10-23 10:36 UTC
+(`docs/benchmark_runs/rules_31376138137544938f198afc1c9aaaed.json`; details in [docs/BENCHMARK.md](docs/BENCHMARK.md)):
 
-## 3. Six-agent pipeline
-
-```
-           ┌────────────────────────────────────────────────────────────────────┐
- text ─┐   │ 0 ORCHESTRATOR  route input · fetch URL / OCR image · verdict cache │
- url  ─┼──▶│                 known-pattern match · retries · SSE events          │
- image─┘   └──────────────┬─────────────────────────────────────────────────────┘
-                          ▼
-              1 INTAKE & TRIAGE (Nano)       core claim · language · type · urgency · search queries
-                          ▼
-              2 SOURCE TRACER (Nano)         Google Fact Check + NewsAPI + DuckDuckGo
-                          │                  tier + credibility scoring · stance · preliminary verdict
-          conf < 85% or CRITICAL?
-                 yes ▼            no ─────────────┐
-              3 DEEP REASONING (Ultra)            │  sub-claims · contradictions · manipulation markers
-                          ▼                       ▼
-              4 EXPLAINER (Nano)   ║   5 HARM ASSESSOR (Nano)      ← run in parallel
-              plain language,      ║   harm type · level · severity 0–10
-              translation, myth/   ║
-              fact, WhatsApp reply ║
-                          ▼
-                   Truth Autopsy Report  →  PostgreSQL · Redis cache · SSE "result"
-```
-
-| # | Agent | File | Output |
-|---|---|---|---|
-| 0 | Orchestrator | `backend/agents/orchestrator.py` | Input routing, cache, pattern match, SSE events, fallbacks, persistence |
-| 1 | Intake & Triage | `backend/agents/intake_agent.py` | Claim, language, claim type, urgency, search queries |
-| 2 | Source Tracer | `backend/agents/source_tracer.py` | Evidence with tier 1–4, credibility, stance; preliminary verdict |
-| 3 | Deep Reasoning | `backend/agents/deep_reasoning.py` | Reasoning chain, contradictions, final verdict |
-| 4 | Explainer | `backend/agents/explainer.py` | Simple + localised summary, myth/fact, WhatsApp reply |
-| 5 | Harm Assessor | `backend/agents/harm_assessor.py` | Harm type, level, severity, rationale |
-
-**Resilience:** every model call retries with backoff and honours Groq's `retry-after` hints. JSON responses that are
-truncated are retried with a larger budget. If an agent still fails, the orchestrator degrades gracefully: Intake falls
-back to the raw text, the Explainer and Harm Assessor fall back to deterministic output, and Deep Reasoning failure keeps
-the tracer's verdict. A request only fails if no verdict can be reached at all.
-
-**Source tiers:** Tier 1 covers IFCN-style fact-checkers, wire services, WHO and `.gov.in`. Tier 2 covers established
-national and international newsrooms. Tier 3 is everything else. Tier 4 covers social platforms, blogs and user-generated
-content.
-
-**Known patterns:** ten recurring Indian misinformation archetypes (child-lifter rumours, miracle cures, recycled
-footage, fake schemes, currency hoaxes and others) are matched by character-trigram similarity plus keywords. This
-works across scripts and needs no embedding model or pgvector.
-
-## 4. Run locally
-
-Tested on Windows 11 with Python 3.11, Node 24, PostgreSQL 16 and Memurai (Redis-compatible).
-
-**Prerequisites:** Python 3.11+, Node 18+, Tesseract OCR (optional), and optionally PostgreSQL 15+ and Redis.
-Without PostgreSQL the backend automatically falls back to a local SQLite file. Without Redis it uses an in-memory
-cache.
-
-### Backend
-
-```bash
-cd backend
-python -m venv venv                  # use Python 3.11 or 3.12
-venv\Scripts\activate                # macOS/Linux: source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env                 # then add GROQ_API_KEY (+ NEWS_API_KEY, GOOGLE_FACT_CHECK_API_KEY)
-uvicorn main:app --reload --port 8000
-```
-
-Tables are created and seed data (6 incidents, 10 known patterns) is loaded automatically on first start.
-Check the server with `curl http://localhost:8000/health`.
-
-**Optional Celery worker** (set `USE_CELERY=true`; requires Redis):
-
-```bash
-celery -A tasks.pipeline_task worker --loglevel=info --pool=solo   # --pool=solo is required on Windows
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-cp .env.local.example .env.local      # NEXT_PUBLIC_API_URL=http://localhost:8000
-npm run dev                           # http://localhost:3000
-```
-
-### API keys
-
-| Key | Where | Needed for |
-|---|---|---|
-| `GROQ_API_KEY` | https://console.groq.com/keys | All agents (required) |
-| `NEWS_API_KEY` | https://newsapi.org/register | News evidence (free: 100 req/day) |
-| `GOOGLE_FACT_CHECK_API_KEY` | Google Cloud Console → enable *Fact Check Tools API* | Fact-check evidence |
-| `GEMINI_API_KEY` | https://aistudio.google.com/apikey | Reading screenshots with Gemma 4 (optional; Tesseract otherwise) |
-
-DuckDuckGo search needs no key.
-
-> **Free-tier note:** Groq's free tier allows 8,000 tokens/minute on `gpt-oss-20b`. A verification uses about 4–5k,
-> so back-to-back runs may wait a few seconds for the rate limit. The pipeline retries automatically rather than
-> failing.
-
-## 5. API reference
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/verify` | Queue a verification → `202 {request_id, stream_url, result_url}` |
-| `GET` | `/api/stream/{request_id}` | SSE stream: `start`, `agent`, `result`, `error` events |
-| `GET` | `/api/result/{request_id}` | Full report (`200`), or `202 {status}` while running |
-| `GET` | `/api/status/{request_id}` | Status, progress %, per-agent log |
-| `GET` | `/api/history?limit=20` | Recent completed verifications |
-| `GET` | `/api/incidents` | Incident library with each incident's latest live run |
-| `GET` | `/api/stats` | Totals, verdict breakdown, harm categories, average time |
-| `GET` | `/api/accuracy` | Last complete bench run from `backend/tests/bench/results/latest.json`, or "No complete run yet" |
-| `GET` | `/health` | Build commit, providers, models, whether each key is set (true/false only), DB and Redis status |
-
-```bash
-# Verify text (language: auto | en | hi | mr | bn | ta | te | gu | kn | ml | pa | ur)
-curl -X POST http://localhost:8000/api/verify \
-  -H "Content-Type: application/json" \
-  -d '{"text": "ALERT!! Gangs of child kidnappers are moving in villages at night dressed as sadhus. They remove kidneys. Forward to all groups!", "language": "hi", "platform": "whatsapp"}'
-
-# Verify a URL or an image
-curl -X POST http://localhost:8000/api/verify -H "Content-Type: application/json" -d '{"url": "https://example.com/article"}'
-curl -X POST http://localhost:8000/api/verify -H "Content-Type: application/json" -d '{"image_url": "https://example.com/forward.png"}'
-#   or {"image_base64": "data:image/png;base64,..."}   (PNG or JPG only, up to 5 MB; anything else gets a 422)
-
-# Watch the agents live
-curl -N http://localhost:8000/api/stream/<request_id>
-
-# Fetch the report
-curl http://localhost:8000/api/result/<request_id>
-```
-
-Example `agent` event:
-
-```json
-{"type": "agent", "agent": 2, "name": "SOURCE TRACER", "tier": "NANO", "status": "complete",
- "preview": "26 sources scanned · 8 relevant · 8 refute · 0 support → FALSE (95%)",
- "model": "openai/gpt-oss-20b", "ms": 990, "progress": 50, "elapsed_ms": 7364}
-```
-
-`POST /api/verify` is rate-limited per client IP (`MAX_REQUESTS_PER_MINUTE`, default 10). Identical inputs are served
-from the verdict cache for `CACHE_TTL_HOURS` (default 24).
-
-## 6. Chrome extension
-
-1. Start the backend on `http://localhost:8000`.
-2. Open `chrome://extensions` and enable **Developer mode**.
-3. Click **Load unpacked** and select the `extension/` folder.
-
-Ways to verify:
-
-- **Right-click** selected text or an image, then choose **🔍 Verify with FactFlow**. A glass verdict badge slides in at
-  the top-right and auto-dismisses after 8 seconds.
-- **Ctrl+Shift+V** (⌘⇧V on Mac) verifies the current selection. Chrome may keep its own "paste as plain text" binding;
-  if so, assign the shortcut at `chrome://extensions/shortcuts`.
-- **WhatsApp Web, X and Instagram:** hover a message or post and click the red **V** button, or right-click it and choose
-  **Verify this message**. The verdict appears *inline on that message bubble*.
-- **Popup:** the last 5 verifications, backend status, **Verify Selected Text** and **Open Dashboard →**.
-
-The inline handlers are DOM-based content-script adapters (`extension/content.js`). They depend on each site's current
-markup and may need selector updates when those sites change.
-
-## 7. Business model
-
-| Stream | Who pays | Offer |
-|---|---|---|
-| Citizens | Free (₹99/yr Family Shield) | Verification, extension and WhatsApp replies free; family plan adds priority checks and alerts |
-| Newsrooms & fact-checkers | Usage-based API | Harm-ranked triage queue with evidence pre-gathered |
-| Platforms & telcos | Annual trust & safety licence | Rumour alerts by region, language and harm type |
-| Government & NGOs | Programme contracts | Election-integrity and public-health early warning |
-
-Market size (TAM: Indian WhatsApp users × ₹99/yr; SAM: those who regularly forward news; SOM: the share reachable
-within three years): estimate, source to be added. No figure is given until it has a cited source.
-
-## 8. Future scope
-
-- WhatsApp Business bot: forward a message to a number, get the verdict back in the chat.
-- Native Android overlay (see `android/README.md`): on-device OCR, Accessibility-based region capture.
-- Audio and video: Whisper transcription of voice notes and reels; deepfake and recycled-footage detection via
-  reverse image/video search.
-- Semantic claim clustering (embeddings + pgvector) to detect waves of the same rumour across languages.
-- Regional early-warning dashboard for police and district administrations when CRITICAL claims spike.
-- Human-in-the-loop review queue for partner fact-checkers, with their verdicts fed back as Tier-1 evidence.
-
-## Gemma 4 for screenshots
-
-FactFlow calls **Gemma 4** through the **Gemini API**, using the `google-genai` Python SDK
-(`backend/models/gemini_client.py`). Gemma 4 reads screenshots. It does not decide verdicts.
-
-| Setting | Value |
+| Metric | Result |
 |---|---|
-| Model identifier | `gemma-4-26b-a4b-it` (`GEMMA_MODEL`). Confirmed on 2026-10-21 from the Gemini API models list, which showed `gemma-4-26b-a4b-it` and `gemma-4-31b-it`. `gemma-4-31b-it` returned 503/500 errors in testing that day, so the 26B model is the default. |
-| Provider settings | `REASONING_PROVIDER=groq` (fixed). `VISION_PROVIDER=gemini` (default), `groq` or `none`. Gemma is used only when `VISION_PROVIDER=gemini` and `GEMINI_API_KEY` is set. |
-| Key handling | `GEMINI_API_KEY` is read from the environment / `backend/.env`. Provider errors are re-raised with the key masked, and the key is never logged. `/health` only says whether it is set. |
+| Cases | 89 (54 attack, 35 benign) |
+| Detection rate (attack flagged SUSPICIOUS or DANGEROUS) | 94.44 % (51/54) |
+| False-positive rate (benign flagged SUSPICIOUS or DANGEROUS) | 85.71 % (30/35) |
+| Policy level (attacks where no consequential action was allowed without approval) | 100.0 % (54/54) |
+| Model tokens used | none (rules only) |
 
-**What happens to a screenshot:**
+- **Why the false-positive rate is high.** Each of the 30 cases was diagnosed
+  (`docs/benchmark_runs/benign_case_diagnosis_2026-10-23.txt`):
+  - In 26, the team's generator wrote different sentences into the plain-text and HTML parts of the "benign"
+    emails. Detector HC-12 is built to flag exactly that difference.
+  - In 4 more, a bank or brand name is shown on a placeholder domain (for example `hdfcbank.example`). That is
+    impersonation by definition.
+  Expected labels were not changed to fit the output.
+- **Missed attacks (3):** `att_hc09_attachment_invoice`, `att_inj_secrecy_02`, `att_inj_tool_02`. These are phrasings
+  the injection rules do not match. They were not patched, because tuning the rules to the test set would inflate the
+  score.
+- **These are team-written cases, not an independent evaluation.**
+- **PENDING:** the attack-success rates in both modes and LLM-mode results. Only one real Shield-off run is recorded,
+  and it is one run, not a rate.
 
-1. The upload is checked: PNG or JPG (by the file's bytes, not its name), up to 5 MB. Anything else is rejected with
-   "Only PNG or JPG screenshots up to 5 MB are supported."
-2. Gemma 4 reads it with a fixed instruction: copy every piece of text, list up to four visible cues, and do not say
-   whether the content is true. Only the text and the cues are kept from the reply.
-3. If Gemma is unavailable or fails, Tesseract OCR reads the image instead.
-4. If no text is found, the check stops with "No text found in this image." and no reasoning model is called.
-5. Otherwise the text runs through the normal Groq pipeline and verdict gate. The card shows a badge, "Text read by
-   Gemma 4" or "Image read without AI", and lists the cues, marked as not used for the verdict.
+## 7. Known limits
 
-## Limitations
+- **CSS hiding gaps.** `@media` rules are evaluated for one desktop screen in light mode only. Text hidden only on
+  phone widths, only in dark mode, or inside `@supports` blocks is missed.
+- **Heuristic detection** can miss new phrasings (see the 3 missed attacks) and flags legitimate hidden preheaders.
+- **Settings kept in memory are lost on restart:** policy mode and allowed domains, the active mail provider,
+  pending Gmail connections and rate limits (`docs/DECISIONS.md` D70).
+- **Placeholder domains only** in the benchmark and demo emails (`.example`, `.test`, `.invalid`). Real brand domains
+  were never tested.
+- **Hindi and Telugu OCR:** the development machine's Tesseract has only English data (`eng`, `osd`). Hindi and
+  Telugu screenshots need Gemma (`GEMINI_API_KEY`) or the `hin`/`tel` Tesseract data. The WhatsApp reply says when
+  this applies.
+- **Helplines** (1930 and cybercrime.gov.in) are marked HUMAN MUST VERIFY (`backend/shield/config/helplines.yml`).
+- **Hindi and Telugu reply templates** need native-speaker review (`backend/shield/config/whatsapp_templates.yml`).
+- **Model quota:** Groq's free tier has a daily token limit. When it runs out, Shield answers rules-only and says so
+  (`llm_status`). The Truth pipeline needs the model, so its checks degrade or fail until the quota resets.
+- **Private-person and self-harm rule** (Truth) is a keyword check, not a classifier. It can miss unfamiliar
+  phrasings, and it withholds some claims it did not need to.
+- **Source stance is not part of the verdict gate.** The gate counts tier 1-2 sources whatever their stance.
+- **Screenshots** must be PNG or JPG up to 5 MB; other formats are rejected.
+- **Voice notes and Meta WhatsApp replies** are not supported.
 
-- **Private-person and self-harm rule is a keyword check, not a classifier.**
-  - It withholds suicide, self-harm and sexual-violence claims, and harm or death stories that name
-    a person or give an age, unless a public role (minister, MLA, actor…) is mentioned.
-  - It can miss unfamiliar phrasings, names written in lowercase, and names in non-Latin scripts.
-  - It withholds some claims it didn't need to, such as a public figure's suicide.
-  - For screenshots it runs after text extraction, so the extraction model sees the image.
-  - The browser extension doesn't yet show the withheld message.
-- **Throttling.** GDELT allows one request per 5 seconds per IP and often refuses requests.
-  DuckDuckGo can time out from cloud hosts. A failed provider is recorded as an evidence gap in the
-  record, but fewer sources can mean UNVERIFIED instead of a definite verdict.
-- **Groq's free tier** has a daily token limit (200,000 tokens/day for `openai/gpt-oss-20b` at the
-  time of testing). A full 30-claim bench run needs more than that.
-- **Source stance is not yet part of the verdict gate.** The gate counts tier 1–2 sources whatever
-  their stance, so a TRUE verdict can rest on strong sources labelled REFUTES (seen on the Palghar
-  event claim). Cards show each source's stance and say "Sources disagree: X support, Y refute."
-  when both appear, but that line is for display only. A stance-aware gate has been proposed but
-  is not applied.
-- **Some official sites may still be tier 3.** Tiers come from fixed domain lists. `.gov.in` and
-  `.nic.in` sites (such as `sebi.gov.in` and `mohfw.gov.in`) and `rbi.org.in` are tier 1; an official
-  body on any other domain is tier 3 until it is added to `TIER_1_DOMAINS`.
-- **A screenshot read correctly can still be UNVERIFIED.** Reading the text well does not create
-  evidence. If too few strong sources are found, the gate still returns UNVERIFIED.
-- **Screenshots must be PNG or JPG up to 5 MB.** Other formats (for example WebP images saved from
-  WhatsApp) are rejected rather than converted.
+## 8. Privacy
+
+What is stored:
+
+- **Claim text**, PII-redacted, in the `claims` table. This includes claims taken from emails and WhatsApp messages;
+  those are private and never shown in the public registry.
+- **WhatsApp senders:** only a salted SHA-256 of the number (`whatsapp_checks`, `whatsapp_opt_outs`, audit actor
+  `whatsapp:<first 12 hex characters>`).
+- **Check results:** label, score, reasons and detector findings. For WhatsApp messages, the stored verdict has the
+  message text and every excerpt of it removed (`docs/DECISIONS.md` D77-D78).
+- **Emails analysed through the inbox:** the verdict, including the visible and hidden text of the email, so the
+  operator can review it. Only the operator or the submitter (view token) can read it.
+- **The audit log:** PII-redacted payloads.
+
+What is not stored:
+
+- Raw WhatsApp phone numbers, or the full text of WhatsApp messages.
+- The raw bytes of analysed emails, in the database. Only a SHA-256 of them is kept there. (Emails given to the
+  mail agent with `POST /api/mail/upload` stay in memory until the server restarts.)
+- Gmail tokens in plain text: they are Fernet-encrypted (`TOKEN_ENCRYPTION_KEY`).
+
+Logs use the hash prefix instead of numbers, and tracebacks do not print variables.
+
+## 9. Setup on Windows
+
+Tested on Windows 11 with Python 3.11 and Node 24; PostgreSQL 16 is optional.
+
+**Prerequisites:**
+
+- Python 3.11 (`py -3.11`) and Node.js 18 or newer.
+- Optional: PostgreSQL. Without it the backend falls back to a local SQLite file.
+- Optional: Tesseract OCR, with the `hin` and `tel` language data for Hindi and Telugu screenshots.
+
+**Backend** (PowerShell):
+
+```powershell
+git clone https://github.com/bbsarada07/FactFlow.git
+cd FactFlow\backend
+py -3.11 -m venv venv
+venv\Scripts\python -m pip install -r requirements.txt
+venv\Scripts\python -m pip install -r requirements-dev.txt     # for the tests
+Copy-Item .env.example .env                                     # then fill in the values, see below
+venv\Scripts\python -m uvicorn main:app --reload --port 8000    # development
+```
+
+**Do not use `--reload` during a demo.** A reload restarts the server and wipes the settings kept in memory
+(policy mode, allowed domains, mail provider, pending connections). For a demo, run
+`venv\Scripts\python -m uvicorn main:app --port 8000`. Check it with `http://localhost:8000/health`; the API explorer
+is at `http://localhost:8000/docs`.
+
+**Frontend:**
+
+```powershell
+cd FactFlow\frontend
+npm install
+Copy-Item .env.local.example .env.local      # NEXT_PUBLIC_API_URL=http://localhost:8000
+npm run dev                                  # http://localhost:3000
+```
+
+**Tests:**
+
+```powershell
+cd FactFlow\backend
+venv\Scripts\python -m pytest -q
+cd ..\frontend
+npm test
+npm run build
+```
+
+To run the database tests on PostgreSQL as well, set `FACTFLOW_TEST_DATABASE_URL` to a disposable database. The
+tests drop its tables; never point it at your real database.
+
+**Benchmark (rules only, no model calls):** open `http://localhost:8000/docs`, expand `POST /api/benchmark/run`,
+click **Try it out**, put your `OPERATOR_TOKEN` in the `x-operator-token` field and `{"mode": "rules"}` in the body,
+then **Execute**. `GET /api/benchmark/latest` returns the last run. To run it from PowerShell:
+
+```powershell
+$h = @{ "X-Operator-Token" = "<your OPERATOR_TOKEN>" }
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/benchmark/run -Headers $h -ContentType "application/json" -Body '{"mode":"rules"}'
+```
+
+**Gmail and WhatsApp:** see [docs/GMAIL_SETUP.md](docs/GMAIL_SETUP.md) and [docs/WHATSAPP_SETUP.md](docs/WHATSAPP_SETUP.md).
+
+### backend/.env variables
+
+Names only. Never commit `.env`. To generate a random secret:
+`py -3.11 -c "import secrets; print(secrets.token_urlsafe(32))"`.
+
+**Models and evidence sources**
+
+| Name | What it is |
+|---|---|
+| `GROQ_API_KEY` | Groq key (console.groq.com/keys). Needed for Truth and for Shield's full mode |
+| `GROQ_BASE_URL` | OpenAI-compatible endpoint; default Groq |
+| `NANO_MODEL`, `ULTRA_MODEL`, `VISION_MODEL` | Model ids (defaults `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, a Groq vision model) |
+| `NEWS_API_KEY` | NewsAPI key (optional evidence source) |
+| `GOOGLE_FACT_CHECK_API_KEY` | Google Fact Check Tools API key (optional evidence source) |
+
+**Database, queue and app**
+
+| Name | What it is |
+|---|---|
+| `DATABASE_URL` | Listed in `.env.example` but not read by the backend; use `ASYNC_DATABASE_URL` |
+| `ASYNC_DATABASE_URL` | `postgresql+asyncpg://...`; if PostgreSQL is unreachable the backend falls back to SQLite |
+| `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, `USE_CELERY` | Optional Celery queue mode |
+| `SECRET_KEY` | At least 32 random characters; signs view tokens (generate as above) |
+| `FRONTEND_URL`, `BACKEND_URL`, `ENVIRONMENT`, `DEBUG` | App URLs and mode |
+| `DEEP_REASONING_THRESHOLD` | Confidence below which Truth escalates to Deep Reasoning |
+| `MAX_REQUESTS_PER_MINUTE` | Rate limit on the public check routes |
+| `CACHE_TTL_HOURS` | Listed in `.env.example` but not read by the backend |
+
+**Shield**
+
+| Name | What it is |
+|---|---|
+| `OPERATOR_TOKEN` | Unlocks the operator routes (approvals, policy, audit, inbox list, mail, sandbox, benchmark); empty means closed. Generate as above |
+| `APPROVAL_SECRET` | At least 32 characters; signs approval tokens; empty means no approvals (such steps are blocked) |
+| `INBOX_USE_LLM`, `INBOX_MAX_CLAIMS` | Allow model calls in the inbox pipeline; maximum claims fact-checked per message |
+| `ENABLE_LINK_EXPANSION`, `ENABLE_DNS_CHECKS` | Follow short links (SSRF-guarded); look up SPF/DMARC records. Both default to off |
+| `ALLOW_VULNERABLE_DEMO` | `true` enables the Shield-off sandbox; default `false` |
+
+**Gmail** (see docs/GMAIL_SETUP.md)
+
+| Name | What it is |
+|---|---|
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Gmail OAuth client |
+| `TOKEN_ENCRYPTION_KEY` | Fernet key: `py -3.11 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `MAIL_POLL_ENABLED`, `MAIL_POLL_SECONDS`, `MAIL_FIRST_SYNC`, `MAIL_MAX_PER_SYNC`, `MAIL_AGENT_MAX_PER_MINUTE` | Gmail polling and mail-agent limits |
+
+**WhatsApp** (see docs/WHATSAPP_SETUP.md)
+
+| Name | What it is |
+|---|---|
+| `WHATSAPP_PROVIDER` | `twilio` (default) or `meta` |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` | Twilio sandbox credentials and number |
+| `META_APP_SECRET` | Only for `WHATSAPP_PROVIDER=meta` |
+| `PUBLIC_BASE_URL` | Public https origin Twilio calls (your tunnel) |
+| `WHATSAPP_HASH_SALT` | At least 16 random characters; never change it once in use |
+| `WHATSAPP_MAX_PER_HOUR` | Checks per sender per hour (default 10) |
+
+**Read from the environment but missing from `.env.example`:** `GEMINI_API_KEY` (Gemma 4 screenshot reading),
+`VISION_PROVIDER` (`gemini`, `groq` or `none`) and `TESSERACT_CMD` (path to `tesseract.exe` if it is not on PATH).
+
+## 10. Security notes
+
+- **`OPERATOR_TOKEN`** is entered at runtime: in the `X-Operator-Token` header, or in the `x-operator-token` field of each operator route in `/docs`. It is
+  compared in constant time, and failed attempts are rate-limited. The frontend bundle contains no operator token and
+  no `NEXT_PUBLIC_` secret.
+- **Use a throwaway Gmail account only**, never a personal or work inbox. FactFlow asks only for `gmail.readonly`.
+- **Never commit `.env`.** It is git-ignored; `.env.example` holds names only.
+- **Nothing is sent.** No email, link or share action leaves FactFlow: approved outgoing steps go to the simulated
+  outbox. The only outgoing message anywhere is the WhatsApp reply, and it goes only to the person who wrote.
+- **Keep the backend on localhost** or behind your tunnel during a demo.
+
+## 11. Repository map
+
+```
+FactFlow/
+├── backend/            FastAPI app
+│   ├── agents/         Truth agents and the inbox pipeline
+│   ├── api/            HTTP routes
+│   ├── shield/         Shield: detectors, policy, approvals, audit, providers (pure code)
+│   ├── services/       Mail agent, WhatsApp service, Gmail account, safe fetcher
+│   ├── data/           Demo emails, benchmark cases, sample verdicts, demo recording
+│   ├── scripts/        Benchmark generator, measurements, attack measurement, demo recorder
+│   └── tests/          Backend tests and fixtures
+├── frontend/           Next.js 14 (Pages Router)
+├── extension/          Chrome MV3 extension
+├── android/            Overlay design mockup
+└── docs/               Documentation (below)
+```
+
+| Document | What it covers |
+|---|---|
+| [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | Shield API routes and JSON, for the frontend |
+| [docs/BENCHMARK.md](docs/BENCHMARK.md) | Red-team benchmark results, failures and limits |
+| [docs/benchmark_runs/](docs/benchmark_runs/) | Saved benchmark run outputs |
+| [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | The 4-minute demo |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Design decisions by phase |
+| [docs/GMAIL_SETUP.md](docs/GMAIL_SETUP.md) | Read-only Gmail setup |
+| [docs/WHATSAPP_SETUP.md](docs/WHATSAPP_SETUP.md) | Twilio WhatsApp sandbox setup |
+| [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) | Latency and token measurements |
+| [docs/AUDIT.md](docs/AUDIT.md) | Phase 0 audit (a dated snapshot) |
+| [docs/REVIEW_PHASE4_5.md](docs/REVIEW_PHASE4_5.md) | Review of the Phase 4 work and the Phase 5 build |
+| [docs/PHASE7_FACTS.md](docs/PHASE7_FACTS.md) | Facts and sources behind this README |
+| [docs/RENAME_NOTES.md](docs/RENAME_NOTES.md) | Notes from the rename |
 
 ## Project history
 
-FactFlow builds on an earlier project of the same team, NemesisAI, which was built for another hackathon. What is new in FactFlow is listed in the section "What's new".
+FactFlow builds on two earlier projects by the same team, each built for another hackathon:
+
+- **NemesisAI**, the misinformation fact-checker that became FactFlow's Truth half. FactFlow is its renamed
+  continuation. The work that existed before FactFlow is listed below by commit.
+- **Sentinel**, the team's secure email-agent project. From it, ideas from its policy engine were adapted:
+  - recomputed argument provenance;
+  - fail-closed evaluation;
+  - the egress URL check;
+  - the recipient allowlist;
+  - the monotonic policy store.
+  Its executor/ledger pattern became the simulated outbox. Its detectors were rewritten for real email parsing, and
+  its seed-specific parser and planner were not ported (`docs/AUDIT.md` section 3).
+
+AI coding assistants were used to write parts of the code.
+
+[TEAM: confirm this wording against the Hack with Aditya rules on prior work and AI-assisted code before submitting]
 
 Work that existed before FactFlow, by commit. Dates are taken from `git log` (IST).
 
@@ -306,21 +417,7 @@ Work that existed before FactFlow, by commit. Dates are taken from `git log` (IS
 | `c27dba5` | 2026-10-21 | Gemma 4 via the Gemini API |
 | `0f05b6c`–`284fc28` | 2026-10-21 | Split routing (Groq verdicts, Gemma 4 screenshots only), screenshot checks, stance disagreement line, unsourced figures removed, `/health` key flags, `/accuracy` page |
 
-## What's new
-
-[to be filled by the team]
-
-## Project structure
-
-```
-factflow/
-├── backend/        FastAPI app, agents/, api/, database/, services/, tasks/
-├── frontend/       Next.js 14 (Pages Router) + Tailwind + Framer Motion + Recharts
-├── extension/      Chrome MV3 extension
-├── android/        Overlay design + interactive mockup
-├── LICENSE         MIT
-└── README.md
-```
+The rename to FactFlow followed on `ac65d3b`..`3558180`; the FactFlow work is in section 3.
 
 ## License
 
