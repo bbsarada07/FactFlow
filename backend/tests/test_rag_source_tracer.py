@@ -1,4 +1,4 @@
-"""Tests for Step 2: Source Tracer & Explainer Internal KB Integration (RAG v1)."""
+"""Tests for Step 2 & 5: Source Tracer, Explainer, and API exposure (RAG v1)."""
 import asyncio
 from unittest.mock import AsyncMock
 
@@ -6,6 +6,7 @@ from agents.context import PipelineContext
 from agents import explainer, source_tracer
 from config import settings
 from database import connection
+from database.models import Claim, Source
 from models.groq_client import LLMResult
 from shield.kb.ingest import ingest_all
 
@@ -188,3 +189,57 @@ def test_internal_hit_not_automatically_trusted(db_url, monkeypatch):
         assert ctx.verdict == "UNVERIFIED"
 
     asyncio.run(body())
+
+
+def test_claim_to_public_and_to_result_internal_citations():
+    """Verify internal citations field in public and result API schemas."""
+    claim = Claim(
+        id="claim-test-1",
+        raw_input="Solar scheme test",
+        claim_text="Solar scheme test",
+        verdict="TRUE",
+        confidence=0.9,
+    )
+    s1 = Source(
+        ref="S1",
+        name="PM Surya Ghar (Internal KB: scheme)",
+        url="https://pmsuryaghar.gov.in",
+        title="PM Surya Ghar Scheme",
+        snippet="Official scheme rooftop solar 300 units",
+        origin="internal",
+        tier=1,
+        credibility=0.95,
+        stance="SUPPORTS",
+    )
+    s2 = Source(
+        ref="S2",
+        name="PIB News",
+        url="https://pib.gov.in/news",
+        title="PIB News Release",
+        snippet="Government cabinet approves scheme",
+        origin="newsapi",
+        tier=1,
+        credibility=0.95,
+        stance="SUPPORTS",
+    )
+    claim.sources = [s1, s2]
+
+    public = claim.to_public()
+    assert "internal_citations" in public
+    assert len(public["internal_citations"]) == 1
+    cit = public["internal_citations"][0]
+    assert cit["ref"] == "S1"
+    assert cit["title"] == "PM Surya Ghar Scheme"
+    assert cit["source_url"] == "https://pmsuryaghar.gov.in"
+    assert cit["stance"] == "SUPPORTS"
+
+    res = claim.to_result()
+    assert "internal_citations" in res
+    assert len(res["internal_citations"]) == 1
+    assert res["internal_citations"][0]["ref"] == "S1"
+
+    # Empty case
+    claim_empty = Claim(id="c2", raw_input="none")
+    claim_empty.sources = [s2]
+    assert claim_empty.to_public()["internal_citations"] == []
+    assert claim_empty.to_result()["internal_citations"] == []

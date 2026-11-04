@@ -65,7 +65,7 @@
 - Report precision, recall, and misses in `docs/RAG_EVAL.md`.
 - Add section to `docs/BENCHMARK.md` describing internal retrieval scope and real numbers.
 
-### Step 5: API Exposure (if time allows)
+### Step 5: API Exposure
 - Update schemas and document in `docs/API_CONTRACT.md`.
 
 ---
@@ -118,4 +118,22 @@
       - `test_scam_patterns_scan_with_template_direct`: verifies direct helper on digital arrest video call pattern.
       - `test_scam_template_is_additive_never_changes_severity`: verifies component score is 100% invariant to template hit.
     - Full test suite confirmed passing: 431 shield tests passing, zero regressions.
-  - **Exact Resume Point**: Proceed to Step 4 (Build honest evaluation script `backend/scripts/eval_retrieval.py`, run against ingested KB, record metrics in `docs/RAG_EVAL.md`, and update `docs/BENCHMARK.md`).
+    - Pushed commit `7096217` to `shield-integration`.
+
+  - Completed Step 4:
+    - Built evaluation script `backend/scripts/eval_retrieval.py` testing 28 queries (10 scheme lookups, 11 scam messages, 7 adversarial near-miss/unrelated distractors).
+    - Executed real evaluation against ingested database:
+      - Precision: **100.00%** (0 false positives; zero distractor leaks).
+      - Distractor Rejection: **100.00%** (7/7 distractors cleanly rejected, max distractor score 0.364 vs 0.60 threshold).
+      - Recall: **47.62%** (10/21 cleared the 0.60 threshold; in all 11 misses, the expected document was ranked #1 with scores 0.459–0.584).
+      - Overall Accuracy: **60.71%**.
+      - Latency p50: **15.44 ms**, p95: **17.70 ms** (< 200 ms budget).
+    - Documented honest analysis, full query log, and miss breakdown in `docs/RAG_EVAL.md`.
+    - Updated `docs/BENCHMARK.md` with Section 8 "Internal knowledge retrieval (RAG v1)".
+
+  - Completed Step 5:
+    - Added `internal_citations` list to `Claim.to_public()` and `Claim.to_result()` in `backend/database/models.py`.
+    - Documented `internal_citations` schema and `template_hit` in `docs/API_CONTRACT.md`.
+    - Added unit test `test_claim_to_public_and_to_result_internal_citations` to `backend/tests/test_rag_source_tracer.py`.
+    - Verified full test suite: **746 backend tests passed + 7 frontend tests passed = 753 tests total passed**.
+  - **All Steps 0, 1, 2, 3, 4, and 5 are fully complete, verified, and ready.**

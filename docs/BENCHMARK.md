@@ -228,3 +228,22 @@ Raw output: `docs/benchmark_runs/llm_7cb69d68b13443888735910c0af2a519.json`.
 5. **No "100% secure" claim.** No detector can promise to catch every new injection encoding. Safety relies on
    defence in depth: the quarantined reader, a planner that never takes actions from message content, and the human
    approval gate.
+
+## 8. Internal knowledge retrieval (RAG v1)
+
+**Scope.** A small, team-curated starter corpus, not a comprehensive database. As of 2026-11-04, the corpus holds 40 documents: 12 Indian government schemes, 11 scam pattern templates, 1 national helpline record (1930), 6 past incidents, and 10 known misinformation patterns.
+
+**Real numbers (measured by `backend/scripts/eval_retrieval.py`):**
+- **Test set:** 28 curated queries (10 scheme lookups, 11 scam messages, 7 adversarial near-miss/unrelated distractors).
+- **Precision:** **100.00%** (0 false positives; no unrelated or adversarial distractor was leaked, and no wrong document was returned).
+- **Distractor Rejection:** **100.00%** (7/7 distractors cleanly returned empty list; max distractor similarity was 0.364 vs 0.60 threshold).
+- **Recall:** **47.62%** (10/21 cleared the conservative 0.60 cosine threshold; in all 11 misses, the expected document was ranked #1 but scored 0.459–0.584).
+- **Overall Accuracy:** **60.71%** (17/28).
+- **Latency (p50 / p95):** **15.44 ms / 17.70 ms** (measured in-memory cosine similarity against the 40-document corpus; well under the 200 ms budget).
+
+**What it does not cover:**
+- It does **not** index state government schemes, municipal orders, or private sector benefits.
+- It is **not** a replacement for external fact-check search or live web retrieval (it operates as a parallel, second signal alongside GDELT, NewsAPI, and Fact Check Tools).
+- It does **not** make LLM calls or network embedding requests; it runs on CPU with `all-MiniLM-L6-v2`.
+- Queries scoring below 0.60 return `None` by design, refusing to guess or fabricate citations.
+
