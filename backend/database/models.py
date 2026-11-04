@@ -352,6 +352,37 @@ class Incident(Base):
         }
 
 
+class KBDocument(Base):
+    """Internal knowledge base document for semantic retrieval (RAG v1)."""
+
+    __tablename__ = "kb_documents"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    source_type: Mapped[str] = mapped_column(String(32), index=True)  # scheme | scam_template | incident | known_pattern | helpline
+    title: Mapped[str] = mapped_column(String(255))
+    body_text: Mapped[str] = mapped_column(Text)
+    source_url: Mapped[str | None] = mapped_column(Text)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    verified_by: Mapped[str | None] = mapped_column(String(128))
+    verified_on: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    embedding: Mapped[list | None] = mapped_column(JSON)  # list of 384 floats
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "source_type": self.source_type,
+            "title": self.title,
+            "body_text": self.body_text,
+            "source_url": self.source_url,
+            "verified": self.verified,
+            "verified_by": self.verified_by,
+            "verified_on": iso(self.verified_on) if self.verified_on else None,
+            "created_at": iso(self.created_at) if self.created_at else None,
+        }
+
+
+
 class AuditLog(Base):
     """Shield audit log: an append-only SHA-256 hash chain (see shield/audit.py).
 

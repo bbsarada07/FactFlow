@@ -1,0 +1,100 @@
+scam_templates:
+  - id: scam_digital_arrest
+    slug: digital-arrest-cbi-police-impersonation
+    title: "Digital Arrest & Fake Law Enforcement Video Call"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: Perpetrators pose as police officers, CBI, Narcotics Control Bureau (NCB), or customs officials via Skype/WhatsApp video calls. They claim an illegal parcel containing narcotics, fake passports, or MDMA was intercepted in the victim's name, or threaten an arrest warrant for money laundering. Victims are coerced into 'digital arrest' (isolation on video call) and directed to transfer money into 'RBI verification' or 'safe' accounts. Reality: Law enforcement agencies never conduct arrests or demand money transfers over video calls."
+
+  - id: scam_kyc_block
+    slug: bank-kyc-account-suspension-phishing
+    title: "Fake Bank KYC & Account Deactivation Phishing"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: Urgent SMS or WhatsApp message claiming victim's bank account, SBI card, or SIM card will be blocked or deactivated within 24 hours due to pending KYC/PAN-Aadhaar linkage. Message includes a phishing link (e.g., bit.ly or lookalike domain) designed to harvest banking credentials, password, and OTP. Reality: Legitimate banks never send links in SMS to update KYC or threaten instant suspension."
+
+  - id: scam_upi_collect
+    slug: upi-collect-pin-to-receive-money
+    title: "UPI Collect Request & PIN-to-Receive Fraud"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: Fraudsters send a UPI collect request or QR code claiming the victim needs to 'approve request' or 'enter UPI PIN' to receive lottery winnings, refund, OLX payment, or cashback. Reality: Entering a UPI PIN or MPIN always deducts money from your bank account; receiving money via UPI never requires entering a PIN."
+
+  - id: scam_lottery_kbc
+    slug: kbc-lottery-prize-whatsapp-scam
+    title: "KBC & WhatsApp Lucky Draw Lottery Fraud"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: Audio message, letter, or poster claiming the recipient's mobile number won Rs 25 Lakh in a Kaun Banega Crorepati (KBC) or WhatsApp lucky draw. Victims are instructed to call a specific 'lottery manager' and pay upfront 'registration fees', 'processing charges', or 'GST tax' via UPI before the prize can be released. Reality: No such lottery exists; legitimate prize promotions never demand upfront processing fees."
+
+  - id: scam_fake_scheme_freebie
+    slug: fake-government-free-scheme-subsidy
+    title: "Viral Fake Government Scheme & Freebie Forward"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: Viral social media forward announcing that the central or state government is giving away free smartphones, laptops, e-scooters, solar panels, or free mobile recharge under a new yojana. The forward contains an unverified third-party link (often blogspot or non-gov domain) asking for personal details and requesting users to forward the message to 10 WhatsApp groups. Reality: Official schemes are announced solely on .gov.in portals and never require forwarding messages."
+
+  - id: scam_job_part_time_reviews
+    slug: part-time-job-youtube-like-review-scam
+    title: "Part-Time Task & YouTube Video Like/Review Job Scam"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: Unsolicited WhatsApp/Telegram message offering part-time work from home earning Rs 2,000 to 5,000 daily by performing simple tasks like liking YouTube videos or writing Google Maps reviews. After small initial payouts, victims are added to a VIP group and asked to deposit 'security fee' or 'prepaid investment tasks' of thousands of rupees which are never refunded."
+
+  - id: scam_electricity_disconnection
+    slug: electricity-bill-disconnection-threat
+    title: "Electricity & Utility Disconnection Threat Scam"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: SMS warning that electricity supply will be disconnected tonight at 9:30 PM because previous month's bill was not updated. The message directs the victim to immediately call an 'electricity officer' on a private 10-digit mobile number or click a link. When called, fraudsters guide victims to transfer bill amounts or install remote screen-sharing tools. Reality: Power distribution companies never send notices from personal mobile numbers or threaten same-night disconnection without official billing cycles."
+
+  - id: scam_courier_customs_fee
+    slug: courier-customs-fee-package-on-hold
+    title: "Fake Courier Delivery & Customs Redelivery Fee Scam"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: SMS claiming a parcel or package from India Post, DHL, or BlueDart is held or undelivered due to an incorrect delivery address. The message urges the recipient to update their address within 24 hours and pay a nominal fee (e.g., Rs 25 to 50) on a spoofed portal. The payment gateway is rigged to compromise credit/debit card numbers and CVV."
+
+  - id: scam_crypto_stock_tips
+    slug: guaranteed-return-stock-crypto-trading
+    title: "Guaranteed High Return Stock & Crypto Trading Scam"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: Social media pitch or Telegram group promising guaranteed 100% to 300% weekly profits through algorithmic cryptocurrency trading or institutional stock tips with zero risk. Victims see falsified profit dashboards and are manipulated into investing large sums, which can never be withdrawn."
+
+  - id: scam_otp_cvv_theft
+    slug: urgent-otp-cvv-sharing-impersonation
+    title: "Social Engineering & OTP/CVV Credential Theft"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: Caller impersonating bank security team informs victim of a fraudulent transaction underway and urges them to read out the received OTP or SMS code to 'cancel' or 'reverse' the unauthorized debit. Reality: Bank staff, payment gateways, and security officers never need or ask for OTPs, ATM PINs, or CVV codes."
+
+  - id: scam_remote_access_anydesk
+    slug: remote-desktop-app-support-scam
+    title: "Remote Desktop Application Support Fraud (AnyDesk/QuickSupport)"
+    source_url: null
+    verified: true
+    verified_by: "factflow_security_team"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Scam pattern: Caller posing as customer support for bank, telecom, or utility instructs victim to download AnyDesk, TeamViewer, or QuickSupport from Google Play store and share the 9-digit session code. Once shared, the scammer gains full remote control of the victim's phone to view OTPs and execute unauthorized transactions."
+

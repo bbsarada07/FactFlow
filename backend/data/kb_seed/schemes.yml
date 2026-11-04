@@ -1,0 +1,109 @@
+schemes:
+  - id: scheme_pm_surya_ghar
+    slug: pm-surya-ghar-muft-bijli-yojana
+    title: "PM Surya Ghar: Muft Bijli Yojana"
+    source_url: "https://pmsuryaghar.gov.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "PM Surya Ghar Muft Bijli Yojana is a government initiative providing up to 300 units of free electricity every month to households across India through rooftop solar panel installations. Eligible households receive direct central financial assistance/subsidies for installing rooftop solar systems. Applications and registrations are accepted exclusively via the official portal at pmsuryaghar.gov.in."
+
+  - id: scheme_pm_kisan
+    slug: pm-kisan-samman-nidhi
+    title: "PM-KISAN: Pradhan Mantri Kisan Samman Nidhi"
+    source_url: "https://pmkisan.gov.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Pradhan Mantri Kisan Samman Nidhi (PM-KISAN) is a central sector scheme providing income support of Rs 6,000 per year to all landholding farmer families, payable in three equal instalments of Rs 2,000 directly transferred into their Aadhaar-seeded bank accounts through DBT. Official beneficiary status and e-KYC updates are available only at pmkisan.gov.in."
+
+  - id: scheme_pmay_urban
+    slug: pradhan-mantri-awas-yojana-urban
+    title: "PMAY-U: Pradhan Mantri Awas Yojana - Urban"
+    source_url: "https://pmay-urban.gov.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Pradhan Mantri Awas Yojana - Urban (PMAY-U) is a flagship mission by the Ministry of Housing and Urban Affairs (MoHUA) providing pucca houses to all eligible urban households including slum dwellers. It provides credit-linked subsidy, beneficiary-led construction, and affordable housing in partnership. Applications are processed through official municipal authorities and pmay-urban.gov.in."
+
+  - id: scheme_pm_mudra
+    slug: pradhan-mantri-mudra-yojana
+    title: "PMMY: Pradhan Mantri Mudra Yojana"
+    source_url: "https://www.mudra.org.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Pradhan Mantri Mudra Yojana (PMMY) facilitates institutional microfinance loans up to Rs 10 lakh to non-corporate, non-farm small and micro enterprises. The loans are categorized into Shishu (up to Rs 50,000), Kishor (Rs 50,000 to Rs 5 lakh), and Tarun (Rs 5 lakh to Rs 10 lakh). No collateral is required. Official information is provided at mudra.org.in."
+
+  - id: scheme_pmjdy
+    slug: pradhan-mantri-jan-dhan-yojana
+    title: "PMJDY: Pradhan Mantri Jan Dhan Yojana"
+    source_url: "https://pmjdy.gov.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Pradhan Mantri Jan Dhan Yojana (PMJDY) is the National Mission for Financial Inclusion to ensure access to financial services including banking savings accounts, remittance, credit, insurance, and pension. Accounts have zero minimum balance requirement, free RuPay debit card, and accidental insurance cover. Details at pmjdy.gov.in."
+
+  - id: scheme_pm_ujjwala
+    slug: pradhan-mantri-ujjwala-yojana
+    title: "PMUY: Pradhan Mantri Ujjwala Yojana"
+    source_url: "https://www.pmuy.gov.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Pradhan Mantri Ujjwala Yojana (PMUY) provides clean cooking fuel such as LPG to rural and deprived households that were previously using dirty biomass fuel. Eligible women from below poverty line (BPL) families receive deposit-free LPG connections with financial support from the central government. Information is at pmuy.gov.in."
+
+  - id: scheme_atal_pension
+    slug: atal-pension-yojana
+    title: "APY: Atal Pension Yojana"
+    source_url: "https://www.pfrda.org.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "Atal Pension Yojana (APY) is a government-backed pension scheme administered by the Pension Fund Regulatory and Development Authority (PFRDA) for citizens working in the unorganised sector. Subscribers aged 18 to 40 make contributions to receive a guaranteed monthly pension of Rs 1,000 to Rs 5,000 after attaining age 60. Official details at pfrda.org.in."
+
+  - id: scheme_national_career_service
+    slug: national-career-service
+    title: "NCS: National Career Service Portal"
+    source_url: "https://www.ncs.gov.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "National Career Service (NCS) is an initiative of the Ministry of Labour and Employment providing a digital platform that brings together job seekers, employers, skill providers, and career counsellors. The portal offers free registration, verified job postings, and career assistance without charging registration fees. Access at ncs.gov.in."
+
+  - id: scheme_digital_india
+    slug: digital-india-initiative
+    title: "Digital India Programme"
+    source_url: "https://www.digitalindia.gov.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "The Digital India Programme is the flagship initiative of the Government of India aiming to transform the country into a digitally empowered society and knowledge economy. Core components include digital infrastructure as a utility to every citizen, governance and services on demand, and digital empowerment of citizens. Details at digitalindia.gov.in."
+
+  - id: scheme_india_portal
+    slug: national-portal-of-india
+    title: "National Portal of India"
+    source_url: "https://www.india.gov.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "The National Portal of India (india.gov.in) is the official single-window information gateway designed, developed, and hosted by the National Informatics Centre (NIC). It aggregates all official government schemes, forms, citizen certificates, and ministry services."
+
+  - id: scheme_rbi_portal
+    slug: rbi-guidelines-banking
+    title: "Reserve Bank of India: Banking and Financial Awareness"
+    source_url: "https://rbi.org.in/"
+    verified: true
+    verified_by: "live_fetch"
+    verified_on: "2026-11-04T15:46:37Z"
+    body_text: "The Reserve Bank of India (RBI) is the central banking institution of India. The RBI regularly advises citizens that legitimate banks never ask for OTP, UPI PIN, passwords, or CVV over SMS, email, or telephone calls, and never threaten immediate account suspension for pending e-KYC without formal branch notice. Official notices at rbi.org.in."
+
+  - id: scheme_ayushman_bharat
+    slug: ayushman-bharat-pm-jay
+    title: "AB-PMJAY: Ayushman Bharat Pradhan Mantri Jan Arogya Yojana"
+    source_url: "https://pmjay.gov.in/"
+    verified: false
+    verified_by: null
+    verified_on: null
+    body_text: "Ayushman Bharat PM-JAY is the world's largest health assurance scheme, providing a health cover of up to Rs 5 lakh per family per year for secondary and tertiary care hospitalization to over 12 crore poor and vulnerable families. (Note: URL marked unverified as live fetch timed out during seed validation)."
+
