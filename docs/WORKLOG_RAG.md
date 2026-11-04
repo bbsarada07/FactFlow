@@ -86,6 +86,23 @@
     - Updated `backend/config.py` and `backend/.env.example` with `KB_SIMILARITY_THRESHOLD` and `KB_TOP_K`.
     - Updated `backend/requirements.txt` with `sentence-transformers==6.2.0`.
     - Test count: **738 backend passed + 7 frontend passed = 745 total**.
-  - **Exact Resume Point**: Proceed to Step 2 (integrate KB retrieval into `agents/source_tracer.py`, ground in `agents/explainer.py`, add tests).
+    - Committed as `feat: kb ingestion and retrieval` (`e3df6c3`) and pushed to `shield-integration`.
 
-
+- **Session 2**:
+  - Completed Step 2:
+    - In `backend/agents/grounding.py`: expanded `source_aliases()` to recognise plain-language citations to internal records (`officialscheme`, `officialschemepage`, `schemepage`, `verifiedrecord`, `verifiedrecords`, `internalrecord`, `officialportal`, `verifiedknowledgebase`, `knowledgebase`) so `require_named_sources()` accepts phrases like "according to the official scheme page [S#]" while continuing to drop uncited or unsupported sentences.
+    - In `backend/agents/source_tracer.py`:
+      - Added `search_internal_kb()` to query semantic retrieval over `kb_documents`.
+      - Wired `search_internal_kb` into parallel `_gather()` tasks under provider label `"Internal KB"`.
+      - Clearly labelled output preview with `({internal_count} internal, {external_count} web)` when internal evidence is present.
+      - Ranked `"internal": 0` in `origin_rank` for tie-breaking within same tier.
+      - Ensured candidates pass through the exact same LLM relevance and stance assessment with zero automatic credibility boost.
+    - In `backend/agents/explainer.py`:
+      - Updated `PROMPT` rules for clear plain-language internal attribution ("according to the official scheme page [S#]" or "according to verified records [S#]") without blending uncited text.
+      - Handled internal records in `_source_line()` fallback and formatted `SOURCES` list with `internal verified record`.
+    - Added `backend/tests/test_rag_source_tracer.py`:
+      - `test_source_tracer_retrieves_internal_kb_scheme`: verifies scheme query retrieves internal doc, labels preview, and Explainer produces grounded citations.
+      - `test_source_tracer_regression_no_kb_match`: verifies non-matching claims fall back cleanly to `UNVERIFIED` and "No sources found yet".
+      - `test_internal_hit_not_automatically_trusted`: verifies that internal hits with low relevance are dropped rather than trusted automatically.
+    - Full test suite passed: **741 backend passed + 7 frontend passed = 748 total passed**, zero regressions.
+  - **Exact Resume Point**: Proceed to Step 3 (Integrate scam template semantic retrieval into `backend/shield/scam_patterns.py` or new `backend/shield/scam_retrieval.py` as additive evidence).

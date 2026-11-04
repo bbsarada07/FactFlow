@@ -112,6 +112,19 @@ def source_aliases(evidence: list[dict]) -> set[str]:
             compact = _NON_ALNUM.sub("", alias)
             if len(compact) >= 4:
                 aliases.add(compact)
+        if e.get("origin") == "internal":
+            for extra in (
+                "officialscheme",
+                "officialschemepage",
+                "schemepage",
+                "verifiedrecord",
+                "verifiedrecords",
+                "internalrecord",
+                "officialportal",
+                "verifiedknowledgebase",
+                "knowledgebase",
+            ):
+                aliases.add(extra)
     return aliases
 
 
