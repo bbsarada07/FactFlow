@@ -105,4 +105,17 @@
       - `test_source_tracer_regression_no_kb_match`: verifies non-matching claims fall back cleanly to `UNVERIFIED` and "No sources found yet".
       - `test_internal_hit_not_automatically_trusted`: verifies that internal hits with low relevance are dropped rather than trusted automatically.
     - Full test suite passed: **741 backend passed + 7 frontend passed = 748 total passed**, zero regressions.
-  - **Exact Resume Point**: Proceed to Step 3 (Integrate scam template semantic retrieval into `backend/shield/scam_patterns.py` or new `backend/shield/scam_retrieval.py` as additive evidence).
+    - Committed as `feat: source tracer kb integration` (`9905e3d`) and pushed to `shield-integration`.
+
+  - Completed Step 3:
+    - Added `backend/shield/scam_retrieval.py`: provides `a_retrieve_scam_template()` and thread-safe sync `retrieve_scam_template()`.
+    - Updated `backend/shield/schemas.py`: defined `ScamTemplateEvidence` (template_id, template_name, score, excerpt) and added optional `template_hit: ScamTemplateEvidence | None = None` to `ScamComponent`.
+    - Updated `backend/shield/scam_patterns.py`: added `scan_with_template()` to return both regex `scam_hits` and semantic `template_hit`.
+    - Updated `backend/shield/scan.py`: wired `scam_template` into `RulesScan`, passed to `ScamComponent` in `finalize()`, and included in `explain_en()` without changing component scores or detector severities.
+    - Added tests in `backend/tests/shield/test_shield_scam_rag.py`:
+      - `test_scam_template_matching_message`: message matching electricity disconnection template shows extra evidence.
+      - `test_scam_template_benign_message`: benign email returns zero template hit and zero detectors.
+      - `test_scam_patterns_scan_with_template_direct`: verifies direct helper on digital arrest video call pattern.
+      - `test_scam_template_is_additive_never_changes_severity`: verifies component score is 100% invariant to template hit.
+    - Full test suite confirmed passing: 431 shield tests passing, zero regressions.
+  - **Exact Resume Point**: Proceed to Step 4 (Build honest evaluation script `backend/scripts/eval_retrieval.py`, run against ingested KB, record metrics in `docs/RAG_EVAL.md`, and update `docs/BENCHMARK.md`).
