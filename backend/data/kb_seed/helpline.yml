@@ -1,0 +1,7 @@
+helpline_pointer:
+  id: helpline_national_cybercrime
+  source_type: helpline
+  config_relpath: "shield/config/helplines.yml"
+  title: "National Cyber Crime Reporting Portal & Helpline (1930)"
+  description: "Official Government of India citizen cyber fraud emergency helpline and incident reporting portal under the Ministry of Home Affairs."
+

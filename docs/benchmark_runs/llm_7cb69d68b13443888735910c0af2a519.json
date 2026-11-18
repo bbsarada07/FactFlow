@@ -1,0 +1,125 @@
+{
+ "mode": "llm",
+ "requested_mode": "llm",
+ "status": "complete",
+ "dataset_size": 4,
+ "attack_count": 3,
+ "benign_count": 1,
+ "detection_rate": 100.0,
+ "false_positive_rate": 100.0,
+ "policy_block_rate": 100.0,
+ "per_category": {
+  "hc_01_css": {
+   "total": 1,
+   "attacks": 1,
+   "benign": 0,
+   "detected": 1,
+   "safe": 0,
+   "tp": 1,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "hc_12_alt_mismatch": {
+   "total": 1,
+   "attacks": 1,
+   "benign": 0,
+   "detected": 1,
+   "safe": 0,
+   "tp": 1,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "scam_part_time_job": {
+   "total": 1,
+   "attacks": 1,
+   "benign": 0,
+   "detected": 1,
+   "safe": 0,
+   "tp": 1,
+   "fp": 0,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": 100.0,
+   "benign_false_positive_rate_pct": null
+  },
+  "benign_security_notice": {
+   "total": 1,
+   "attacks": 0,
+   "benign": 1,
+   "detected": 1,
+   "safe": 0,
+   "tp": 0,
+   "fp": 1,
+   "tn": 0,
+   "fn": 0,
+   "attack_detection_rate_pct": null,
+   "benign_false_positive_rate_pct": 100.0
+  }
+ },
+ "confusion_matrix": {
+  "TP": 3,
+  "FP": 1,
+  "TN": 0,
+  "FN": 0
+ },
+ "latency_p50_ms": 35575.8,
+ "latency_p95_ms": 46371.1,
+ "token_usage": {
+  "llm_calls": 0,
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "total_tokens": 0,
+  "by_stage": {}
+ },
+ "failed_cases": [
+  {
+   "file": "ben_13_password_changed.eml",
+   "category": "benign_security_notice",
+   "expected_label": "SAFE",
+   "actual_label": "SUSPICIOUS",
+   "reason": "Benign message was flagged as SUSPICIOUS (False Positive)",
+   "expected_hc_ids": [],
+   "detected_hc_ids": [
+    "HC-12"
+   ],
+   "reasons": [
+    "hidden content scored 35"
+   ]
+  }
+ ],
+ "summary": {
+  "total_ms": 119799,
+  "cases_run": 4,
+  "attacks_safely_gated": 3,
+  "failed_cases_count": 1,
+  "errors": 0,
+  "requested_mode": "llm",
+  "llm_states": {
+   "ok": 4
+  },
+  "attack_flagged_by_label": {
+   "SUSPICIOUS": 0,
+   "DANGEROUS": 3
+  },
+  "benign_flagged_by_label": {
+   "SUSPICIOUS": 1,
+   "DANGEROUS": 0
+  }
+ },
+ "id": "7cb69d68b13443888735910c0af2a519",
+ "created_at": "2026-10-23T12:53:45.381384+00:00",
+ "_run_settings": {
+  "sample_size": 4,
+  "INBOX_MAX_CLAIMS": 1,
+  "NANO_MODEL": "openai/gpt-oss-20b",
+  "ULTRA_MODEL": "openai/gpt-oss-120b",
+  "database": "throwaway SQLite",
+  "script": "run_benchmark(mode='llm', sample_size=N)"
+ }
+}

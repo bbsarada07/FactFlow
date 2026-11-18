@@ -42,3 +42,6 @@ pypdf==6.21.2
 opencv-python-headless==4.14.0.94  # QR codes in images (quishing)
 dnspython==2.9.0  # optional SPF/DMARC record checks (ENABLE_DNS_CHECKS)
 cryptography==50.0.2  # encrypts stored Gmail OAuth tokens (Fernet)
+
+# Semantic retrieval (RAG v1)
+sentence-transformers==6.2.0

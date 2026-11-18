@@ -1,5 +1,11 @@
 # Phase 0 audit: FactFlow x Sentinel
 
+> **This is the Phase 0 snapshot from 2026-10-22, kept as a record. It is not the current status.** Several risks
+> listed here have since been fixed. For example, the SSRF-guarded fetcher (risk 5) and operator authentication
+> (risk 6) were added in Phases 2-3. Some planned work was cut, for example Phase 6, the extension's Gmail banner
+> (decision D54). For the current status see [DECISIONS.md](DECISIONS.md), [REVIEW_PHASE4_5.md](REVIEW_PHASE4_5.md)
+> and [WORKLOG_FINAL.md](WORKLOG_FINAL.md).
+
 Read-only audit for the master build prompt and Addendum v2. Date: 2026-10-22. Branch `shield-integration` at
 `fa9406a`. Sentinel audited from `_reference/CVR` at `2a885c1` (same commit as `../CVR`).
 

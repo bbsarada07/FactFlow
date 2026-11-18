@@ -92,6 +92,10 @@ class Settings(BaseSettings):
     REPEAT_SIMILARITY: float = 85.0  # rapidfuzz token_set_ratio, 0-100
     REPEAT_CORPUS_SIZE: int = 500
 
+    # Knowledge Base / Semantic Retrieval (RAG v1)
+    KB_SIMILARITY_THRESHOLD: float = 0.60
+    KB_TOP_K: int = 5
+
     # Shield / inbox. Empty secrets keep the features that need them switched off (fail closed).
     OPERATOR_TOKEN: str = ""  # required by approvals, policy changes, audit and inbox listing routes
     APPROVAL_SECRET: str = ""  # signs approval tokens; at least 32 characters

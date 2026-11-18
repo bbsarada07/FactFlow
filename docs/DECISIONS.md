@@ -149,7 +149,7 @@ The `emails`, `simulated_outbox` and `benchmark_runs` tables arrive with the fea
 | D67 | `GET /api/inbox/{id}` and its stream need the operator token or a view token. The view token is an HMAC of the email id under `SECRET_KEY`, never stored, and given only to whoever submitted the message. Messages from the mail agent have none. | "Protect everything that shows message content." |
 | D68 | `llm_status` reports `ok`, `not_used`, `disabled`, `llm_unavailable` or `quota_exhausted`. A daily-quota 429 trips a breaker until the provider's retry time, so later messages go straight to rules-only without waiting. In strict mode the policy reason states why steps paused. A malformed reader answer counts as `llm_unavailable`. | Visible degradation, never silent. |
 | D69 | The provider setting `auto` uses Gmail when connected and the demo inbox otherwise, but not when Gmail needs reconnecting: sync then answers 409 instead of quietly reading the demo inbox. | The user must see that Gmail needs attention. |
-| D70 | The provider choice, the OAuth states and the policy settings are kept in memory; a restart resets them. | Prototype; audit entries keep the history. |
+| D70 | The provider choice, the OAuth states and the policy settings are kept in memory; a restart resets them. **Partly superseded by D84** (policy mode and provider choice are now stored). | Prototype; audit entries keep the history. |
 | D71 | Database tests run on SQLite by default and on PostgreSQL when `FACTFLOW_TEST_DATABASE_URL` points to a disposable database (tables are dropped before each test). A `factflow_test` database was created on the local PostgreSQL 16 for this. | Both supported back-ends tested. |
 
 ### Dependencies
@@ -182,3 +182,22 @@ The review of commit `427136e` is logged in `docs/REVIEW_PHASE4_5.md`. Decisions
 | D81 | Abuse controls: STOP/START (also UNSUBSCRIBE/UNSTOP) are handled before the rate limit, so opting out always works. 10 checks per sender per sliding hour (the existing `RateLimiter`, now with a `window`); over the limit nothing is sent (no amplification). Text up to 4096 characters, media up to 5 MB (one item), webhook body up to 64 KB. A retried webhook (same message id) is answered once. | Spec 5C. |
 | D82 | Images: the existing screenshot reader (Gemma when configured, otherwise Tesseract) plus the QR decoder. When Tesseract lacks `hin`/`tel` data and the image looks Hindi or Telugu, or no text was read, the reply says so. Voice notes get "not supported yet". | Spec 5B. |
 | D83 | The report link is `FRONTEND_URL/inbox/<id>?view_token=...`, included only when `FRONTEND_URL` is https. The page itself is built by the frontend team. | No localhost links in messages to people. |
+
+## Final build (2026-10-23)
+
+| # | Decision | Why |
+|---|---|---|
+| D84 | The policy mode and the chosen mail provider are stored in a `runtime_settings` table (SQLite and PostgreSQL) and restored at startup, with a `settings_restored` audit entry. A missing or invalid stored mode starts in `strict`, and an invalid provider in `auto`. A change is audited, then saved, then applied in memory; if saving fails, the change is refused (503) and a `policy_change_not_saved` entry is written. Loosening still needs `confirm=true`. | Hosts restart services without warning. A restart must keep the operator's choice and must never loosen the policy. |
+| D85 | Still kept in memory: pending Gmail OAuth connections (single-use, 10 minutes; a restart cancels an unfinished connect), rate limiters, the benchmark run lock and the trusted-domain list (a restart empties it, which is tighter). | Short-lived state; losing it is safe. |
+
+## RAG v1: Semantic Knowledge Retrieval (2026-11-04)
+
+### Design choices
+
+| # | Decision | Why |
+|---|---|---|
+| D86 | Local embedding engine: `sentence-transformers` with `all-MiniLM-L6-v2` (384-dimensional dense vectors, CPU execution, local cached weights). Zero network calls and zero LLM calls anywhere in the retrieval path. | Compact (~90 MB model, 384 dims), fast on CPU (<15 ms per encode), runs completely offline without API keys or quota, producing well-calibrated semantic representations. |
+| D87 | Similarity threshold: configured at conservative 0.60 cosine similarity (calibrated with `all-MiniLM-L6-v2` normalized embeddings). Matches below threshold yield an empty retrieval result with "no matching verified record". | Empirical measurements show strong separation: near-verbatim queries score 0.76 - 0.97, related semantic queries score 0.64 - 0.74, near-miss adversarial keyword distractors score 0.18 - 0.34, and benign/unrelated queries score < 0.15. Setting the threshold at 0.60 provides a clean 0.26 margin above adversarial near-misses while reliably retrieving relevant scheme and scam templates without hallucinated or weak internal citations. |
+| D88 | Storage: new `kb_documents` table in existing SQLite and PostgreSQL database via SQLAlchemy model. Vector embeddings stored as JSON array of 384 floats. Cosine similarity performed in-memory via NumPy `np.dot`. | Zero new infrastructure (no pgvector, no Docker, no external vector DB service). Given a corpus size of a few hundred to thousand short documents, NumPy vectorized dot product runs in <5 ms, easily beating the p95 < 200 ms latency requirement. |
+| D89 | Integration boundaries: RAG retrieval acts as a secondary, additive signal. In Source Tracer, internal hits are labelled `origin: "internal"` (distinct from web sources) and subject to standard credibility and grounding. In Shield, scam template retrieval provides additive evidence (`scam_template_hit`) without altering rule hits or severity thresholds. The existing RapidFuzz repeat-claim registry is left completely untouched. | Maintains backwards compatibility, prevents regressions in existing detectors, and ensures every internal citation is grounded and transparent. |
+
