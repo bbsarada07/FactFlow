@@ -13,7 +13,6 @@ always UNTRUSTED_EMAIL. Any exception -> BLOCK (P-00).
 
 from __future__ import annotations
 
-import datetime
 import html
 import re
 import threading
@@ -21,12 +20,8 @@ import unicodedata
 from typing import Iterable, NamedTuple, Optional
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator
 from pydantic import Field as PField
-
-# Thread-local used by PolicyStore.update() to pass constraint context to the validator.
-# This avoids needing pydantic_core for manual ValidationError construction.
-_update_ctx: threading.local = threading.local()
 
 from schemas import (
     Field,
@@ -60,7 +55,7 @@ DEFAULT_CRITICAL_ARGS: dict[str, list[str]] = {
     "schedule_meeting": ["attendees", "meeting_link", "location"],
     "add_note": [],
 }
-DEFAULT_ALLOWED_DOMAINS = ["northwindtraders.com", "contoso-supply.com"]
+DEFAULT_ALLOWED_DOMAINS = ["northwindtraders.com"]
 
 BLOCK_PRECEDENCE = ["P-08", "P-02", "P-04", "P-03", "P-05", "P-01"]
 INJECTION_BLOCK_SEVERITY = 4
@@ -71,24 +66,16 @@ FINANCIAL_KEY_TOKENS = {
     "iban", "bank", "account", "routing", "swift", "bic", "sort", "beneficiary", "payment", "wire",
 }
 
-# Tier monotonicity order (higher = more restrictive; upgrades only)
-_TIER_ORDER: dict[str, int] = {"READ_ONLY": 0, "REVERSIBLE": 1, "CONSEQUENTIAL": 2}
-
 _ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u200e\u200f\u2060\u2061\u2062\u2063\u2064\ufeff\u00ad"))
 _WS_RE = re.compile(r"\s+")
 _TAG_RE = re.compile(r"<[^>]*>")
 _DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$")
-_IP_RE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")  # IPv4 guard for allowlist
 _TOOL_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
-# URL detection: scheme-prefixed, protocol-relative, www., and bare-domain/path patterns.
-# The bare-domain alternative excludes @-preceded positions so email addresses are not
-# false-positively matched (e.g. the domain in "user@gmail.com" must not fire P-04).
 _URL_RE = re.compile(
     r"""(?ix)
     \b(?:https?|ftp|wss?|file|javascript|data|vbscript|mailto):[^\s"'<>`]+
     | (?<![\w@.:/])//[^\s"'<>`/]+[^\s"'<>`]*
     | \bwww\.[^\s"'<>`]+
-    | (?<![:/\w@.])(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}(?:/[^\s"'<>]*)?
     """
 )
 _ADDR_RE = re.compile(r"[^\s<>,;\"']+@[^\s<>,;\"']+")
@@ -108,8 +95,6 @@ class PolicyConfig(BaseModel):
         out = []
         for d in v:
             d = d.strip().lower().rstrip(".")
-            if _IP_RE.match(d):
-                raise ValueError(f"IP addresses cannot be added to the allowlist: {d!r}")
             if not _DOMAIN_RE.match(d):
                 raise ValueError(f"not a valid domain: {d!r}")
             out.append(d)
@@ -123,59 +108,13 @@ class PolicyConfig(BaseModel):
                 raise ValueError(f"not a valid tool name: {name!r}")
         return v
 
-    @model_validator(mode="after")
-    def _update_constraints(self) -> "PolicyConfig":
-        """Enforce monotonic tiers and confirm-gate for domain additions.
-
-        Constraints are only active inside PolicyStore.update(), which sets
-        _update_ctx.current to a dict before calling model_validate().
-        """
-        ctx: dict = getattr(_update_ctx, "current", None) or {}
-        if not ctx:
-            return self
-
-        # --- domain addition requires confirm=True
-        if "current_domains" in ctx:
-            current_set = set(ctx["current_domains"])
-            new_set = set(self.allowed_domains)
-            additions = new_set - current_set
-            if additions and not ctx.get("confirm", False):
-                raise ValueError(
-                    "Adding domains to the allowlist requires confirm=True. "
-                    f"New: {sorted(additions)}"
-                )
-
-        # --- tier changes: no new tools, no downgrades
-        if "current_tiers" in ctx:
-            current_tiers: dict[str, str] = ctx["current_tiers"]
-            for name, new_tier in self.tiers.items():
-                old = current_tiers.get(name)
-                if old is None:
-                    raise ValueError(
-                        f"Cannot add new tool {name!r} via update. "
-                        "Unknown tools are blocked by P-08; adding them would loosen the policy."
-                    )
-                if _TIER_ORDER[new_tier.value] < _TIER_ORDER[old]:
-                    raise ValueError(
-                        f"Tier downgrade rejected: {name!r} is {old}, "
-                        f"cannot lower to {new_tier.value}. "
-                        "Tiers are monotonic (READ_ONLY → REVERSIBLE → CONSEQUENTIAL only)."
-                    )
-
-        return self
-
 
 class PolicyStore:
-    """Thread-safe holder for the runtime-editable config. Readers get a snapshot.
-
-    Tier changes are monotonic (may only tighten). Domain additions require confirm=True.
-    Every accepted change is appended to the audit log.
-    """
+    """Thread-safe holder for the runtime-editable config. Readers get a snapshot."""
 
     def __init__(self, config: Optional[PolicyConfig] = None):
         self._lock = threading.Lock()
         self._config = config or PolicyConfig()
-        self._audit_log: list[dict] = []
 
     def get(self) -> PolicyConfig:
         with self._lock:
@@ -185,46 +124,14 @@ class PolicyStore:
         self,
         allowed_domains: Optional[list[str]] = None,
         tiers: Optional[dict[str, str]] = None,
-        confirm: bool = False,
     ) -> PolicyConfig:
         with self._lock:
-            old = self._config
-            data = old.model_dump()
+            data = self._config.model_dump()
             if allowed_domains is not None:
                 data["allowed_domains"] = allowed_domains
             if tiers is not None:
                 data["tiers"] = tiers
-            # Pass constraint context via thread-local so the model_validator can read it.
-            _update_ctx.current = {
-                "current_domains": list(old.allowed_domains),
-                "current_tiers": {k: v.value for k, v in old.tiers.items()},
-                "confirm": confirm,
-            }
-            try:
-                # Raises ValidationError on bad input; old config kept unchanged.
-                self._config = PolicyConfig.model_validate(data)
-            finally:
-                _update_ctx.current = None
-            # Audit log: record what actually changed.
-            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            if set(old.allowed_domains) != set(self._config.allowed_domains):
-                self._audit_log.append({
-                    "timestamp": now,
-                    "field": "allowed_domains",
-                    "previous": sorted(old.allowed_domains),
-                    "new": sorted(self._config.allowed_domains),
-                    "confirm": confirm,
-                })
-            for name, new_tier in self._config.tiers.items():
-                old_tier = old.tiers.get(name)
-                if old_tier is not None and old_tier != new_tier:
-                    self._audit_log.append({
-                        "timestamp": now,
-                        "field": f"tiers.{name}",
-                        "previous": old_tier.value,
-                        "new": new_tier.value,
-                        "confirm": confirm,
-                    })
+            self._config = PolicyConfig.model_validate(data)  # raises on bad input; old config kept
             return self._config.model_copy(deep=True)
 
 
@@ -346,12 +253,9 @@ def _url_host(url: str) -> Optional[str]:
     if lower.startswith(("javascript:", "data:", "vbscript:", "file:")):
         return None
     if lower.startswith("www."):
-        url = "https://" + url
+        url = "http://" + url
     elif url.startswith("//"):
-        url = "https:" + url
-    elif "://" not in url:
-        # bare domain/path detected by regex — add scheme for parsing
-        url = "https://" + url
+        url = "http:" + url
     try:
         parts = urlsplit(url)
         if "\\" in parts.netloc:
@@ -381,14 +285,9 @@ def _is_financial_key(key: str) -> bool:
     return any(t in FINANCIAL_KEY_TOKENS for t in tokens) or "iban" in key.lower()
 
 
-def _is_financial_value(value: str) -> tuple[bool, str]:
-    """Return (found, confidence) where confidence is HIGH if key-like pattern matched, LOW for value-only."""
+def _is_financial_value(value: str) -> bool:
     text = _clean(value)
-    if _IBAN_RE.search(text.upper()):
-        return True, "LOW"
-    if _ACCOUNT_RE.search(text) or _BIC_RE.search(text):
-        return True, "LOW"
-    return False, ""
+    return bool(_IBAN_RE.search(text.upper()) or _ACCOUNT_RE.search(text) or _BIC_RE.search(text))
 
 
 def _bad_recipients(args: dict[str, Field], allowed: list[str]) -> list[str]:
@@ -433,7 +332,6 @@ def _evaluate(ctx: PolicyContext, cfg: PolicyConfig) -> PolicyDecision:
     untrusted = [n for n, s in sources.items() if s == Source.UNTRUSTED_EMAIL]
     allowed = cfg.allowed_domains
     blocks: list[tuple[str, str, list[str]]] = []
-    p05_findings: list[dict] = []
 
     if tier != Tier.READ_ONLY:
         worst = [f for f in ctx.injection_findings if f.severity >= INJECTION_BLOCK_SEVERITY]
@@ -467,21 +365,16 @@ def _evaluate(ctx: PolicyContext, cfg: PolicyConfig) -> PolicyDecision:
             ))
 
     if tier != Tier.READ_ONLY:
-        for n, f in action.args.items():
-            if sources[n] != Source.UNTRUSTED_EMAIL:
-                continue
-            key_hit = _is_financial_key(n)
-            val_hit, val_conf = _is_financial_value(f.value)
-            if key_hit or val_hit:
-                confidence = "HIGH" if key_hit else val_conf
-                p05_findings.append({"arg": n, "confidence": confidence})
-        if p05_findings:
-            fin_args = sorted(fi["arg"] for fi in p05_findings)
+        fin = [
+            n for n, f in action.args.items()
+            if sources[n] == Source.UNTRUSTED_EMAIL and (_is_financial_key(n) or _is_financial_value(f.value))
+        ]
+        if fin:
             blocks.append((
                 "P-05",
                 "Bank or payment details in this action came from the email itself. Payment details are never "
                 "taken from unverified email content.",
-                fin_args,
+                sorted(fin),
             ))
 
     if tier == Tier.CONSEQUENTIAL and untrusted:
@@ -504,7 +397,6 @@ def _evaluate(ctx: PolicyContext, cfg: PolicyConfig) -> PolicyDecision:
             reason_plain_english=reason,
             offending_fields=fields,
             triggered_rules=[b[0] for b in blocks],
-            findings=p05_findings,
         )
 
     if tier == Tier.READ_ONLY:

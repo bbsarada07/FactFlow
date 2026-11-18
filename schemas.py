@@ -160,7 +160,6 @@ class PolicyDecision(BaseModel):
     triggered_rules: list[str] = PField(default_factory=list)
     requires_out_of_band_verification: bool = False
     verification_note: Optional[str] = None
-    findings: list[dict] = PField(default_factory=list)
 
 
 class Reassessment(BaseModel):
