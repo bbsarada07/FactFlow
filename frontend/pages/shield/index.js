@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -9,11 +9,14 @@ import {
   AlertCircle,
   Filter,
   ArrowRight,
-  ShieldAlert,
   Inbox as InboxIcon,
-  CheckCircle2,
   Lock,
   ServerOff,
+  Upload,
+  ScanLine,
+  ListChecks,
+  Trash2,
+  KeyRound,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -24,23 +27,119 @@ import {
   listInbox,
   listDemoEmails,
   runDemoEmail,
+  runAllDemoEmails,
+  analyzeMessage,
+  getMyChecks,
+  clearMyChecks,
   escapeSuspiciousCharacters,
-  ShieldApiError,
   hasOperatorToken,
+  onOperatorTokenChange,
+  USE_MOCKS,
 } from "@/lib/shieldApi";
 
 const LABELS = ["ALL", "SAFE", "SUSPICIOUS", "DANGEROUS"];
+const MAX_EMAIL_BYTES = 5 * 1024 * 1024;
+
+function scoreClass(score) {
+  if (score == null) return "text-muted";
+  if (score >= 60) return "text-red font-bold";
+  if (score >= 25) return "text-orange font-bold";
+  return "text-green font-bold";
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",", 2)[1] || "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function EmailRow({ email }) {
+  // Never let a missing label fall back to ShieldBadge's SAFE default.
+  const label = email.label || "UNKNOWN";
+  return (
+    <Link
+      href={`/shield/report/${email.email_id}`}
+      className="group relative block overflow-hidden rounded-lg border border-subtle bg-card p-4 transition-all hover:border-active hover:bg-hover sm:p-5"
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <ShieldBadge label={label} size="sm" />
+            {!email.label && (
+              <span className="pill text-[9.5px] border-subtle text-secondary">
+                {email.status === "failed" ? "FAILED" : "OPEN TO SEE VERDICT"}
+              </span>
+            )}
+            <span className="mono text-[11px] text-muted">ID: {email.email_id.slice(0, 8)}...</span>
+            {email.source && (
+              <span className="pill text-[9.5px] border-subtle text-secondary uppercase">{email.source}</span>
+            )}
+            {email.quarantined && (
+              <span className="pill text-[9.5px] bg-red/10 border-red/40 text-red">QUARANTINED</span>
+            )}
+            {email.reported_phishing && (
+              <span className="pill text-[9.5px] bg-orange/10 border-orange/40 text-orange">REPORTED</span>
+            )}
+          </div>
+
+          <h2 className="mt-2 text-[15px] font-semibold text-primary transition-colors group-hover:text-red">
+            {escapeSuspiciousCharacters(email.subject || email.demo_name || "Untitled Email")}
+          </h2>
+
+          <div className="mono mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-secondary">
+            <span className="truncate">From: {escapeSuspiciousCharacters(email.from_addr || "unknown")}</span>
+            {email.created_at && (
+              <span className="text-muted">· {new Date(email.created_at).toLocaleString()}</span>
+            )}
+          </div>
+
+          {email.top_reason && (
+            <p className="mt-2 text-[12px] text-muted line-clamp-1">
+              Reason: {escapeSuspiciousCharacters(email.top_reason)}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-2 flex shrink-0 items-center justify-between sm:mt-0 sm:flex-col sm:items-end">
+          <div className="mono text-[12px] font-bold text-secondary">
+            Score: <span className={scoreClass(email.score)}>{email.score ?? "–"}/100</span>
+          </div>
+          <div className="flex items-center gap-1 text-[12px] text-secondary group-hover:text-primary mt-1">
+            <span>View Trust Report</span>
+            <ArrowRight size={13} className="transition-transform group-hover:translate-x-1" />
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
 
 export default function ShieldInboxPage() {
   const router = useRouter();
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [view, setView] = useState("session"); // "operator" (full inbox) | "session" (my checks)
   const [activeFilter, setActiveFilter] = useState("ALL");
+  const [myChecks, setMyChecks] = useState([]);
+
   const [demoList, setDemoList] = useState([]);
   const [demoModalOpen, setDemoModalOpen] = useState(false);
   const [runningDemo, setRunningDemo] = useState(null);
+  const [batch, setBatch] = useState(null); // { done, total, waiting, results: {name: {label, score, error}} }
+  const batchAbort = useRef(null);
+
   const [tokenModalOpen, setTokenModalOpen] = useState(false);
+
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [rawText, setRawText] = useState("");
+  const [emlFile, setEmlFile] = useState(null);
+  const [scanMode, setScanMode] = useState("rules");
+  const [scanning, setScanning] = useState(false);
+  const fileInput = useRef(null);
 
   // Read Gmail callback query params if redirected
   useEffect(() => {
@@ -51,32 +150,45 @@ export default function ShieldInboxPage() {
     }
   }, [router.query]);
 
+  const refreshMyChecks = useCallback(() => setMyChecks(getMyChecks()), []);
+
   const fetchInbox = useCallback(async () => {
-    setLoading(true);
+    refreshMyChecks();
     setError(null);
+    if (!USE_MOCKS && !hasOperatorToken()) {
+      // No token: show this session's checks; nothing to ask the server for.
+      setView("session");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
       const labelParam = activeFilter === "ALL" ? null : activeFilter;
       const res = await listInbox({ limit: 50, label: labelParam });
       setEmails(res.items || []);
+      setView("operator");
     } catch (err) {
       console.error("Inbox load error:", err);
-      setError({
-        status: err.status,
-        message: err.message || "Failed to load emails from Shield inbox.",
-      });
+      setView("session");
+      setError({ status: err.status, message: err.message || "Failed to load emails from Shield inbox." });
     } finally {
       setLoading(false);
     }
-  }, [activeFilter]);
+  }, [activeFilter, refreshMyChecks]);
 
   useEffect(() => {
     fetchInbox();
   }, [fetchInbox]);
 
+  useEffect(() => onOperatorTokenChange(() => fetchInbox()), [fetchInbox]);
+
+  useEffect(() => () => batchAbort.current?.abort(), []);
+
   const loadDemos = async () => {
     try {
       const res = await listDemoEmails();
       setDemoList(res.items || []);
+      setBatch(null);
       setDemoModalOpen(true);
     } catch (err) {
       toast.error(`Failed to load demo list: ${err.message}`);
@@ -89,7 +201,7 @@ export default function ShieldInboxPage() {
       const res = await runDemoEmail(demoName, { mode: "rules" });
       toast.success(`Analyzed demo: ${demoName}`);
       setDemoModalOpen(false);
-      await fetchInbox();
+      refreshMyChecks();
       if (res.email_id) {
         router.push(`/shield/report/${res.email_id}`);
       }
@@ -99,6 +211,71 @@ export default function ShieldInboxPage() {
       setRunningDemo(null);
     }
   };
+
+  const handleRunAll = async () => {
+    const names = demoList.map((d) => d.name);
+    if (!names.length) return;
+    const controller = new AbortController();
+    batchAbort.current = controller;
+    setBatch({ done: 0, total: names.length, waiting: null, results: {}, running: true });
+    await runAllDemoEmails(
+      names,
+      ({ index, name, result, error: err, waitingSeconds }) => {
+        setBatch((b) => {
+          if (!b) return b;
+          if (waitingSeconds) return { ...b, waiting: { name, seconds: waitingSeconds } };
+          const o = result?.verdict?.overall;
+          return {
+            ...b,
+            waiting: null,
+            done: index + 1,
+            results: {
+              ...b.results,
+              [name]: err
+                ? { error: err.message }
+                : { label: o?.label, score: o?.score, email_id: result?.email_id },
+            },
+          };
+        });
+      },
+      { signal: controller.signal }
+    );
+    setBatch((b) => (b ? { ...b, running: false, waiting: null } : b));
+    refreshMyChecks();
+    if (view === "operator") fetchInbox();
+  };
+
+  const handleScan = async (e) => {
+    e.preventDefault();
+    if (!emlFile && !rawText.trim()) {
+      toast.error("Paste an email or choose an .eml file first.");
+      return;
+    }
+    setScanning(true);
+    try {
+      let payload;
+      if (emlFile) {
+        if (emlFile.size > MAX_EMAIL_BYTES) throw new Error("That file is larger than 5 MB.");
+        payload = { eml_base64: await fileToBase64(emlFile), source: "upload", mode: scanMode };
+      } else {
+        payload = { raw: rawText, source: "paste", mode: scanMode };
+      }
+      const res = await analyzeMessage(payload);
+      toast.success(res.cached ? "Already checked before: showing the saved report." : "Email submitted for analysis.");
+      setRawText("");
+      setEmlFile(null);
+      if (fileInput.current) fileInput.current.value = "";
+      router.push(`/shield/report/${res.email_id}`);
+    } catch (err) {
+      toast.error(`Scan failed: ${err.message}`);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const shownChecks =
+    activeFilter === "ALL" ? myChecks : myChecks.filter((c) => c.label === activeFilter);
+  const list = view === "operator" ? emails : shownChecks;
 
   return (
     <>
@@ -119,16 +296,15 @@ export default function ShieldInboxPage() {
               </h1>
             </div>
             <p className="mt-1 text-[13px] text-secondary">
-              Real-time heuristic &amp; LLM security inspection for every message and attachment.
+              Checks every message for hidden text, prompt injection, spoofed senders, bad links, QR codes and scams.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={loadDemos}
-              className="btn-red !py-2 !px-4 !text-[12.5px]"
-            >
+            <button type="button" onClick={() => setPasteOpen((o) => !o)} className="btn-ghost">
+              <ScanLine size={13} /> <span>Check an Email</span>
+            </button>
+            <button type="button" onClick={loadDemos} className="btn-red !py-2 !px-4 !text-[12.5px]">
               <Play size={13} /> Run Demo Emails
             </button>
             <button
@@ -143,6 +319,126 @@ export default function ShieldInboxPage() {
             </button>
           </div>
         </div>
+
+        {/* Check your own email */}
+        {pasteOpen && (
+          <form onSubmit={handleScan} className="mb-6 rounded-lg border border-subtle bg-surface p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <ScanLine size={16} className="text-red" />
+              <h2 className="font-display text-[15px] font-bold text-primary">Check an email</h2>
+            </div>
+            <p className="text-[12.5px] text-secondary mb-3">
+              Paste the full source (in Gmail: ⋮ → <em>Show original</em>; in Outlook: <em>View message source</em>) for
+              the best result, or just the text. Or upload a saved <code>.eml</code> file. No token needed.
+            </p>
+            <textarea
+              value={rawText}
+              onChange={(e) => {
+                setRawText(e.target.value);
+                if (e.target.value) setEmlFile(null);
+              }}
+              disabled={Boolean(emlFile)}
+              rows={7}
+              placeholder={"From: someone@example.com\nSubject: ...\n\nMessage body..."}
+              className="w-full rounded-md border border-subtle bg-card px-3 py-2.5 text-[12.5px] font-mono text-primary placeholder-muted outline-none focus:border-red disabled:opacity-50"
+            />
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="btn-ghost cursor-pointer !py-1.5 !text-[12px]">
+                  <Upload size={13} />
+                  <span>{emlFile ? escapeSuspiciousCharacters(emlFile.name) : "Upload .eml"}</span>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept=".eml,message/rfc822,text/plain"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      setEmlFile(f);
+                      if (f) setRawText("");
+                    }}
+                  />
+                </label>
+                {emlFile && (
+                  <button
+                    type="button"
+                    className="text-[12px] text-secondary hover:text-red"
+                    onClick={() => {
+                      setEmlFile(null);
+                      if (fileInput.current) fileInput.current.value = "";
+                    }}
+                  >
+                    Remove file
+                  </button>
+                )}
+                <label className="flex items-center gap-2 text-[12px] text-secondary">
+                  <span>Mode</span>
+                  <select
+                    value={scanMode}
+                    onChange={(e) => setScanMode(e.target.value)}
+                    className="rounded border border-subtle bg-card px-2 py-1 text-[12px] text-primary"
+                  >
+                    <option value="rules">Rules only (instant, no AI)</option>
+                    <option value="full">Full (rules + AI reader + fact check)</option>
+                  </select>
+                </label>
+              </div>
+              <button type="submit" disabled={scanning} className="btn-red !py-2 !px-5 !text-[13px]">
+                {scanning ? (
+                  <>
+                    <RotateCw size={13} className="animate-spin" /> Scanning...
+                  </>
+                ) : (
+                  <>
+                    <ScanLine size={13} /> Scan
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Which list is shown */}
+        {!loading && view === "session" && !USE_MOCKS && (
+          <div className="mb-4 flex flex-col gap-3 rounded-lg border border-subtle bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-secondary">
+                {error?.status === 503 ? <ServerOff size={17} /> : error?.status === 401 ? <Lock size={17} /> : <ListChecks size={17} />}
+              </div>
+              <div className="text-[12.5px] text-secondary">
+                <div className="font-semibold text-primary text-[13.5px]">My checks (this browser tab)</div>
+                {error?.status === 401
+                  ? "The saved operator token was rejected, so only the messages you checked in this tab are shown."
+                  : error?.status === 503
+                  ? "The server has no OPERATOR_TOKEN configured, so the full inbox is closed. Your own checks still work."
+                  : error
+                  ? `The full inbox could not be loaded: ${error.message}`
+                  : "Demo emails and your own checks are listed here. The operator token unlocks the full inbox of every analysed message."}
+              </div>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              {myChecks.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearMyChecks();
+                    refreshMyChecks();
+                  }}
+                  className="btn-ghost !py-1.5 !text-[12px]"
+                >
+                  <Trash2 size={12} /> Clear list
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setTokenModalOpen(true)}
+                className="btn-ghost !py-1.5 !text-[12px]"
+              >
+                <KeyRound size={12} /> {error?.status === 401 ? "Fix token" : "Operator token"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Filter Bar */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-subtle bg-surface p-3">
@@ -185,10 +481,7 @@ export default function ShieldInboxPage() {
         {loading && (
           <div className="flex flex-col gap-3">
             {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="animate-pulse rounded-lg border border-subtle bg-card p-5"
-              >
+              <div key={i} className="animate-pulse rounded-lg border border-subtle bg-card p-5">
                 <div className="flex items-center justify-between gap-4">
                   <div className="h-4 w-32 rounded bg-surface" />
                   <div className="h-5 w-20 rounded-full bg-surface" />
@@ -200,167 +493,54 @@ export default function ShieldInboxPage() {
           </div>
         )}
 
-        {/* Error State */}
-        {!loading && error && (
+        {/* Error with the operator inbox that is not about auth */}
+        {!loading && error && view === "operator" && (
           <div className="rounded-lg border border-red/40 bg-card p-6 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red/10 text-red">
-              {error.status === 401 ? (
-                <Lock size={24} />
-              ) : error.status === 503 ? (
-                <ServerOff size={24} />
-              ) : (
-                <AlertCircle size={24} />
-              )}
-            </div>
-            <h3 className="font-display text-[16px] font-bold text-primary">
-              {error.status === 401
-                ? "Operator Authentication Required"
-                : error.status === 503
-                ? "Shield Routes Unavailable (503)"
-                : "Unable to Load Shield Inbox"}
-            </h3>
-            <p className="mx-auto mt-2 max-w-md text-[13px] text-secondary">
-              {error.status === 401
-                ? "Viewing the inbox requires the backend OPERATOR_TOKEN. Enter your token once to save it in sessionStorage."
-                : error.message}
-            </p>
-            <div className="mt-4 flex justify-center gap-3">
-              {error.status === 401 ? (
-                <button
-                  type="button"
-                  onClick={() => setTokenModalOpen(true)}
-                  className="btn-red !py-2 !px-5 !text-[13px]"
-                >
-                  Enter Operator Token
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={fetchInbox}
-                  className="btn-red !py-2 !px-5 !text-[13px]"
-                >
-                  <RotateCw size={14} /> Retry
-                </button>
-              )}
-            </div>
+            <AlertCircle size={24} className="mx-auto mb-3 text-red" />
+            <p className="mx-auto max-w-md text-[13px] text-secondary">{error.message}</p>
+            <button type="button" onClick={fetchInbox} className="btn-red !py-2 !px-5 !text-[13px] mt-4">
+              <RotateCw size={14} /> Retry
+            </button>
           </div>
         )}
 
         {/* Empty State */}
-        {!loading && !error && emails.length === 0 && (
+        {!loading && list.length === 0 && (
           <div className="rounded-lg border border-subtle bg-card p-10 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface text-secondary">
               <InboxIcon size={24} />
             </div>
-            <h3 className="font-display text-[16px] font-bold text-primary">
-              No Analyzed Messages Found
-            </h3>
+            <h3 className="font-display text-[16px] font-bold text-primary">No Analyzed Messages Found</h3>
             <p className="mx-auto mt-1 max-w-sm text-[13px] text-secondary">
               {activeFilter !== "ALL"
                 ? `No messages matched the '${activeFilter}' verdict filter.`
-                : "The Shield inbox is currently empty. Run the seeded demo attack cases or upload an email."}
+                : "Run the seeded demo attack cases or check an email of your own."}
             </p>
             <div className="mt-5 flex justify-center gap-3">
               {activeFilter !== "ALL" ? (
-                <button
-                  type="button"
-                  onClick={() => setActiveFilter("ALL")}
-                  className="btn-ghost"
-                >
+                <button type="button" onClick={() => setActiveFilter("ALL")} className="btn-ghost">
                   Clear Filter
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={loadDemos}
-                  className="btn-red !py-2 !px-5 !text-[13px]"
-                >
-                  <Play size={13} /> Load Demo Emails
-                </button>
+                <>
+                  <button type="button" onClick={loadDemos} className="btn-red !py-2 !px-5 !text-[13px]">
+                    <Play size={13} /> Load Demo Emails
+                  </button>
+                  <button type="button" onClick={() => setPasteOpen(true)} className="btn-ghost">
+                    <ScanLine size={13} /> Check an Email
+                  </button>
+                </>
               )}
             </div>
           </div>
         )}
 
         {/* Email List */}
-        {!loading && !error && emails.length > 0 && (
+        {!loading && list.length > 0 && (
           <div className="flex flex-col gap-2.5">
-            {emails.map((email) => {
-              const safeSubject = escapeSuspiciousCharacters(
-                email.subject || "Untitled Email"
-              );
-              const safeFrom = escapeSuspiciousCharacters(
-                email.from_addr || "unknown@example.com"
-              );
-              const safeReason = escapeSuspiciousCharacters(
-                email.top_reason || "No signals detected"
-              );
-
-              return (
-                <Link
-                  key={email.email_id}
-                  href={`/shield/report/${email.email_id}`}
-                  className="group relative block overflow-hidden rounded-lg border border-subtle bg-card p-4 transition-all hover:border-active hover:bg-hover sm:p-5"
-                >
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <ShieldBadge label={email.label} size="sm" />
-                        <span className="mono text-[11px] text-muted">
-                          ID: {email.email_id.slice(0, 8)}...
-                        </span>
-                        {email.quarantined && (
-                          <span className="pill text-[9.5px] bg-red/10 border-red/40 text-red">
-                            QUARANTINED
-                          </span>
-                        )}
-                        {email.reported_phishing && (
-                          <span className="pill text-[9.5px] bg-orange/10 border-orange/40 text-orange">
-                            REPORTED
-                          </span>
-                        )}
-                      </div>
-
-                      <h2 className="mt-2 text-[15px] font-semibold text-primary transition-colors group-hover:text-red">
-                        {safeSubject}
-                      </h2>
-
-                      <div className="mono mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-secondary">
-                        <span className="truncate">From: {safeFrom}</span>
-                        {email.created_at && (
-                          <span className="text-muted">· {new Date(email.created_at).toLocaleDateString()}</span>
-                        )}
-                      </div>
-
-                      <p className="mt-2 text-[12px] text-muted line-clamp-1">
-                        Reason: {safeReason}
-                      </p>
-                    </div>
-
-                    <div className="mt-2 flex shrink-0 items-center justify-between sm:mt-0 sm:flex-col sm:items-end">
-                      <div className="mono text-[12px] font-bold text-secondary">
-                        Score:{" "}
-                        <span
-                          className={
-                            email.score > 70
-                              ? "text-red font-bold"
-                              : email.score > 30
-                              ? "text-orange font-bold"
-                              : "text-green font-bold"
-                          }
-                        >
-                          {email.score}/100
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-[12px] text-secondary group-hover:text-primary mt-1">
-                        <span>View Trust Report</span>
-                        <ArrowRight size={13} className="transition-transform group-hover:translate-x-1" />
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+            {list.map((email) => (
+              <EmailRow key={email.email_id} email={email} />
+            ))}
           </div>
         )}
       </div>
@@ -383,7 +563,10 @@ export default function ShieldInboxPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setDemoModalOpen(false)}
+                onClick={() => {
+                  batchAbort.current?.abort();
+                  setDemoModalOpen(false);
+                }}
                 className="rounded p-1 text-secondary hover:text-primary hover:bg-hover"
                 aria-label="Close dialog"
               >
@@ -391,14 +574,39 @@ export default function ShieldInboxPage() {
               </button>
             </div>
 
-            <div className="p-4 text-[12.5px] text-secondary border-b border-subtle bg-card">
-              Select one of the benchmark demo emails to run through the Shield pipeline. Each test
-              covers different threat vectors: white-on-white text, zero-width steganography, quishing QR, or benign alerts.
+            <div className="p-4 text-[12.5px] text-secondary border-b border-subtle bg-card flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Benign mail, hidden-text injections, lookalike senders, Hindi and Telugu scams, UPI fraud and a QR code.
+                No operator token needed.
+              </span>
+              <button
+                type="button"
+                disabled={Boolean(runningDemo) || batch?.running || demoList.length === 0}
+                onClick={handleRunAll}
+                className="btn-red shrink-0 !py-1.5 !px-3 !text-[12px]"
+              >
+                {batch?.running ? (
+                  <>
+                    <RotateCw size={12} className="animate-spin" /> {batch.done}/{batch.total}
+                  </>
+                ) : (
+                  <>
+                    <Play size={12} /> Run all {demoList.length}
+                  </>
+                )}
+              </button>
             </div>
+
+            {batch?.waiting && (
+              <div className="px-4 py-2 text-[12px] text-orange border-b border-subtle">
+                Server rate limit reached; waiting {batch.waiting.seconds}s before continuing with {batch.waiting.name}...
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
               {demoList.map((demo) => {
                 const isRunning = runningDemo === demo.name;
+                const outcome = batch?.results?.[demo.name];
                 return (
                   <div
                     key={demo.name}
@@ -406,10 +614,7 @@ export default function ShieldInboxPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="mono text-[10.5px] text-red font-semibold uppercase">
-                          {demo.name}
-                        </span>
-                        {demo.label && <ShieldBadge label={demo.label} size="sm" />}
+                        <span className="mono text-[10.5px] text-red font-semibold uppercase">{demo.name}</span>
                       </div>
                       <div className="font-medium text-[13.5px] text-primary truncate mt-1">
                         {escapeSuspiciousCharacters(demo.subject || demo.name)}
@@ -419,24 +624,39 @@ export default function ShieldInboxPage() {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={Boolean(runningDemo)}
-                      onClick={() => handleRunDemo(demo.name)}
-                      className="btn-ghost shrink-0 !py-1.5 !px-3 !text-[12px] self-end sm:self-center"
-                    >
-                      {isRunning ? (
-                        <>
-                          <RotateCw size={12} className="animate-spin text-red" />
-                          <span>Scanning...</span>
-                        </>
+                    {outcome ? (
+                      outcome.error ? (
+                        <span className="text-[11.5px] text-red self-end sm:self-center">{outcome.error}</span>
                       ) : (
-                        <>
-                          <Play size={12} className="text-red" />
-                          <span>Analyze</span>
-                        </>
-                      )}
-                    </button>
+                        <Link
+                          href={`/shield/report/${outcome.email_id}`}
+                          className="flex shrink-0 items-center gap-2 self-end sm:self-center"
+                        >
+                          <ShieldBadge label={outcome.label || "UNKNOWN"} size="sm" />
+                          <span className={`mono text-[11.5px] ${scoreClass(outcome.score)}`}>{outcome.score}</span>
+                          <ArrowRight size={13} className="text-secondary" />
+                        </Link>
+                      )
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={Boolean(runningDemo) || batch?.running}
+                        onClick={() => handleRunDemo(demo.name)}
+                        className="btn-ghost shrink-0 !py-1.5 !px-3 !text-[12px] self-end sm:self-center"
+                      >
+                        {isRunning ? (
+                          <>
+                            <RotateCw size={12} className="animate-spin text-red" />
+                            <span>Scanning...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play size={12} className="text-red" />
+                            <span>Analyze</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -445,7 +665,10 @@ export default function ShieldInboxPage() {
             <div className="p-4 border-t border-subtle flex justify-end">
               <button
                 type="button"
-                onClick={() => setDemoModalOpen(false)}
+                onClick={() => {
+                  batchAbort.current?.abort();
+                  setDemoModalOpen(false);
+                }}
                 className="btn-ghost"
               >
                 Close
@@ -458,7 +681,7 @@ export default function ShieldInboxPage() {
       <OperatorTokenModal
         isOpen={tokenModalOpen}
         onClose={() => setTokenModalOpen(false)}
-        onTokenSaved={() => fetchInbox()}
+        // no onTokenSaved: saving fires the operator-token event, which already reloads the inbox
       />
     </>
   );

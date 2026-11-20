@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass, field
 
 from shield import hidden_content as hc
-from shield import injection, phishing, policy, qr, scam_patterns, scoring, settings, views
+from shield import domains, injection, phishing, policy, qr, scam_patterns, scoring, settings, views
 from shield.email_parser import ParsedEmail, parse_input
 from shield.hidden_content import HtmlScan
 from shield.quarantine import QReading
@@ -141,7 +141,8 @@ def rules_scan(pe: ParsedEmail) -> RulesScan:
 
     alt = None
     if html_scan is not None and pe.text_plain and pe.has_alternative:
-        alt = hc.alternative_mismatch(pe.text_plain, html_scan.visible_text)
+        alt = hc.alternative_mismatch(pe.text_plain, html_scan.visible_text,
+                                      [domains.host_of(link.href) for link in html_scan.links])
         if alt:
             findings.append(alt)
     view = views.build(html_scan, pe.text_plain, plain_differs=alt is not None)

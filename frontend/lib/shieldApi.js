@@ -32,6 +32,13 @@ export function getOperatorToken() {
   return window.sessionStorage.getItem(OPERATOR_TOKEN_STORAGE_KEY) || null;
 }
 
+export const OPERATOR_TOKEN_EVENT = "shield:operator-token";
+
+function announceTokenChange() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(OPERATOR_TOKEN_EVENT));
+}
+
 export function setOperatorToken(token) {
   if (typeof window === "undefined") return;
   if (token && typeof token === "string" && token.trim()) {
@@ -39,15 +46,123 @@ export function setOperatorToken(token) {
   } else {
     window.sessionStorage.removeItem(OPERATOR_TOKEN_STORAGE_KEY);
   }
+  announceTokenChange();
 }
 
 export function clearOperatorToken() {
   if (typeof window === "undefined") return;
   window.sessionStorage.removeItem(OPERATOR_TOKEN_STORAGE_KEY);
+  announceTokenChange();
 }
 
 export function hasOperatorToken() {
   return Boolean(getOperatorToken());
+}
+
+/** Calls `callback` whenever the operator token is saved or cleared (in any component). Returns an unsubscribe. */
+export function onOperatorTokenChange(callback) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(OPERATOR_TOKEN_EVENT, callback);
+  return () => window.removeEventListener(OPERATOR_TOKEN_EVENT, callback);
+}
+
+/**
+ * Checks a token against the server before it is saved.
+ * Returns { ok, status, message }: ok=true means the server accepted it.
+ */
+export async function verifyOperatorToken(token) {
+  if (USE_MOCKS) return { ok: true, status: 200, message: "Mock mode: token not checked." };
+  let res;
+  try {
+    res = await fetch(`${API_URL}/api/inbox?limit=1`, { headers: { "X-Operator-Token": token } });
+  } catch {
+    return { ok: false, status: 0, message: `Cannot reach the backend at ${API_URL}.` };
+  }
+  if (res.ok) return { ok: true, status: res.status, message: "Token accepted by the server." };
+  const body = await res.json().catch(() => ({}));
+  if (res.status === 401) return { ok: false, status: 401, message: "The server rejected this token. Check for typos or extra spaces." };
+  if (res.status === 429) return { ok: false, status: 429, message: body.detail || "Too many wrong attempts. Wait a minute and try again." };
+  if (res.status === 503) {
+    return {
+      ok: false,
+      status: 503,
+      message: "The server has no OPERATOR_TOKEN configured, so no token can work yet. Set it in the backend environment and restart.",
+    };
+  }
+  return { ok: false, status: res.status, message: body.detail || `Unexpected response (${res.status}).` };
+}
+
+// -----------------------------------------------------------------------------
+// MY CHECKS (view tokens for messages analysed in this browser session)
+// -----------------------------------------------------------------------------
+// Every analysis returns a view_token that lets whoever submitted the message read the result
+// without the operator token. They are kept in sessionStorage only (cleared when the tab closes),
+// so a demo can run end to end without ever entering the operator token.
+
+const MY_CHECKS_STORAGE_KEY = "shield_my_checks";
+const MY_CHECKS_LIMIT = 40;
+
+function readChecks() {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(MY_CHECKS_STORAGE_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeChecks(items) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(MY_CHECKS_STORAGE_KEY, JSON.stringify(items.slice(0, MY_CHECKS_LIMIT)));
+  } catch {
+    // storage full or blocked: the checks still work, they just are not remembered
+  }
+}
+
+/** Messages analysed in this browser session, newest first. */
+export function getMyChecks() {
+  return readChecks();
+}
+
+export function clearMyChecks() {
+  writeChecks([]);
+}
+
+/** Stored view token for an email analysed in this session, or null. */
+export function getViewToken(emailId) {
+  return readChecks().find((c) => c.email_id === emailId)?.view_token || null;
+}
+
+/** Adds or updates one remembered check. Fields that are undefined keep their old value. */
+export function rememberCheck(entry) {
+  if (!entry?.email_id) return;
+  const items = readChecks();
+  const old = items.find((c) => c.email_id === entry.email_id) || {};
+  const merged = { ...old };
+  for (const [k, v] of Object.entries(entry)) {
+    if (v !== undefined && v !== null) merged[k] = v;
+  }
+  merged.created_at = merged.created_at || new Date().toISOString();
+  writeChecks([merged, ...items.filter((c) => c.email_id !== entry.email_id)]);
+}
+
+/** Remembers the view token (and the verdict, if finished) of an analyse/demo response. */
+function rememberResponse(res, extra = {}) {
+  if (!res?.email_id) return;
+  const v = res.verdict;
+  rememberCheck({
+    email_id: res.email_id,
+    view_token: res.view_token,
+    status: res.status,
+    label: v?.overall?.label,
+    score: v?.overall?.score,
+    top_reason: v?.overall?.reasons?.[0],
+    subject: v?.message?.subject,
+    from_addr: v?.message?.from_addr,
+    ...extra,
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -108,7 +223,7 @@ async function request(path, options = {}, isOperator = false) {
     } else if (res.status === 410) {
       msg = "Expired: This approval window (10 minutes) has elapsed.";
     } else if (res.status === 429) {
-      msg = "Rate limit reached. Please wait a minute before retrying.";
+      msg = typeof body.detail === "string" ? body.detail : "Rate limit reached. Please wait a minute before retrying.";
     } else if (res.status === 503) {
       msg = body.detail || "Service unavailable: Server configuration or credentials are missing.";
     }
@@ -313,9 +428,16 @@ export async function getInboxEmail(emailId, viewToken = null) {
     };
   }
 
-  const query = viewToken ? `?view_token=${encodeURIComponent(viewToken)}` : "";
-  const isOp = !viewToken;
-  return request(`/api/inbox/${emailId}${query}`, { method: "GET" }, isOp);
+  const token = viewToken || getViewToken(emailId);
+  if (token) {
+    try {
+      return await request(`/api/inbox/${emailId}?view_token=${encodeURIComponent(token)}`, { method: "GET" });
+    } catch (err) {
+      // A stale view token (e.g. the server's SECRET_KEY changed) falls back to the operator token.
+      if (err.status !== 401 || !hasOperatorToken()) throw err;
+    }
+  }
+  return request(`/api/inbox/${emailId}`, { method: "GET" }, true);
 }
 
 /** Analyze raw RFC822 or pasted text. */
@@ -335,10 +457,12 @@ export async function analyzeMessage(payload) {
     };
   }
 
-  return request("/api/inbox/analyze", {
+  const res = await request("/api/inbox/analyze", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+  rememberResponse(res, { source: payload.source || "paste" });
+  return res;
 }
 
 /** List seeded demo emails. */
@@ -370,10 +494,47 @@ export async function runDemoEmail(name, opts = {}) {
     };
   }
 
-  return request(`/api/inbox/demo/${encodeURIComponent(name)}`, {
+  const res = await request(`/api/inbox/demo/${encodeURIComponent(name)}`, {
     method: "POST",
     body: JSON.stringify(opts),
   });
+  rememberResponse(res, { source: "demo", demo_name: name });
+  return res;
+}
+
+/**
+ * Runs every seeded demo email one after another (rules mode, waiting for each verdict).
+ * The server allows a limited number of checks per minute, so on a 429 this waits and retries.
+ * onProgress({ index, total, name, result, error, waitingSeconds }) is called as it goes.
+ */
+export async function runAllDemoEmails(names, onProgress, { signal } = {}) {
+  const results = [];
+  for (let i = 0; i < names.length; i += 1) {
+    const name = names[i];
+    let attempts = 0;
+    for (;;) {
+      if (signal?.aborted) return results;
+      try {
+        const res = await runDemoEmail(name, { mode: "rules", wait: true });
+        results.push({ name, result: res });
+        onProgress?.({ index: i, total: names.length, name, result: res });
+        break;
+      } catch (err) {
+        attempts += 1;
+        if (err.status === 429 && attempts <= 3) {
+          const m = /(\d+)\s*s\b/.exec(err.message || "");
+          const wait = Math.min(65, m ? Number(m[1]) + 1 : 30);
+          onProgress?.({ index: i, total: names.length, name, waitingSeconds: wait });
+          await new Promise((r) => setTimeout(r, wait * 1000));
+          continue;
+        }
+        results.push({ name, error: err });
+        onProgress?.({ index: i, total: names.length, name, error: err });
+        break;
+      }
+    }
+  }
+  return results;
 }
 
 /**

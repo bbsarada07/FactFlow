@@ -76,6 +76,7 @@ injection_rules:
     patterns:
       - '\b(call|invoke|use|run|execute|trigger)\s+(the\s+)?[a-z]+_[a-z_]+\s*(tool|function|\()'
       - '\b(send_email|forward_email|send_reply|share_data|delete_email|open_link|download_attachment|execute_command|run_shell|http_request|fetch_url)\s*\('
+      - '\b(call|invoke|use|run|execute|trigger)\s+(the\s+)?(tool|function)\s+[a-z]+_[a-z_]+\b'
   - id: INJ-TOOL-02
     category: tool_invocation
     severity: medium
@@ -96,6 +97,8 @@ injection_rules:
     severity: medium
     patterns:
       - '\b(keep|hide)\s+(this|these)\b[^.\n]{0,20}\b(secret|hidden|confidential)\b[^.\n]{0,20}\bfrom (the )?(user|recipient)\b'
+      - '\b(hide|conceal)\s+(this|these|it|the)\b[^.\n]{0,30}\bfrom\s+(the\s+)?(user|recipient|reader|account owner|human)\b'
+      - '\bwithout\s+(reporting|logging|flagging|recording)\s+(it|this|that|them)\b'
 
   # --- chat-template spoofing -------------------------------------------------------------
   - id: INJ-TPL-01
@@ -125,6 +128,8 @@ injection_rules:
     patterns:
       - '\b(message|instruction|notice|directive|order)s?\s+from\s+(the\s+)?(system administrator|sysadmin|system admin|developers?|openai|anthropic|ai provider|platform owner|system)\b'
       - '\b(admin|administrator|developer|system|root)\s+(override|access granted|privileges? granted)\b'
+      - '\bsystem\s+prompt\s+(override|update|change|replacement)\b'
+      - '\b(prompt|instructions?)\s+override\s*:'
   - id: INJ-AUTH-02
     category: authority_claim
     severity: high

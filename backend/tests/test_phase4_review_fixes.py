@@ -85,6 +85,17 @@ def test_benchmark_llm_mode_runs_a_mixed_sample_by_default(mail_env):
 
 def test_benchmark_reports_flagged_benign_cases_by_label(mail_env, tmp_path):
     bench = _bench_subset(tmp_path, {"ben_trap05_bank_debit_hdfc.eml", "ben_19_colleague_lunch.eml"})
+    # ben_19 is SAFE since the HC-12 fix, so add a benign case that is still SUSPICIOUS: its plain-text
+    # part gives a phone number the visible HTML never shows (HC-12, medium).
+    (bench / "ben_x_plain_phone.eml").write_bytes(
+        b"From: Club <hello@club.example>\r\nTo: you@home.example\r\nSubject: Saturday games\r\n"
+        b"MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"b\"\r\n\r\n"
+        b"--b\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n"
+        b"Games start at nine, questions to the coach on 98765 43210 any time this week.\r\n"
+        b"--b\r\nContent-Type: text/html; charset=utf-8\r\n\r\n"
+        b"<p>See you on Saturday morning for the friendly match at the park.</p>\r\n--b--\r\n")
+    with open(bench / "manifest.csv", "a", newline="", encoding="utf-8") as f:
+        f.write("ben_x_plain_phone.eml,benign_notification,SAFE,\r\n")
     res = mail_env.client.portal.call(benchmark.run_benchmark, "rules", None, bench, False)
     assert res["summary"]["benign_flagged_by_label"] == {"SUSPICIOUS": 1, "DANGEROUS": 1}
 

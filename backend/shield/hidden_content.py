@@ -551,20 +551,72 @@ def _token_set(text: str) -> set[str]:
     return set(_TOKEN.findall(text))
 
 
-def alternative_mismatch(plain: str, html_visible: str) -> HiddenFinding | None:
-    """HC-12: text/plain and text/html parts that differ materially (token-set Jaccard < 0.5)."""
+_ALT_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_ALT_PHONE = re.compile(r"(?<!\d)(?:\+?\d[\d\s-]{8,}\d)(?!\d)")
+
+
+def _targets(text: str) -> set[str]:
+    """Where a text can send someone: registrable domains (from URLs, addresses, bare domains) and phone numbers."""
+    text = strip_invisible(text or "")
+    out: set[str] = set()
+    for url in _URLISH.findall(text):
+        reg = domains.registrable(domains.host_of(url))
+        if reg:
+            out.add(reg)
+    for addr in _ALT_EMAIL.findall(text):
+        reg = domains.registrable(domains.normalize_host(addr.rpartition("@")[2]))
+        if reg:
+            out.add(reg)
+    for d in domains.domains_in_text(_ALT_EMAIL.sub(" ", text)):
+        reg = domains.registrable(d)
+        if reg:
+            out.add(reg)
+    for m in _ALT_PHONE.findall(text):
+        digits = re.sub(r"\D", "", m)
+        if len(digits) >= 10:
+            out.add(digits[-10:])
+    return out
+
+
+def alternative_mismatch(plain: str, html_visible: str, html_hosts: list[str] | None = None) -> HiddenFinding | None:
+    """HC-12: the text/plain part (which many AI tools read) says something the visible HTML does not.
+
+    Senders routinely word the two parts differently, so a low word overlap (token-set Jaccard < 0.5)
+    on its own is only a low-severity note. It becomes medium when the plain part points somewhere the
+    visible part does not (a new domain, address or phone number), and critical when the plain part
+    carries instructions to an AI that the visible part does not. Instructions are looked for even
+    when the overlap is high, so a single sentence slipped into an otherwise identical part is caught.
+    """
     a, b = _token_set(plain), _token_set(html_visible)
     if len(a) < 5 or len(b) < 5:
         return None
     jaccard = len(a & b) / len(a | b)
-    if jaccard >= 0.5:
+    instr = is_instruction_like(plain) and not is_instruction_like(html_visible)
+    if jaccard >= 0.5 and not instr:
         return None
     plain_only = [w for w in re.findall(r"\S+", plain) if _token_set(w) and not (_token_set(w) & b)]
-    sample = " ".join(plain_only)[:300]
-    instr = is_instruction_like(plain) and not is_instruction_like(html_visible)
-    sev = "critical" if instr else "medium"
-    return _finding("HC-12", sev, "text/plain vs text/html", sample, instr,
-                    f"The plain-text version shares only {jaccard:.0%} of its words with the version you see.")
+    sample = " ".join(plain_only)[:300] or plain.strip()[:300]
+    if instr:
+        return _finding("HC-12", "critical", "text/plain vs text/html", sample, True,
+                        "The plain-text version of this email, which you never see, gives instructions to an AI "
+                        "that the version you see does not contain.")
+    from shield import scam_patterns  # local import: scam_patterns is not needed by the HTML walk
+
+    visible_scams = {h.id for h in scam_patterns.scan(html_visible)}
+    new_scams = [h for h in scam_patterns.scan(plain) if h.id not in visible_scams]
+    if new_scams:
+        return _finding("HC-12", "medium", "text/plain vs text/html", sample, False,
+                        f"The plain-text version, which you never see, reads like a scam ({new_scams[0].name}) "
+                        "while the version you see does not.")
+    known = _targets(html_visible) | {r for r in (domains.registrable(h) for h in (html_hosts or []) if h) if r}
+    new = sorted(_targets(plain) - known)
+    if new:
+        return _finding("HC-12", "medium", "text/plain vs text/html", sample, False,
+                        f"The plain-text version shares only {jaccard:.0%} of its words with the version you see, "
+                        f"and points to {', '.join(new[:3])}, which the version you see does not mention.")
+    return _finding("HC-12", "low", "text/plain vs text/html", sample, False,
+                    f"The plain-text version is worded differently (it shares {jaccard:.0%} of its words with the "
+                    "version you see), but it adds no instructions, links, addresses or phone numbers.")
 
 
 # --------------------------------------------------------------------- HC-09 attachments

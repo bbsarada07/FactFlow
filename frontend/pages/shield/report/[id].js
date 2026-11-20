@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -30,12 +30,49 @@ import ConfidenceRing from "@/components/ConfidenceRing";
 import ConfidenceBand from "@/components/ConfidenceBand";
 import HarmBadge from "@/components/HarmBadge";
 import AgentProgress, { AGENT_DEFAULTS } from "@/components/AgentProgress";
+import OperatorTokenModal from "@/components/shield/OperatorTokenModal";
 import {
   getInboxEmail,
+  getViewToken,
+  rememberCheck,
   subscribeToEmailStream,
   escapeSuspiciousCharacters,
   USE_MOCKS,
 } from "@/lib/shieldApi";
+
+const HELPLINE = { phone: "1930", portal: "cybercrime.gov.in" };
+
+/** Plain next steps for the person who received the message. */
+function adviceFor(report) {
+  const label = report?.overall?.label;
+  const c = report?.components || {};
+  const steps = [];
+  if (label === "SAFE") {
+    steps.push("No warning signs were found. Still, never share an OTP, PIN or password with anyone who asks.");
+    return steps;
+  }
+  if (c.injection?.score >= 50 || c.hidden_content?.findings?.some((f) => f.instruction_like)) {
+    steps.push("Do not ask an AI assistant to summarise, reply to or act on this email: it contains hidden orders aimed at the assistant.");
+  }
+  if (c.links?.items?.some((l) => l.severity)) {
+    steps.push("Do not open the links or scan any QR code in this message. Type the official website address yourself instead.");
+  }
+  if (c.authenticity?.lookalikes?.length || c.authenticity?.display_name_impersonation) {
+    steps.push("The sender is pretending to be someone else. Contact the organisation through its official app or phone number, not through this email.");
+  }
+  if (c.scam?.detectors?.length) {
+    steps.push("This matches a known fraud pattern. Do not pay, share bank or card details, or install any app it asks for.");
+  }
+  if (report?.message?.attachments?.length) {
+    steps.push("Do not open the attachments.");
+  }
+  steps.push(
+    label === "DANGEROUS"
+      ? "Delete the email or mark it as phishing. If you already paid or shared details, call the cyber fraud helpline at once."
+      : "Treat this email with care and verify it through another channel before doing anything it asks."
+  );
+  return steps;
+}
 
 export default function EmailTrustReportPage() {
   const router = useRouter();
@@ -44,28 +81,36 @@ export default function EmailTrustReportPage() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
+  const [tokenModalOpen, setTokenModalOpen] = useState(false);
   const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
 
   // Streaming progress state
   const [streamActive, setStreamActive] = useState(false);
   const [agents, setAgents] = useState(AGENT_DEFAULTS);
   const [streamProgress, setStreamProgress] = useState(0);
+  const streamRetries = useRef(0);
 
   const fetchVerdict = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
+    setErrorStatus(null);
 
     try {
       const res = await getInboxEmail(id);
       if (res.status === "processing") {
         setStreamActive(true);
+      } else if (res.status === "failed" || !res.verdict) {
+        setError(res.error || "The analysis of this message failed.");
+        setStreamActive(false);
       } else {
         setReport(res.verdict);
         setStreamActive(false);
       }
     } catch (err) {
       console.error("Error fetching verdict:", err);
+      setErrorStatus(err.status || null);
       setError(err.message || "Failed to load email trust report.");
     } finally {
       setLoading(false);
@@ -95,11 +140,43 @@ export default function EmailTrustReportPage() {
       },
       (err) => {
         console.error("Stream error:", err);
-      }
+        // The stream can drop (proxy timeout, server restart); the stored result is still there.
+        setStreamActive(false);
+        if (streamRetries.current < 3) {
+          streamRetries.current += 1;
+          setTimeout(fetchVerdict, 1500);
+        }
+      },
+      getViewToken(id)
     );
 
     return () => unsubscribe();
-  }, [id, streamActive]);
+  }, [id, streamActive, fetchVerdict]);
+
+  // Keep the session's "My checks" list in step with the finished verdict.
+  useEffect(() => {
+    if (!id || !report?.overall) return;
+    rememberCheck({
+      email_id: String(id),
+      status: "complete",
+      label: report.overall.label,
+      score: report.overall.score,
+      top_reason: report.overall.reasons?.[0],
+      subject: report.message?.subject,
+      from_addr: report.message?.from_addr,
+    });
+  }, [id, report]);
+
+  const downloadReport = () => {
+    if (!report) return;
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `shield-report-${String(id).slice(0, 12)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const copyWhatsappText = () => {
     const text = report?.explanation?.whatsapp_warning;
@@ -155,18 +232,37 @@ export default function EmailTrustReportPage() {
         {/* Error State */}
         {!loading && error && (
           <div className="rounded-lg border border-red/40 bg-card p-8 text-center">
-            <ShieldAlert size={36} className="text-red mx-auto mb-3" />
+            {errorStatus === 401 ? (
+              <Lock size={36} className="text-red mx-auto mb-3" />
+            ) : (
+              <ShieldAlert size={36} className="text-red mx-auto mb-3" />
+            )}
             <h3 className="font-display text-[18px] font-bold text-primary">
-              Report Generation Error
+              {errorStatus === 401 ? "This report is private" : "Report Generation Error"}
             </h3>
-            <p className="mt-2 text-[13px] text-secondary max-w-md mx-auto">{error}</p>
-            <button
-              type="button"
-              onClick={fetchVerdict}
-              className="btn-red !py-2 !px-5 mt-5 !text-[13px]"
-            >
-              <RotateCw size={13} /> Retry Analysis
-            </button>
+            <p className="mt-2 text-[13px] text-secondary max-w-md mx-auto">
+              {errorStatus === 401
+                ? "Reports open without a token only in the browser tab session that ran the check. To open any report, enter the operator token."
+                : error}
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              {errorStatus === 401 && (
+                <button
+                  type="button"
+                  onClick={() => setTokenModalOpen(true)}
+                  className="btn-red !py-2 !px-5 !text-[13px]"
+                >
+                  <Lock size={13} /> Enter Operator Token
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={fetchVerdict}
+                className={errorStatus === 401 ? "btn-ghost" : "btn-red !py-2 !px-5 !text-[13px]"}
+              >
+                <RotateCw size={13} /> Retry
+              </button>
+            </div>
           </div>
         )}
 
@@ -286,6 +382,34 @@ export default function EmailTrustReportPage() {
                   size={90}
                 />
               </div>
+            </div>
+
+            {/* What to do now */}
+            <div className="rounded-lg border border-subtle bg-surface p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <h3 className="font-display text-[16px] font-bold text-primary flex items-center gap-2">
+                  <HelpCircle size={17} className="text-red" />
+                  What you should do
+                </h3>
+                {report.harm?.level && report.harm.level !== "NONE" && (
+                  <span className="mono text-[10.5px] font-bold uppercase tracking-wider rounded border border-red/40 bg-red/10 px-2 py-0.5 text-red">
+                    Harm: {report.harm.level}
+                    {report.harm.types?.length ? ` · ${report.harm.types.join(", ").replace(/_/g, " ")}` : ""}
+                  </span>
+                )}
+              </div>
+              <ol className="list-decimal pl-5 flex flex-col gap-1.5 text-[13px] text-secondary">
+                {adviceFor(report).map((step, i) => (
+                  <li key={i}>{step}</li>
+                ))}
+              </ol>
+              {v?.label !== "SAFE" && (
+                <p className="mt-3 text-[12px] text-muted">
+                  Lost money or shared details? In India, call the cyber fraud helpline{" "}
+                  <strong className="text-primary">{HELPLINE.phone}</strong> or report at{" "}
+                  <strong className="text-primary">{HELPLINE.portal}</strong>.
+                </p>
+              )}
             </div>
 
             {/* What you see vs What the AI reads */}
@@ -423,10 +547,46 @@ export default function EmailTrustReportPage() {
                       </span>
                       {components.authenticity.lookalikes.map((l, i) => (
                         <div key={i} className="text-[12.5px] text-primary">
-                          <code className="text-red">{l.domain}</code> impersonating <code className="text-green">{l.legit_domain}</code> ({l.reason})
+                          <code className="text-red">{l.domain}</code> imitating{" "}
+                          {l.legit_domain ? <code className="text-green">{l.legit_domain}</code> : <span>{l.brand}</span>} ({l.reason})
                         </div>
                       ))}
                     </div>
+                  )}
+
+                  {(components?.authenticity?.reply_to_mismatch ||
+                    components?.authenticity?.return_path_mismatch ||
+                    components?.authenticity?.display_name_impersonation) && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {components.authenticity.display_name_impersonation && (
+                        <span className="pill text-[10px] bg-red/10 border-red/40 text-red">DISPLAY NAME IMPERSONATION</span>
+                      )}
+                      {components.authenticity.reply_to_mismatch && (
+                        <span className="pill text-[10px] bg-orange/10 border-orange/40 text-orange">REPLY-TO MISMATCH</span>
+                      )}
+                      {components.authenticity.return_path_mismatch && (
+                        <span className="pill text-[10px] bg-orange/10 border-orange/40 text-orange">BOUNCE ADDRESS MISMATCH</span>
+                      )}
+                    </div>
+                  )}
+
+                  {components?.authenticity?.signals?.length > 0 ? (
+                    <ul className="list-none p-0 flex flex-col gap-1 text-[12.5px] text-secondary">
+                      {components.authenticity.signals.map((s, i) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <span className="text-orange mt-0.5">•</span>
+                          <span>{escapeSuspiciousCharacters(s)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    !components?.authenticity?.lookalikes?.length && (
+                      <p className="text-green text-[12.5px]">No sender spoofing signals found.</p>
+                    )
+                  )}
+
+                  {message?.reply_to && (
+                    <p className="mono text-[11.5px] text-muted">Reply-To: {escapeSuspiciousCharacters(message.reply_to)}</p>
                   )}
                 </div>
               </Accordion>
@@ -483,14 +643,62 @@ export default function EmailTrustReportPage() {
                         <div key={i} className="rounded border border-orange/40 bg-orange/5 p-3">
                           <div className="font-semibold text-primary">{det.name} ({det.id})</div>
                           <div className="text-secondary text-[12px] mt-1">
-                            Evidence matched: {det.matched_evidence?.join(", ")}
+                            Evidence matched: {escapeSuspiciousCharacters(det.matched_evidence?.join(", ") || "")}
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
+                  {components?.scam?.template_hit && (
+                    <div className="mt-2 rounded border border-orange/30 bg-card p-3 text-[12px]">
+                      <div className="mono text-[11px] text-orange font-bold uppercase mb-1">
+                        Closest known scam template ({Math.round((components.scam.template_hit.score || 0) * 100)}% similar)
+                      </div>
+                      <div className="text-primary font-medium">{components.scam.template_hit.template_name}</div>
+                      <p className="text-secondary mt-1">“{escapeSuspiciousCharacters(components.scam.template_hit.excerpt || "")}”</p>
+                    </div>
+                  )}
                 </div>
               </Accordion>
+
+              {/* 5. Attachments */}
+              {message?.attachments?.length > 0 && (
+                <Accordion title="5. Attachments" count={message.attachments.length} countLabel="files">
+                  <div className="flex flex-col gap-2 text-[12.5px]">
+                    {message.attachments.map((a, i) => (
+                      <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded border border-subtle bg-card p-2.5">
+                        <span className="mono text-primary truncate max-w-xs">
+                          <FileText size={12} className="inline mr-1.5 text-secondary" />
+                          {escapeSuspiciousCharacters(a.filename || "unnamed")}
+                        </span>
+                        <span className="mono text-[11px] text-muted">
+                          {a.content_type}
+                          {a.size != null ? ` · ${Math.max(1, Math.round(a.size / 1024))} KB` : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </Accordion>
+              )}
+
+              {/* 6. Claims */}
+              {components?.claims?.items?.length > 0 && (
+                <Accordion title="6. Factual Claims" count={components.claims.items.length} countLabel="claims">
+                  <div className="flex flex-col gap-2 text-[12.5px]">
+                    {components.claims.items.map((cl, i) => (
+                      <div key={i} className="rounded border border-subtle bg-card p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="mono text-[11px] font-bold uppercase text-orange">{cl.verdict}</span>
+                          <span className="mono text-[11px] text-muted">
+                            credibility {cl.credibility}/100{cl.hidden ? " · hidden from you" : ""}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-primary">{escapeSuspiciousCharacters(cl.claim)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Accordion>
+              )}
             </div>
 
             {/* Explanation & WhatsApp Warning */}
@@ -534,7 +742,12 @@ export default function EmailTrustReportPage() {
 
             {/* Latency & Audit Metadata */}
             <div className="rounded-md border border-subtle bg-card p-4 text-[11.5px] font-mono text-muted flex flex-wrap justify-between gap-3">
-              <div>PIPELINE: {report.pipeline_version} · MODE: {report.mode}</div>
+              <div className="flex items-center gap-3">
+                <span>PIPELINE: {report.pipeline_version} · MODE: {report.mode}</span>
+                <button type="button" onClick={downloadReport} className="btn-ghost !py-1 !px-2.5 !text-[11px]">
+                  <FileText size={12} /> Download JSON
+                </button>
+              </div>
               {latency && (
                 <div>
                   LATENCY: {latency.total}ms (Audit: {latency.per_stage?.audit || 0}ms)
@@ -549,6 +762,12 @@ export default function EmailTrustReportPage() {
           </div>
         )}
       </div>
+
+      <OperatorTokenModal
+        isOpen={tokenModalOpen}
+        onClose={() => setTokenModalOpen(false)}
+        onTokenSaved={(token) => token && fetchVerdict()}
+      />
     </>
   );
 }

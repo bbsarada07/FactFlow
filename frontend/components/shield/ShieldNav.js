@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Mail, CheckSquare, BarChart3, ShieldCheck, KeyRound, Sparkles } from "lucide-react";
 import MockBanner from "@/components/shield/MockBanner";
 import OperatorTokenModal from "@/components/shield/OperatorTokenModal";
-import { hasOperatorToken, USE_MOCKS } from "@/lib/shieldApi";
+import { hasOperatorToken, onOperatorTokenChange, USE_MOCKS } from "@/lib/shieldApi";
 
 const NAV_ITEMS = [
   { href: "/shield", label: "Inbox", icon: Mail },
@@ -20,6 +20,7 @@ export default function ShieldNav() {
 
   useEffect(() => {
     setHasToken(hasOperatorToken());
+    return onOperatorTokenChange(() => setHasToken(hasOperatorToken()));
   }, []);
 
   return (
@@ -62,7 +63,7 @@ export default function ShieldNav() {
             >
               <KeyRound size={12} className={hasToken ? "text-green" : "text-secondary"} />
               <span className="text-[10.5px]">
-                {hasToken ? "OPERATOR AUTH OK" : "SET OPERATOR TOKEN"}
+                {hasToken ? "OPERATOR TOKEN SET" : "SET OPERATOR TOKEN"}
               </span>
             </button>
           </div>
