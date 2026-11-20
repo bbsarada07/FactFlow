@@ -53,3 +53,6 @@ backend/data/local/
 cloudflared.exe
 ngrok.exe
 ngrok.yml
+
+# Sentinel lives in its own repo (bbsarada07/CVR); a local clone here is not part of FactFlow
+CVR/
