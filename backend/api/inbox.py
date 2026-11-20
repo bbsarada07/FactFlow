@@ -1,4 +1,7 @@
-"""/api/inbox: analyse emails and messages with the Shield (see docs/API_CONTRACT.md)."""
+"""/api/inbox: analyse emails and messages with the Shield (see docs/API_CONTRACT.md).
+
+Every analysis belongs to the signed-in user who submitted it (or whose mailbox it came from); nobody else can
+list, read or stream it."""
 import asyncio
 import base64
 import binascii
@@ -6,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,9 +20,9 @@ from api.verify import RateLimiter
 from config import BASE_DIR, settings
 from database.connection import get_session
 from database.models import Email, iso
-from services import view_tokens
+from services import auth
+from services.auth import CurrentUser
 from services.event_bus import get_bus
-from services.operator_auth import require_operator
 from shield.email_parser import MAX_BYTES, EmailInputError, parse_input
 from shield.scan import PIPELINE_VERSION
 
@@ -51,7 +54,7 @@ class AnalyzeResponse(BaseModel):
     cached: bool = False
     stream_url: str
     result_url: str
-    view_token: str | None = Field(default=None, description="lets the submitter read this analysis; keep it private")
+    view_token: str | None = Field(default=None, description="deprecated, always null: results are read by signing in")
     verdict: dict | None = None
     error: str | None = None
 
@@ -68,48 +71,46 @@ def _bytes(body: AnalyzeRequest) -> bytes:
 
 
 def _response(row: Email, cached: bool = False) -> AnalyzeResponse:
-    token = view_tokens.view_token(row.id)
-    return AnalyzeResponse(email_id=row.id, status=row.status, mode=row.mode, cached=cached, view_token=token,
-                           stream_url=f"/api/inbox/{row.id}/stream?view_token={token}",
-                           result_url=f"/api/inbox/{row.id}?view_token={token}",
+    return AnalyzeResponse(email_id=row.id, status=row.status, mode=row.mode, cached=cached,
+                           stream_url=f"/api/inbox/{row.id}/stream", result_url=f"/api/inbox/{row.id}",
                            verdict=row.verdict if row.status == "complete" else None, error=row.error)
 
 
-def require_viewer(email_id: str, request: Request, view_token: str | None = Query(default=None),
-                   x_operator_token: str | None = Header(default=None)) -> str:
-    """The submitter (with the view token from POST /analyze) or the operator. Messages fetched by
-    the mail agent have no view token, so only the operator can read them."""
-    if view_tokens.valid(email_id, view_token):
-        return "submitter"
-    return require_operator(request, x_operator_token)
+async def owned_email(session: AsyncSession, email_id: str, user: CurrentUser) -> Email:
+    """The email if it belongs to `user`; someone else's looks exactly like a missing one."""
+    row = await session.get(Email, email_id)
+    if row is None or row.user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown email_id")
+    return row
 
 
 async def _submit(data: bytes, source: str, opts: AnalyzeOptions, request: Request, response: Response,
-                  session: AsyncSession) -> AnalyzeResponse:
+                  session: AsyncSession, user: CurrentUser) -> AnalyzeResponse:
     try:
         pe = parse_input(data, source)
     except EmailInputError as exc:
         code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE if "larger" in str(exc) else status.HTTP_422_UNPROCESSABLE_CONTENT
         raise HTTPException(code, str(exc)) from None
-    limiter.check(request.client.host if request.client else "unknown")
+    limiter.check(f"user:{user.id}")
     use_llm = opts.mode == "full" and settings.INBOX_USE_LLM
     mode = "full" if use_llm else "rules"
     disabled_by_server = opts.mode == "full" and not settings.INBOX_USE_LLM
     if not opts.force:
         cached = await session.scalar(
-            select(Email).where(Email.sha256 == pe.sha256, Email.pipeline_version == PIPELINE_VERSION,
+            select(Email).where(Email.user_id == user.id, Email.sha256 == pe.sha256,
+                                Email.pipeline_version == PIPELINE_VERSION,
                                 Email.mode == mode, Email.language == opts.language, Email.status == "complete")
             .order_by(Email.created_at.desc()).limit(1))
         if cached is not None:
             response.status_code = status.HTTP_200_OK
             return _response(cached, cached=True)
-    row = Email(source=source, sha256=pe.sha256, pipeline_version=PIPELINE_VERSION, mode=mode, language=opts.language,
+    row = Email(user_id=user.id, source=source, sha256=pe.sha256, pipeline_version=PIPELINE_VERSION, mode=mode, language=opts.language,
                 status="processing", subject=pe.subject[:500] or None, from_addr=pe.from_addr[:320] or None)
     session.add(row)
     await session.commit()
     email_id = row.id
     job = analyze(email_id, data, InboxOptions(source=source, language=opts.language, use_llm=use_llm,
-                                               llm_disabled_by_server=disabled_by_server))
+                                               llm_disabled_by_server=disabled_by_server, user_id=user.id))
     if opts.wait:
         await job
         await session.refresh(row)
@@ -124,9 +125,9 @@ async def _submit(data: bytes, source: str, opts: AnalyzeOptions, request: Reque
 
 @router.post("/analyze", response_model=AnalyzeResponse, status_code=status.HTTP_202_ACCEPTED)
 async def analyze_message(body: AnalyzeRequest, request: Request, response: Response,
-                          session: AsyncSession = Depends(get_session)):
-    """Analyse an email (raw source or .eml) or a pasted message. Public, rate-limited."""
-    return await _submit(_bytes(body), body.source, body, request, response, session)
+                          session: AsyncSession = Depends(get_session), user: CurrentUser = Depends(auth.current_user)):
+    """Analyse an email (raw source or .eml) or a pasted message, as the signed-in user. Rate-limited per user."""
+    return await _submit(_bytes(body), body.source, body, request, response, session, user)
 
 
 def _demo_files() -> list[Path]:
@@ -134,7 +135,7 @@ def _demo_files() -> list[Path]:
 
 
 @router.get("/demo")
-async def list_demo_emails():
+async def list_demo_emails(_user: CurrentUser = Depends(auth.current_user)):
     """The seeded demo emails (data/demo_emails)."""
     out = []
     for path in _demo_files():
@@ -145,20 +146,21 @@ async def list_demo_emails():
 
 @router.post("/demo/{name}", response_model=AnalyzeResponse, status_code=status.HTTP_202_ACCEPTED)
 async def analyze_demo_email(name: str, request: Request, response: Response, opts: AnalyzeOptions | None = None,
-                             session: AsyncSession = Depends(get_session)):
+                             session: AsyncSession = Depends(get_session), user: CurrentUser = Depends(auth.current_user)):
     """Analyse one seeded demo email by name (see GET /api/inbox/demo)."""
     path = next((p for p in _demo_files() if p.stem == name), None)
     if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such demo email")
-    return await _submit(path.read_bytes(), "demo", opts or AnalyzeOptions(), request, response, session)
+    return await _submit(path.read_bytes(), "demo", opts or AnalyzeOptions(), request, response, session, user)
 
 
 @router.get("")
 async def list_inbox(limit: int = Query(30, ge=1, le=100), offset: int = Query(0, ge=0),
                      label: Literal["SAFE", "SUSPICIOUS", "DANGEROUS"] | None = None, source: str | None = None,
-                     session: AsyncSession = Depends(get_session), _actor: str = Depends(require_operator)):
-    """Analysed messages, newest first. Needs the operator token (it lists other people's messages)."""
-    q, count = select(Email), select(func.count()).select_from(Email)
+                     session: AsyncSession = Depends(get_session), user: CurrentUser = Depends(auth.current_user)):
+    """The signed-in user's analysed messages, newest first."""
+    q = select(Email).where(Email.user_id == user.id)
+    count = select(func.count()).select_from(Email).where(Email.user_id == user.id)
     if label:
         q, count = q.where(Email.label == label), count.where(Email.label == label)
     if source:
@@ -169,11 +171,9 @@ async def list_inbox(limit: int = Query(30, ge=1, le=100), offset: int = Query(0
 
 @router.get("/{email_id}")
 async def get_email(email_id: str, response: Response, session: AsyncSession = Depends(get_session),
-                    _viewer: str = Depends(require_viewer)):
-    """One analysis: for the submitter (view_token) or the operator. 202 while processing."""
-    row = await session.get(Email, email_id)
-    if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown email_id")
+                    user: CurrentUser = Depends(auth.current_user)):
+    """One of the signed-in user's analyses. 202 while processing."""
+    row = await owned_email(session, email_id, user)
     if row.status == "processing":
         response.status_code = status.HTTP_202_ACCEPTED
     return {"email_id": row.id, "status": row.status, "mode": row.mode, "created_at": iso(row.created_at),
@@ -186,11 +186,9 @@ def _sse(event: dict) -> dict:
 
 @router.get("/{email_id}/stream")
 async def stream_email(email_id: str, request: Request, session: AsyncSession = Depends(get_session),
-                       _viewer: str = Depends(require_viewer)):
+                       user: CurrentUser = Depends(auth.current_user)):
     """Live stage events in the same format as /api/stream/{request_id}."""
-    row = await session.get(Email, email_id)
-    if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown email_id")
+    row = await owned_email(session, email_id, user)
     bus = get_bus()
     replay = None
     if row.status in ("complete", "failed") and not bus.has(email_id):

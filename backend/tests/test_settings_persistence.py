@@ -1,9 +1,8 @@
-"""The policy mode and the chosen mail provider survive a backend restart, and a restart never loosens anything."""
+"""Each user's policy mode and mail provider survive a backend restart, and nothing can loosen them by accident."""
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 
-from standins import OP
+from standins import TEST_USER_ID
 
 
 @pytest.fixture
@@ -12,17 +11,13 @@ def app_env(db_url, monkeypatch):
     import main  # noqa: F401  (imported so the routers exist)
     from config import settings
     from database import connection
-    from services import mail_agent, operator_auth, shield_runtime
-    from api.verify import RateLimiter
+    from services import shield_runtime
 
-    for name, value in {"ASYNC_DATABASE_URL": db_url, "OPERATOR_TOKEN": OP["X-Operator-Token"],
-                        "MAIL_POLL_ENABLED": False}.items():
+    for name, value in {"ASYNC_DATABASE_URL": db_url, "MAIL_POLL_ENABLED": False}.items():
         monkeypatch.setattr(settings, name, value)
     monkeypatch.setattr(connection, "engine", None)
     monkeypatch.setattr(connection, "SessionLocal", None)
-    monkeypatch.setattr(operator_auth, "failures", RateLimiter(100, noun="failed attempts"))
     monkeypatch.setattr(shield_runtime, "_policy", None)
-    monkeypatch.setitem(mail_agent._active, "provider", "auto")
     return monkeypatch
 
 
@@ -32,33 +27,33 @@ def start():
     return TestClient(main.app)
 
 
-def forget_memory(monkeypatch):
-    """What a process restart does to the in-memory settings."""
-    from services import mail_agent, shield_runtime
+def restart(monkeypatch):
+    """What a process restart does: a new engine and no in-memory policy."""
+    from database import connection
+    from services import shield_runtime
 
+    monkeypatch.setattr(connection, "engine", None)
+    monkeypatch.setattr(connection, "SessionLocal", None)
     monkeypatch.setattr(shield_runtime, "_policy", None)
-    monkeypatch.setitem(mail_agent._active, "provider", "auto")
 
 
 def test_policy_mode_and_provider_survive_a_restart(app_env):
     with start() as client:
         assert client.get("/api/policy").json()["mode"] == "strict"
-        r = client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True}, headers=OP)
+        r = client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True})
         assert r.status_code == 200 and r.json()["mode"] == "balanced"
-        assert client.put("/api/mail/provider", json={"provider": "eml"}, headers=OP).status_code == 200
-    forget_memory(app_env)
+        assert client.put("/api/mail/provider", json={"provider": "eml"}).status_code == 200
+    restart(app_env)
     with start() as client:
-        from services import mail_agent
-
         assert client.get("/api/policy").json()["mode"] == "balanced"
-        assert mail_agent._active["provider"] == "eml"
+        assert client.get("/api/mail/status").json()["provider_setting"] == "eml"
 
 
 def test_tightening_also_survives_a_restart(app_env):
     with start() as client:
-        client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True}, headers=OP)
-        assert client.put("/api/policy/mode", json={"mode": "strict"}, headers=OP).json()["mode"] == "strict"
-    forget_memory(app_env)
+        client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True})
+        assert client.put("/api/policy/mode", json={"mode": "strict"}).json()["mode"] == "strict"
+    restart(app_env)
     with start() as client:
         assert client.get("/api/policy").json()["mode"] == "strict"
 
@@ -66,64 +61,47 @@ def test_tightening_also_survives_a_restart(app_env):
 @pytest.mark.parametrize("stored_mode, stored_provider", [("loose", "bogus"), ("", ""), (None, None)])
 def test_missing_or_corrupted_rows_fall_back_to_strict_and_auto(app_env, stored_mode, stored_provider):
     from database import connection
-    from database.models import RuntimeSetting
-    from services import mail_agent
+    from database.models import UserSettings
 
-    async def write_rows():
+    async def write_row():
         async with connection.session_factory()() as s:
-            for key, value in (("policy_mode", stored_mode), ("mail_provider", stored_provider)):
-                if value is not None:
-                    row = await s.get(RuntimeSetting, key)
-                    if row is None:
-                        s.add(RuntimeSetting(key=key, value=value))
-                    else:
-                        row.value = value
+            if stored_mode is None:
+                return
+            s.add(UserSettings(user_id=TEST_USER_ID, policy_mode=stored_mode, mail_provider=stored_provider))
             await s.commit()
 
     with start() as client:
-        client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True}, headers=OP)
-        if stored_mode is None:  # simulate a lost row
-            async def drop():
-                async with connection.session_factory()() as s:
-                    for key in ("policy_mode", "mail_provider"):
-                        row = await s.get(RuntimeSetting, key)
-                        if row is not None:
-                            await s.delete(row)
-                    await s.commit()
-            client.portal.call(drop)
-        else:
-            client.portal.call(write_rows)
-    forget_memory(app_env)
-    with start() as client:
+        client.get("/api/policy")  # creates the test user
+        client.portal.call(write_row)
         assert client.get("/api/policy").json()["mode"] == "strict"
-        assert mail_agent._active["provider"] == "auto"
+        status = client.get("/api/mail/status").json()
+        assert status["provider_setting"] == "auto"
 
 
 def test_loosening_still_needs_confirmation_and_is_audited(app_env):
-    from database import connection
-    from database.models import AuditLog
-
     with start() as client:
-        refused = client.put("/api/policy/mode", json={"mode": "balanced"}, headers=OP)
-        assert refused.status_code == 409
-        assert client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True}, headers=OP).status_code == 200
-
-        async def changes():
-            async with connection.session_factory()() as s:
-                return (await s.scalars(select(AuditLog).where(AuditLog.event_type == "policy_changed"))).all()
-
-        [entry] = client.portal.call(changes)
-        assert '"new": "balanced"' in entry.payload_json or entry.payload_json.get("new") == "balanced"
+        assert client.put("/api/policy/mode", json={"mode": "balanced"}).status_code == 409
+        assert client.get("/api/policy").json()["mode"] == "strict"
+        assert client.put("/api/policy/allowed-domains", json={"domains": ["new.example"]}).status_code == 409
+        client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True})
+        events = [i["event_type"] for i in client.get("/api/audit?limit=200").json()["items"]]
+        assert events.count("policy_changed") == 1
 
 
-def test_a_failed_save_leaves_the_running_mode_unchanged(app_env):
+def test_a_failed_save_leaves_the_mode_unchanged(app_env):
     from services import runtime_settings
 
-    async def broken_save(*args, **kwargs):
-        raise RuntimeError("database unavailable")
+    async def broken_save(*_a, **_k):
+        raise RuntimeError("database is down")
 
+    real_save = runtime_settings._save
     with start() as client:
-        app_env.setattr(runtime_settings, "save", broken_save)
-        r = client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True}, headers=OP)
-        assert r.status_code == 503
+        runtime_settings._save = broken_save
+        try:
+            with pytest.raises(RuntimeError):
+                client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True})
+        finally:
+            runtime_settings._save = real_save
+    restart(app_env)
+    with start() as client:
         assert client.get("/api/policy").json()["mode"] == "strict"

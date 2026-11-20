@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
 
+    # Accounts: Sign in with Google (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET below). Everything a user checks or
+    # connects is theirs alone. Sessions are HttpOnly cookies; only their SHA-256 is stored.
+    ALLOWED_EMAILS: str = ""  # comma-separated; empty = anyone Google lets sign in (Testing mode: test users only)
+    ADMIN_EMAILS: str = ""  # comma-separated; admins can run the benchmark and read system audit events
+    SESSION_DAYS: int = 30
+
     # Shown to users in the footer / navbar (must name the real provider)
     INFERENCE_PROVIDER: str = "Groq"
 
@@ -100,9 +106,7 @@ class Settings(BaseSettings):
     KB_TOP_K: int = 5
 
     # Shield / inbox. Empty secrets keep the features that need them switched off (fail closed).
-    OPERATOR_TOKEN: str = ""  # required by approvals, policy changes, audit and inbox listing routes
     APPROVAL_SECRET: str = ""  # signs approval tokens; at least 32 characters
-    OPERATOR_FAILURES_PER_MINUTE: int = 5
     INBOX_USE_LLM: bool = True  # False = rules-only analysis (no model calls)
     INBOX_MAX_CLAIMS: int = 3
     INBOX_FACTCHECK_CONCURRENCY: int = 2
@@ -116,7 +120,8 @@ class Settings(BaseSettings):
     # Mail agent and read-only Gmail (docs/GMAIL_SETUP.md). Empty values keep Gmail disconnected.
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
-    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/mail/gmail/callback"
+    # Empty = FRONTEND_URL + /api/mail/gmail/callback (the frontend forwards /api to this backend).
+    GOOGLE_REDIRECT_URI: str = ""
     TOKEN_ENCRYPTION_KEY: str = ""  # Fernet key that encrypts stored OAuth tokens
     MAIL_POLL_ENABLED: bool = True
     MAIL_POLL_SECONDS: float = 45.0

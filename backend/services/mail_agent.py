@@ -4,6 +4,10 @@ decides an approval.
 
 Effects stay inside FactFlow: notes on the task, flags on the email row, and the simulated outbox.
 There is no code path that sends, deletes or modifies real mail.
+
+Everything is per user: each user has their own Gmail connection, demo inbox, policy, rate limit, tasks,
+approvals and outbox. Every function that reads or changes a task takes the owner's user_id and treats a task
+owned by someone else exactly like one that does not exist.
 """
 from __future__ import annotations
 
@@ -21,12 +25,12 @@ from agents.inbox_pipeline import InboxOptions, analyze
 from config import BASE_DIR, settings
 from database import connection
 from database.models import Email, MailTask, ShieldApproval, SimulatedOutbox, iso, utcnow
-from services import gmail_account, shield_runtime
+from services import gmail_account, runtime_settings, shield_runtime
 from shield import mail_agent as rules
 
 from shield.email_parser import EmailInputError, parse_input
 from shield.mail_agent import Step
-from shield.policy import P1_EXCEPTIONS, Signals, UserContext, decide
+from shield.policy import P1_EXCEPTIONS, PolicyConfig, Signals, UserContext, decide
 from shield.providers.base import MailProvider, ProviderAuthError, ProviderTemporaryError, RawMessageRef
 from shield.providers.eml import EmlProvider
 from shield.scan import PIPELINE_VERSION
@@ -34,10 +38,10 @@ from shield.schemas import Approval, PolicyDecision, UnifiedVerdict
 
 ACTOR = "agent:mail"
 CURSOR_OVERLAP = timedelta(minutes=2)
-_eml = EmlProvider(BASE_DIR / "data" / "demo_emails")
+DEMO_DIR = BASE_DIR / "data" / "demo_emails"
+_eml: dict[str, EmlProvider] = {}  # user_id -> that user's demo inbox (shared demo files + their own uploads)
 _locks: dict[str, asyncio.Lock] = {}
-_recent: deque[float] = deque()
-_active = {"provider": "auto"}  # auto | gmail | eml
+_recent: dict[str, deque[float]] = {}  # user_id -> processing times in the last minute
 
 
 class SyncReport(BaseModel):
@@ -51,36 +55,34 @@ class SyncReport(BaseModel):
     reconnect_required: bool = False
 
 
-def eml_provider() -> EmlProvider:
-    return _eml
+def eml_provider(user_id: str) -> EmlProvider:
+    """This user's demo inbox: the shared demo .eml files plus only their own uploads."""
+    if user_id not in _eml:
+        _eml[user_id] = EmlProvider(DEMO_DIR)
+    return _eml[user_id]
 
 
-def set_active(provider: str) -> None:
-    if provider not in ("auto", "gmail", "eml"):
-        raise ValueError("provider must be auto, gmail or eml")
-    _active["provider"] = provider
-
-
-async def active_provider() -> tuple[str, MailProvider | None]:
-    """(name, provider). 'auto' uses Gmail when it is connected and the demo inbox otherwise."""
-    choice = _active["provider"]
+async def active_provider(user_id: str) -> tuple[str, MailProvider | None]:
+    """(name, provider) for this user. 'auto' uses their Gmail when connected and their demo inbox otherwise."""
+    choice = await runtime_settings.mail_provider(user_id)
     if choice in ("auto", "gmail"):
-        gmail = await gmail_account.provider()
+        gmail = await gmail_account.provider(user_id)
         if gmail is not None or choice == "gmail":
             return "gmail", gmail
-        if (await gmail_account.status())["reconnect_required"]:
+        if (await gmail_account.status(user_id))["reconnect_required"]:
             return "gmail", None  # say "reconnect" rather than quietly reading the demo inbox
-    return "eml", _eml
+    return "eml", eml_provider(user_id)
 
 
-def _rate_ok() -> bool:
-    """Per-minute cap on messages processed (MAIL_AGENT_MAX_PER_MINUTE)."""
+def _rate_ok(user_id: str) -> bool:
+    """Per-user, per-minute cap on messages processed (MAIL_AGENT_MAX_PER_MINUTE)."""
     now = time.monotonic()
-    while _recent and now - _recent[0] >= 60:
-        _recent.popleft()
-    if len(_recent) >= settings.MAIL_AGENT_MAX_PER_MINUTE:
+    recent = _recent.setdefault(user_id, deque())
+    while recent and now - recent[0] >= 60:
+        recent.popleft()
+    if len(recent) >= settings.MAIL_AGENT_MAX_PER_MINUTE:
         return False
-    _recent.append(now)
+    recent.append(now)
     return True
 
 
@@ -97,7 +99,8 @@ async def _transition(task: MailTask, new: str, s, **payload) -> None:
     task.state = new
     await s.commit()
     await shield_runtime.audit().append(ACTOR, "task_state", {
-        "email_id": task.email_id, "task_id": task.id, "state": new, "provider": task.provider, **payload})
+        "email_id": task.email_id, "task_id": task.id, "state": new, "provider": task.provider, **payload},
+        user_id=task.user_id)
 
 
 def _steps(task: MailTask) -> list[Step]:
@@ -116,8 +119,7 @@ async def _verdict(s, email_id: str | None) -> UnifiedVerdict | None:
 # ---------------------------------------------------------------------------- policy
 
 
-def _decide(step: Step, v: UnifiedVerdict) -> PolicyDecision:
-    cfg = shield_runtime.policy_store().get()
+def _decide(step: Step, v: UnifiedVerdict, cfg: PolicyConfig) -> PolicyDecision:
     user_values = (step.target,) if step.requested_by == "user" and step.target else ()
     content = rules.draft_reply_text(v) if step.task == "draft_reply" else None
     return decide(step.action, step.target, step.origin, v.overall.label,
@@ -150,7 +152,8 @@ async def _execute(s, task: MailTask, steps: list[Step], step: Step, v: UnifiedV
         step.result = {"flag": step.task, "where": "FactFlow only; the mailbox was not changed"}
     elif step.task in rules.OUTBOX_KIND:
         subject = v.message.subject if v.message else ""
-        entry = SimulatedOutbox(task_id=task.id, step_id=step.id, email_id=task.email_id, kind=rules.OUTBOX_KIND[step.task],
+        entry = SimulatedOutbox(user_id=task.user_id, task_id=task.id, step_id=step.id, email_id=task.email_id,
+                                kind=rules.OUTBOX_KIND[step.task],
                                 target=step.target, subject=subject[:500], approved_by=approved_by,
                                 body_preview=(v.reader_notes.summary if v.reader_notes else "")[:500])
         s.add(entry)
@@ -164,20 +167,21 @@ async def _execute(s, task: MailTask, steps: list[Step], step: Step, v: UnifiedV
     await s.commit()
     await shield_runtime.audit().append(ACTOR, "step_executed", {
         "email_id": task.email_id, "task_id": task.id, "step_id": step.id, "task": step.task, "target": step.target,
-        "approved_by": approved_by, "notice": step.notice})
+        "approved_by": approved_by, "notice": step.notice}, user_id=task.user_id)
 
 
 async def _gate(s, task: MailTask, steps: list[Step], v: UnifiedVerdict) -> None:
     """Policy-check planned steps, then execute, park for approval, or block each one."""
     store = shield_runtime.approvals()
+    cfg = await runtime_settings.policy_for(task.user_id)
     for step in steps:
         if step.status != "planned":
             continue
-        step.policy = _decide(step, v)
+        step.policy = _decide(step, v, cfg)
         await shield_runtime.audit().append("policy", "policy_decision", {
             "email_id": task.email_id, "task_id": task.id, "step_id": step.id, "action": step.action,
             "target": step.target, "origin": step.origin, "decision": step.policy.decision,
-            "rule_id": step.policy.rule_id, "notice": step.policy.notice})
+            "rule_id": step.policy.rule_id, "notice": step.policy.notice}, user_id=task.user_id)
     _put_steps(task, steps)
     await _transition(task, "POLICY_CHECKED", s, steps=len(steps))
     for step in steps:
@@ -192,7 +196,7 @@ async def _gate(s, task: MailTask, steps: list[Step], v: UnifiedVerdict) -> None
             step.notice = "Approvals are switched off on the server (APPROVAL_SECRET is not set), so this step was not run."
         else:
             approval, _token = await store.create(
-                email_id=task.email_id, action=step.action, target=step.target, origin=step.origin,
+                user_id=task.user_id, email_id=task.email_id, action=step.action, target=step.target, origin=step.origin,
                 rule_id=step.policy.rule_id, reason=step.policy.reason,
                 evidence={"task": step.task, "label": v.overall.label, "llm_state": v.llm_status.state,
                           "hidden_text": [d.text[:200] for d in v.visible_vs_raw.diff[:3]],
@@ -213,21 +217,27 @@ async def _settle(s, task: MailTask, steps: list[Step]) -> None:
 # ------------------------------------------------------------------------------- tasks
 
 
-async def _exists(provider: str, message_id: str) -> bool:
+async def _exists(user_id: str, provider: str, message_id: str) -> bool:
     async with connection.session_factory()() as s:
-        return await s.scalar(select(MailTask.id).where(MailTask.provider == provider,
+        return await s.scalar(select(MailTask.id).where(MailTask.user_id == user_id, MailTask.provider == provider,
                                                         MailTask.message_id == message_id)) is not None
 
 
-async def process(provider: MailProvider, ref: RawMessageRef, *, source: str | None = None,
+async def _owned_task(s, task_id: str, user_id: str) -> MailTask | None:
+    """The task if it belongs to user_id; someone else's task is treated as missing."""
+    task = await s.get(MailTask, task_id)
+    return task if task is not None and task.user_id == user_id else None
+
+
+async def process(user_id: str, provider: MailProvider, ref: RawMessageRef, *, source: str | None = None,
                   use_llm: bool | None = None) -> str | None:
-    """Run one new message through the whole state machine. Returns the task id (None if another
+    """Run one new message of `user_id` through the whole state machine. Returns the task id (None if another
     worker already took this message)."""
     raw = await provider.fetch_raw(ref.message_id)
+    mode = (await runtime_settings.policy_for(user_id)).mode
     async with connection.session_factory()() as s:
-        task = MailTask(provider=provider.name, message_id=ref.message_id, state="FETCHED",
-                        policy_mode=shield_runtime.policy_store().get().mode,
-                        transitions=[{"state": "FETCHED", "at": utcnow().isoformat()}])
+        task = MailTask(user_id=user_id, provider=provider.name, message_id=ref.message_id, state="FETCHED",
+                        policy_mode=mode, transitions=[{"state": "FETCHED", "at": utcnow().isoformat()}])
         s.add(task)
         try:
             await s.commit()
@@ -235,7 +245,8 @@ async def process(provider: MailProvider, ref: RawMessageRef, *, source: str | N
             return None
         task_id = task.id
     await shield_runtime.audit().append(ACTOR, "task_state", {"email_id": None, "task_id": task_id, "state": "FETCHED",
-                                                             "provider": provider.name, "message_id": ref.message_id})
+                                                             "provider": provider.name, "message_id": ref.message_id},
+                                        user_id=user_id)
     async with _lock(task_id), connection.session_factory()() as s:
         task = await s.get(MailTask, task_id)
         try:
@@ -244,7 +255,7 @@ async def process(provider: MailProvider, ref: RawMessageRef, *, source: str | N
             task.error = str(exc)
             await _transition(task, "FAILED", s, error=str(exc))
             return task_id
-        email = Email(source=source or ("gmail" if provider.name == "gmail" else "demo"), sha256=pe.sha256,
+        email = Email(user_id=user_id, source=source or ("gmail" if provider.name == "gmail" else "demo"), sha256=pe.sha256,
                       pipeline_version=PIPELINE_VERSION, mode="full", status="processing", subject=pe.subject[:500] or None,
                       from_addr=pe.from_addr[:320] or None, provider=provider.name, provider_message_id=ref.message_id)
         s.add(email)
@@ -255,7 +266,7 @@ async def process(provider: MailProvider, ref: RawMessageRef, *, source: str | N
         llm = settings.INBOX_USE_LLM if use_llm is None else use_llm
         email.mode = "full" if llm else "rules"
         await s.commit()
-        verdict = await analyze(email.id, raw, InboxOptions(source=email.source, use_llm=llm,
+        verdict = await analyze(email.id, raw, InboxOptions(source=email.source, use_llm=llm, user_id=user_id,
                                                            llm_disabled_by_server=use_llm is None and not settings.INBOX_USE_LLM))
         await s.refresh(email)  # analyze() wrote the verdict through its own session
         if verdict is None:
@@ -271,39 +282,39 @@ async def process(provider: MailProvider, ref: RawMessageRef, *, source: str | N
         return task_id
 
 
-async def sync(provider: MailProvider, *, use_llm: bool | None = None) -> SyncReport:
-    """Fetch new messages from `provider` and process them (at most MAIL_MAX_PER_SYNC, rate-capped)."""
+async def sync(user_id: str, provider: MailProvider, *, use_llm: bool | None = None) -> SyncReport:
+    """Fetch this user's new messages from `provider` and process them (at most MAIL_MAX_PER_SYNC, rate-capped)."""
     report = SyncReport(provider=provider.name)
     started = datetime.now(timezone.utc)
-    since = await gmail_account.cursor() if provider.name == "gmail" else None
+    since = await gmail_account.cursor(user_id) if provider.name == "gmail" else None
     try:
         refs = await provider.list_new(since)
     except ProviderAuthError as exc:
         report.reconnect_required, report.errors = True, [str(exc)]
         if provider.name == "gmail":
-            await gmail_account.mark("reconnect_required", str(exc))
+            await gmail_account.mark(user_id, "reconnect_required", str(exc))
         return report
     except ProviderTemporaryError as exc:
         report.errors = [str(exc)]
         if provider.name == "gmail":
-            await gmail_account.record_sync(None, str(exc))
+            await gmail_account.record_sync(user_id, None, str(exc))
         return report
     refs = refs[: settings.MAIL_MAX_PER_SYNC]
     report.listed = len(refs)
     for ref in refs:
-        if await _exists(provider.name, ref.message_id):
+        if await _exists(user_id, provider.name, ref.message_id):
             report.duplicates += 1
             continue
-        if not _rate_ok():
+        if not _rate_ok(user_id):
             report.deferred += 1
             continue
         try:
-            task_id = await process(provider, ref, use_llm=use_llm)
+            task_id = await process(user_id, provider, ref, use_llm=use_llm)
         except ProviderAuthError as exc:
             report.reconnect_required = True
             report.errors.append(str(exc))
             if provider.name == "gmail":
-                await gmail_account.mark("reconnect_required", str(exc))
+                await gmail_account.mark(user_id, "reconnect_required", str(exc))
             break
         except (ProviderTemporaryError, KeyError) as exc:
             report.failed += 1
@@ -315,21 +326,21 @@ async def sync(provider: MailProvider, *, use_llm: bool | None = None) -> SyncRe
             report.new_tasks.append(task_id)
     if provider.name == "gmail" and not report.reconnect_required:
         keep_cursor = report.deferred or report.failed
-        await gmail_account.record_sync(None if keep_cursor else started - CURSOR_OVERLAP,
+        await gmail_account.record_sync(user_id, None if keep_cursor else started - CURSOR_OVERLAP,
                                         "; ".join(report.errors)[:300] or None)
     await expire_due()
     return report
 
 
-async def request_step(task_id: str, task_name: str, target: str | None, actor: str = "operator") -> dict:
-    """A step the user asks for on an analysed message (e.g. forward it). The target counts as the
+async def request_step(user_id: str, task_id: str, task_name: str, target: str | None, actor: str = "user") -> dict:
+    """A step the user asks for on one of their analysed messages (e.g. forward it). The target counts as the
     user's own (they typed it); everything else about the step is checked as usual."""
     if task_name not in rules.USER_REQUESTABLE:
         raise ValueError(f"{task_name} cannot be requested")
     if task_name in rules.NEEDS_TARGET and not (target or "").strip():
         raise ValueError(f"{task_name} needs a target")
     async with _lock(task_id), connection.session_factory()() as s:
-        task = await s.get(MailTask, task_id)
+        task = await _owned_task(s, task_id, user_id)
         if task is None:
             raise KeyError(task_id)
         if task.state != "DONE":
@@ -354,10 +365,10 @@ async def _task_id_for(approval: Approval) -> str | None:
     return None
 
 
-async def task_for_approval(approval: Approval) -> dict | None:
+async def task_for_approval(approval: Approval, user_id: str) -> dict | None:
     """The task view of the task whose step waits (or waited) on `approval`."""
     task_id = await _task_id_for(approval)
-    return await task_view(task_id) if task_id else None
+    return await task_view(task_id, user_id) if task_id else None
 
 
 async def on_approval_decided(approval: Approval) -> None:
@@ -377,7 +388,8 @@ async def on_approval_decided(approval: Approval) -> None:
         else:
             step.status = "denied" if approval.status == "denied" else "expired"
             await shield_runtime.audit().append(ACTOR, f"step_{step.status}", {
-                "email_id": task.email_id, "task_id": task.id, "step_id": step.id, "task": step.task})
+                "email_id": task.email_id, "task_id": task.id, "step_id": step.id, "task": step.task},
+                user_id=task.user_id)
         _put_steps(task, steps)
         if task.state == "AWAITING_APPROVAL" and rules.state_after_policy(steps) != "AWAITING_APPROVAL":
             await _settle(s, task, steps)
@@ -417,17 +429,18 @@ async def _task_view(s, task: MailTask) -> dict:
             "steps": task.steps or [], "transitions": task.transitions or []}
 
 
-async def task_view(task_id: str) -> dict | None:
+async def task_view(task_id: str, user_id: str) -> dict | None:
     async with connection.session_factory()() as s:
-        task = await s.get(MailTask, task_id)
+        task = await _owned_task(s, task_id, user_id)
         return await _task_view(s, task) if task else None
 
 
-async def list_tasks(limit: int = 30, offset: int = 0, state: str | None = None) -> dict:
+async def list_tasks(user_id: str, limit: int = 30, offset: int = 0, state: str | None = None) -> dict:
     from sqlalchemy import func
 
     async with connection.session_factory()() as s:
-        q, count = select(MailTask), select(func.count()).select_from(MailTask)
+        q = select(MailTask).where(MailTask.user_id == user_id)
+        count = select(func.count()).select_from(MailTask).where(MailTask.user_id == user_id)
         if state:
             q, count = q.where(MailTask.state == state), count.where(MailTask.state == state)
         rows = (await s.scalars(q.order_by(MailTask.created_at.desc()).offset(offset).limit(limit))).all()
@@ -441,22 +454,47 @@ async def list_tasks(limit: int = 30, offset: int = 0, state: str | None = None)
         return {"total": await s.scalar(count) or 0, "items": items}
 
 
-async def outbox(limit: int = 50) -> list[dict]:
+async def outbox(user_id: str, limit: int = 50) -> list[dict]:
     async with connection.session_factory()() as s:
-        rows = (await s.scalars(select(SimulatedOutbox).order_by(SimulatedOutbox.id.desc()).limit(limit))).all()
+        rows = (await s.scalars(select(SimulatedOutbox).where(SimulatedOutbox.user_id == user_id)
+                                .order_by(SimulatedOutbox.id.desc()).limit(limit))).all()
         return [r.to_dict() for r in rows]
 
 
+async def clear_outbox(user_id: str) -> int:
+    from sqlalchemy import delete
+
+    async with connection.session_factory()() as s:
+        res = await s.execute(delete(SimulatedOutbox).where(SimulatedOutbox.user_id == user_id))
+        await s.commit()
+        return res.rowcount or 0
+
+
+async def poll_once() -> int:
+    """One pass: sync every user whose Gmail is connected and set as their inbox. Returns users synced.
+    One user's failure never stops the others."""
+    synced = 0
+    for user_id in await gmail_account.connected_user_ids():
+        try:
+            name, provider = await active_provider(user_id)
+            if name == "gmail" and provider is not None:
+                await sync(user_id, provider)
+                synced += 1
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - one mailbox must not stop the others
+            logger.warning(f"mail poller: one account failed ({type(exc).__name__})")
+    await expire_due()
+    return synced
+
+
 async def poll_forever() -> None:
-    """Background loop: sync Gmail every MAIL_POLL_SECONDS while it is the active, connected
-    provider, and expire old approvals. Never raises; problems are recorded on the account."""
+    """Background loop: every MAIL_POLL_SECONDS, sync each connected user's Gmail and expire old approvals.
+    Never raises; problems are recorded on the account."""
     while True:
         await asyncio.sleep(settings.MAIL_POLL_SECONDS)
         try:
-            name, provider = await active_provider()
-            if name == "gmail" and provider is not None:
-                await sync(provider)
-            await expire_due()
+            await poll_once()
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - the poller must never die

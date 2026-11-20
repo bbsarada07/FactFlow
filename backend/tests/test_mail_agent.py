@@ -40,7 +40,7 @@ def connect(env) -> None:
     assert query["code_challenge_method"] == ["S256"] and query["access_type"] == ["offline"]
     code = env.google.consent(auth_url)
     cb = env.client.get(f"/api/mail/gmail/callback?code={code}&state={query['state'][0]}", follow_redirects=False)
-    assert cb.status_code == 303 and cb.headers["location"].endswith("/inbox?gmail=connected"), cb.headers.get("location")
+    assert cb.status_code == 303 and cb.headers["location"].endswith("/settings?gmail=connected"), cb.headers.get("location")
 
 
 def set_mode(env, mode: str) -> None:
@@ -231,8 +231,8 @@ def test_each_message_is_one_task_and_a_retry_repeats_nothing(mail_env):
     first = sync(env)
     second = sync(env)
     assert len(first["new_tasks"]) == 20 and second["new_tasks"] == [] and second["listed"] == 0
-    provider = env.client.portal.call(mail_agent.gmail_account.provider)
-    again = env.client.portal.call(mail_agent.process, provider, RawMessageRef("gmail", gmail_id("04_white_on_white_injection")))
+    provider = env.client.portal.call(mail_agent.gmail_account.provider, env.user_id)
+    again = env.client.portal.call(mail_agent.process, env.user_id, provider, RawMessageRef("gmail", gmail_id("04_white_on_white_injection")))
     assert again is None
     assert env.client.get("/api/mail/tasks?limit=100", headers=OP).json()["total"] == 20
 
@@ -254,7 +254,6 @@ def test_first_connect_takes_the_last_20_then_only_new_mail(mail_env):
 
 
 def test_per_minute_cap_defers_the_rest_without_losing_them(mail_env, monkeypatch):
-    from collections import deque
 
     from services import mail_agent
 
@@ -263,7 +262,7 @@ def test_per_minute_cap_defers_the_rest_without_losing_them(mail_env, monkeypatc
     connect(env)
     first = sync(env, mode="rules")
     assert len(first["new_tasks"]) == 5 and first["deferred"] == 15
-    monkeypatch.setattr(mail_agent, "_recent", deque())
+    monkeypatch.setattr(mail_agent, "_recent", {})
     monkeypatch.setattr(env.settings, "MAIL_AGENT_MAX_PER_MINUTE", 100)
     second = sync(env, mode="rules")  # the cursor did not move, so the deferred mail is still there
     assert len(second["new_tasks"]) == 15 and second["duplicates"] == 5
@@ -277,7 +276,7 @@ def test_max_messages_per_sync(mail_env):
     connect(env)
     for i in range(60):
         env.google.deliver(f"bulk_{i}", b"From: a@x.example\nSubject: s\n\nbody", 1_900_000_000_000 + i)
-    provider = GmailApiProvider(gmail_account.StoredTokens(), transport=env.google.transport)
+    provider = GmailApiProvider(gmail_account.StoredTokens(env.user_id), transport=env.google.transport)
     from datetime import datetime, timezone
     refs = env.client.portal.call(provider.list_new, datetime(2026, 10, 1, tzinfo=timezone.utc))
     assert len(refs) == 50
@@ -389,13 +388,6 @@ def test_connect_needs_the_server_settings(mail_env, monkeypatch):
     monkeypatch.setattr(mail_env.settings, "TOKEN_ENCRYPTION_KEY", "")
     r = mail_env.client.post("/api/mail/gmail/connect", headers=OP)
     assert r.status_code == 503 and "TOKEN_ENCRYPTION_KEY" in r.json()["detail"]
-
-
-def test_mail_routes_need_the_operator_token(mail_env):
-    for method, path in (("GET", "/api/mail/status"), ("POST", "/api/mail/gmail/connect"), ("POST", "/api/mail/sync"),
-                         ("POST", "/api/mail/gmail/disconnect"), ("GET", "/api/mail/tasks"), ("GET", "/api/mail/outbox"),
-                         ("PUT", "/api/mail/provider")):
-        assert mail_env.client.request(method, path, json={}).status_code in (401, 429), path  # 429 after 5 misses
 
 
 # ------------------------------------------------------------------ demo inbox and degradation

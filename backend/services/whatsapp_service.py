@@ -12,7 +12,9 @@ text and media sizes, and retried webhooks are recognised by the provider's mess
 from __future__ import annotations
 
 import base64
+import re
 import shutil
+from datetime import datetime, timezone
 
 import httpx
 from loguru import logger
@@ -23,8 +25,8 @@ from agents.inbox_pipeline import InboxOptions
 from api.verify import RateLimiter
 from config import settings
 from database import connection
-from database.models import Email, WhatsAppCheck, WhatsAppOptOut
-from services import input_service, shield_runtime, view_tokens
+from database.models import Email, WhatsAppCheck, WhatsAppLink, WhatsAppLinkCode, WhatsAppOptOut
+from services import input_service, shield_runtime
 from shield import qr
 from shield.email_parser import EmailInputError, parse_input
 from shield.providers.whatsapp import (
@@ -36,6 +38,7 @@ from shield.whatsapp_reply import actor, build_reply, detect_language, hash_send
 HTTP_TRANSPORT: httpx.AsyncBaseTransport | None = None  # tests plug a fake Twilio in here
 MIN_SALT_CHARS = 16
 STOP_WORDS = {"STOP", "UNSUBSCRIBE"}
+LINK_COMMAND = re.compile(r"^\s*LINK\s+(\d{6})\s*$", re.IGNORECASE)
 START_WORDS = {"START", "UNSTOP"}
 INDIC_OCR = {"hi": "hin", "te": "tel"}
 
@@ -110,11 +113,43 @@ async def _set_opt_out(sender_hash: str, out: bool) -> None:
         await s.commit()
 
 
+async def _linked_user(sender_hash: str) -> str | None:
+    """The FactFlow user this number is linked to, if any."""
+    async with connection.session_factory()() as s:
+        row = await s.get(WhatsAppLink, sender_hash)
+        return row.user_id if row else None
+
+
+async def _link(sender_hash: str, code: str) -> str | None:
+    """Link this number to the user who created `code` (single use, unexpired). Returns that user's id."""
+    async with connection.session_factory()() as s:
+        row = await s.get(WhatsAppLinkCode, code)
+        if row is None:
+            return None
+        expires = row.expires_at if row.expires_at.tzinfo else row.expires_at.replace(tzinfo=timezone.utc)
+        await s.delete(row)
+        if expires <= datetime.now(timezone.utc):
+            await s.commit()
+            return None
+        link = await s.get(WhatsAppLink, sender_hash)
+        if link is None:
+            s.add(WhatsAppLink(sender_hash=sender_hash, user_id=row.user_id))
+        else:
+            link.user_id = row.user_id
+        await s.commit()
+        return row.user_id
+
+
+def _site_reply(key: str, language: str) -> str:
+    return templates(language)[key].replace("{site}", (settings.FRONTEND_URL or "").rstrip("/"))
+
+
 async def _record(sender_hash: str, msg: InboundMessage, input_type: str, language: str, delivery: str,
                   reply: str, email_id: str | None = None, label: str | None = None, score: int | None = None,
-                  llm_state: str | None = None) -> None:
+                  llm_state: str | None = None, user_id: str | None = None) -> None:
     async with connection.session_factory()() as s:
-        s.add(WhatsAppCheck(sender_hash=sender_hash, message_id=(msg.message_id or None), input_type=input_type,
+        s.add(WhatsAppCheck(user_id=user_id, sender_hash=sender_hash, message_id=(msg.message_id or None),
+                            input_type=input_type,
                             language=language, label=label, score=score, llm_state=llm_state, email_id=email_id,
                             reply_chars=len(reply), delivery=delivery))
         await s.commit()
@@ -123,10 +158,16 @@ async def _record(sender_hash: str, msg: InboundMessage, input_type: str, langua
 # ------------------------------------------------------------------------------- replies
 
 
-async def deliver(msg: InboundMessage, sender_hash: str, reply: str, language: str) -> str:
+async def deliver(msg: InboundMessage, sender_hash: str, reply: str, language: str, user_id: str | None = None) -> str:
     """Send `reply` to the sender of `msg` only. Without credentials: a DRY RUN audit entry, never a fake send."""
     who = actor(sender_hash)
-    audit = shield_runtime.audit()
+    base = shield_runtime.audit()
+
+    class _Owned:
+        async def append(self, actor_, event_type, payload):
+            return await base.append(actor_, event_type, payload, user_id=user_id)
+
+    audit = _Owned()
     provider = reply_provider() if msg.provider == settings.WHATSAPP_PROVIDER else None
     if provider is None:
         await audit.append(who, "whatsapp_reply", {"delivery": "dry_run", "chars": len(reply), "language": language,
@@ -149,7 +190,7 @@ def _report_url(email_id: str) -> str | None:
     base = (settings.FRONTEND_URL or "").rstrip("/")
     if not base.startswith("https://"):
         return None
-    return f"{base}/inbox/{email_id}?view_token={view_tokens.view_token(email_id)}"
+    return f"{base}/shield/report/{email_id}"  # opens after sign-in, for the number's owner only
 
 
 # ------------------------------------------------------------------------------- media
@@ -191,7 +232,14 @@ async def handle(msg: InboundMessage) -> None:
 
 
 async def _handle(msg: InboundMessage, sender_hash: str, who: str) -> None:
-    audit = shield_runtime.audit()
+    user_id = await _linked_user(sender_hash)
+    base = shield_runtime.audit()
+
+    class _Owned:  # this sender's records belong to the linked user (None until linked)
+        async def append(self, actor_, event_type, payload):
+            return await base.append(actor_, event_type, payload, user_id=user_id)
+
+    audit = _Owned()
     text = (msg.text or "").strip()
     language = detect_language(text)
     if msg.message_id and await _seen(msg.message_id):
@@ -204,7 +252,8 @@ async def _handle(msg: InboundMessage, sender_hash: str, who: str) -> None:
         await _set_opt_out(sender_hash, out)
         await audit.append(who, "whatsapp_opt_out" if out else "whatsapp_opt_in", {})
         reply = simple_reply("stopped" if out else "started", language)
-        await _record(sender_hash, msg, "command", language, await deliver(msg, sender_hash, reply, language), reply)
+        await _record(sender_hash, msg, "command", language,
+                      await deliver(msg, sender_hash, reply, language, user_id), reply, user_id=user_id)
         return
     if await _opted_out(sender_hash):
         await audit.append(who, "whatsapp_ignored", {"reason": "opted out (STOP)"})
@@ -214,6 +263,22 @@ async def _handle(msg: InboundMessage, sender_hash: str, who: str) -> None:
         logger.info(f"[{who}] WhatsApp sender over the hourly limit; no reply")
         return
     sender_limiter.check(sender_hash)
+
+    link = LINK_COMMAND.match(text) if not msg.media else None
+    if link:
+        linked_to = await _link(sender_hash, link.group(1))
+        if linked_to:
+            user_id = linked_to
+            await audit.append(who, "whatsapp_linked", {})
+        reply = _site_reply("linked" if linked_to else "bad_code", language)
+        await _record(sender_hash, msg, "command", language,
+                      await deliver(msg, sender_hash, reply, language, user_id), reply, user_id=user_id)
+        return
+    if user_id is None:
+        # Not linked to an account: nothing is checked or stored, the sender is told how to link.
+        reply = _site_reply("not_linked", language)
+        await _record(sender_hash, msg, "command", language, await deliver(msg, sender_hash, reply, language), reply)
+        return
     consent = await _first_contact(sender_hash)
     media = msg.media[0] if msg.media else None
     await audit.append(who, "whatsapp_received", {"message_id": msg.message_id, "chars": len(text),
@@ -221,7 +286,8 @@ async def _handle(msg: InboundMessage, sender_hash: str, who: str) -> None:
 
     async def fixed(key: str, input_type: str) -> None:
         reply = simple_reply(key, language, consent)
-        await _record(sender_hash, msg, input_type, language, await deliver(msg, sender_hash, reply, language), reply)
+        await _record(sender_hash, msg, input_type, language,
+                      await deliver(msg, sender_hash, reply, language, user_id), reply, user_id=user_id)
 
     if len(text) > settings.WHATSAPP_MAX_TEXT_CHARS:
         return await fixed("too_large", "too_large")
@@ -243,7 +309,8 @@ async def _handle(msg: InboundMessage, sender_hash: str, who: str) -> None:
             reply = simple_reply("no_text", language, consent)
             if notices:
                 reply += "\n" + templates(language)["ocr_missing"]
-            await _record(sender_hash, msg, "image", language, await deliver(msg, sender_hash, reply, language), reply)
+            await _record(sender_hash, msg, "image", language,
+                          await deliver(msg, sender_hash, reply, language, user_id), reply, user_id=user_id)
             return
     elif not text:
         return await fixed("empty", "text")
@@ -254,19 +321,20 @@ async def _handle(msg: InboundMessage, sender_hash: str, who: str) -> None:
     except EmailInputError:
         return await fixed("too_large", "too_large")
     async with connection.session_factory()() as s:
-        row = Email(source="whatsapp", sha256=pe.sha256, pipeline_version=PIPELINE_VERSION,
+        row = Email(user_id=user_id, source="whatsapp", sha256=pe.sha256, pipeline_version=PIPELINE_VERSION,
                     mode="full" if settings.INBOX_USE_LLM else "rules", language=language, status="processing")
         s.add(row)
         await s.commit()
         email_id = row.id
     opts = InboxOptions(source="whatsapp", language=language, use_llm=settings.INBOX_USE_LLM,
-                        llm_disabled_by_server=not settings.INBOX_USE_LLM, store_message_text=False)
+                        llm_disabled_by_server=not settings.INBOX_USE_LLM, store_message_text=False, user_id=user_id)
     verdict = await inbox_pipeline.analyze(email_id, data, opts)
     if verdict is None:
         return await fixed("failed", input_type)
     limited = verdict.llm_status.state != "ok"
     reply = build_reply(verdict, language, _report_url(email_id), limited=limited, consent=consent,
                         notices=tuple(notices))
-    delivery = await deliver(msg, sender_hash, reply, language)
+    delivery = await deliver(msg, sender_hash, reply, language, user_id)
     await _record(sender_hash, msg, input_type, language, delivery, reply, email_id=email_id,
-                  label=verdict.overall.label, score=verdict.overall.score, llm_state=verdict.llm_status.state)
+                  label=verdict.overall.label, score=verdict.overall.score, llm_state=verdict.llm_status.state,
+                  user_id=user_id)

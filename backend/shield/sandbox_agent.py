@@ -123,7 +123,7 @@ def _extract_raw_email(data: bytes) -> tuple[str, str, str]:
         return "Pasted Message", "unknown@sender.example", text
 
 
-async def run_vulnerable_assistant(data: bytes, email_id: str | None = None) -> SandboxRunResult:
+async def run_vulnerable_assistant(data: bytes, email_id: str | None = None, user_id: str | None = None) -> SandboxRunResult:
     """shield=off: INTENTIONALLY VULNERABLE baseline.
 
     Feeds the raw email directly to the real LLM with tool access to the simulated_outbox.
@@ -197,6 +197,7 @@ async def run_vulnerable_assistant(data: bytes, email_id: str | None = None) -> 
             tc_subject = str(tc.get("subject") or subject)[:500]
 
             entry = SimulatedOutbox(
+                user_id=user_id,
                 task_id=task_id,
                 step_id=step_id,
                 email_id=email_id,
@@ -224,6 +225,7 @@ async def run_vulnerable_assistant(data: bytes, email_id: str | None = None) -> 
                 "target": entry_dict["target"],
                 "simulated": True,
             },
+            user_id=user_id,
         )
 
     latency_ms = int((time.perf_counter() - t0) * 1000)
@@ -245,6 +247,7 @@ async def run_protected_assistant(
     data: bytes,
     use_llm: bool = True,
     email_id: str | None = None,
+    user_id: str | None = None,
 ) -> SandboxRunResult:
     """shield=on: Runs the email assistant through the quarantine, policy and approval pipeline."""
     t0 = time.perf_counter()
@@ -254,6 +257,7 @@ async def run_protected_assistant(
     pe = parse_input(data, "sandbox")
     async with connection.session_factory()() as s:
         row = Email(
+            user_id=user_id,
             source="sandbox",
             sha256=pe.sha256,
             pipeline_version=PIPELINE_VERSION,
@@ -267,7 +271,7 @@ async def run_protected_assistant(
         await s.commit()
         actual_email_id = row.id
 
-    opts = InboxOptions(source="sandbox", language="auto", use_llm=use_llm)
+    opts = InboxOptions(source="sandbox", language="auto", use_llm=use_llm, user_id=user_id)
     verdict = await inbox_pipeline.analyze(actual_email_id, data, opts)
     if verdict is None:
         return SandboxRunResult(
@@ -281,7 +285,9 @@ async def run_protected_assistant(
 
     # Plan steps using structured fields only
     planned_steps = rules.plan(verdict)
-    cfg = shield_runtime.policy_store().get()
+    from services import runtime_settings
+
+    cfg = await runtime_settings.policy_for(user_id)  # the user's own policy (system defaults without a user)
     store = shield_runtime.approvals()
 
     executed_steps: list[dict] = []
@@ -317,6 +323,7 @@ async def run_protected_assistant(
                     "rule_id": step.policy.rule_id,
                     "notice": step.policy.notice,
                 },
+                user_id=user_id,
             )
 
             if step.policy.decision == "ALLOW":
@@ -341,6 +348,7 @@ async def run_protected_assistant(
                 elif step.task in rules.OUTBOX_KIND:
                     subj = verdict.message.subject if verdict.message else ""
                     entry = SimulatedOutbox(
+                        user_id=user_id,
                         task_id=task_id,
                         step_id=step.id,
                         email_id=actual_email_id,
@@ -363,6 +371,7 @@ async def run_protected_assistant(
                     step.notice = "Approvals are switched off on server (APPROVAL_SECRET not set)."
                 else:
                     approval, _ = await store.create(
+                        user_id=user_id,
                         email_id=actual_email_id or "sandbox",
                         action=step.action,
                         target=step.target,
@@ -401,12 +410,13 @@ async def run_protected_assistant(
     )
 
 
-async def list_simulated_outbox(limit: int = 50, offset: int = 0) -> list[dict]:
-    """List entries from simulated_outbox."""
+async def list_simulated_outbox(limit: int = 50, offset: int = 0, user_id: str | None = None) -> list[dict]:
+    """List one user's entries from simulated_outbox."""
     async with connection.session_factory()() as s:
         rows = (
             await s.scalars(
                 select(SimulatedOutbox)
+                .where(SimulatedOutbox.user_id == user_id)
                 .order_by(SimulatedOutbox.id.desc())
                 .limit(limit)
                 .offset(offset)
@@ -415,13 +425,13 @@ async def list_simulated_outbox(limit: int = 50, offset: int = 0) -> list[dict]:
         return [r.to_dict() for r in rows]
 
 
-async def clear_simulated_outbox() -> int:
-    """Clear all entries from simulated_outbox and record audit event."""
+async def clear_simulated_outbox(user_id: str | None = None) -> int:
+    """Clear one user's simulated_outbox entries and record an audit event."""
     async with connection.session_factory()() as s:
-        result = await s.execute(delete(SimulatedOutbox))
+        result = await s.execute(delete(SimulatedOutbox).where(SimulatedOutbox.user_id == user_id))
         count = result.rowcount or 0
         await s.commit()
     await shield_runtime.audit().append(
-        "operator", "outbox_cleared", {"cleared_count": count, "simulated": True}
+        "user", "outbox_cleared", {"cleared_count": count, "simulated": True}, user_id=user_id
     )
     return count

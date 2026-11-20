@@ -87,24 +87,26 @@ def is_fresh(created_at: datetime, now: datetime | None = None, days: int | None
     return now - created_at < timedelta(days=days)
 
 
-def _public_live(include_private: bool = False):
-    conditions = (Claim.is_seed.is_(False), Claim.status == "complete")
+def _public_live(user_id: str | None, include_private: bool = False):
+    """Only this user's own completed live verdicts: another user's check is never reused or revealed."""
+    conditions = (Claim.user_id == user_id, Claim.is_seed.is_(False), Claim.status == "complete")
     return conditions if include_private else (Claim.is_public.is_(True), *conditions)
 
 
-async def lookup_repeat(session: AsyncSession, normalized: str,
-                        include_private: bool = False) -> tuple[Claim, RepeatMatch] | None:
-    """Find a stored public verdict for this normalised text (exact hash first, then fuzzy).
+async def lookup_repeat(session: AsyncSession, normalized: str, include_private: bool = False,
+                        user_id: str | None = None) -> tuple[Claim, RepeatMatch] | None:
+    """Find a stored verdict of `user_id` for this normalised text (exact hash first, then fuzzy).
 
-    include_private: also match private verdicts. Used only inside the inbox pipeline to avoid
-    re-checking a claim; the matched verdict is returned only to the same caller and never
-    published.
+    Only the same user's history is searched (user_id None matches nothing). include_private: also match
+    private verdicts; used inside the inbox pipeline to avoid re-checking a claim.
     """
+    if user_id is None:
+        return None
     if not normalized:
         return None
     exact = await session.scalar(
         select(Claim)
-        .where(*_public_live(include_private), Claim.input_hash == input_hash(normalized))
+        .where(*_public_live(user_id, include_private), Claim.input_hash == input_hash(normalized))
         .order_by(Claim.created_at.desc())
         .limit(1)
     )
@@ -115,7 +117,7 @@ async def lookup_repeat(session: AsyncSession, normalized: str,
     rows = (
         await session.execute(
             select(Claim.id, Claim.normalized_text, Claim.created_at)
-            .where(*_public_live(include_private), Claim.normalized_text.is_not(None))
+            .where(*_public_live(user_id, include_private), Claim.normalized_text.is_not(None))
             .order_by(Claim.created_at.desc())
             .limit(settings.REPEAT_CORPUS_SIZE)
         )

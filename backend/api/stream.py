@@ -1,12 +1,14 @@
 """GET /api/stream/{request_id} — Server-Sent Events for live agent progress."""
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
+from api.result import owned_claim
 from database.connection import get_session
-from database.models import Claim
+from services import auth
+from services.auth import CurrentUser
 from services.event_bus import get_bus
 from services.safety import PRIVATE_PERSON_MESSAGE
 
@@ -18,10 +20,9 @@ def _sse(event: dict) -> dict:
 
 
 @router.get("/stream/{request_id}")
-async def stream(request_id: str, request: Request, session: AsyncSession = Depends(get_session)):
-    claim = await session.get(Claim, request_id)
-    if claim is None:
-        raise HTTPException(404, "Unknown request_id")
+async def stream(request_id: str, request: Request, session: AsyncSession = Depends(get_session),
+                 user: CurrentUser = Depends(auth.current_user)):
+    claim = await owned_claim(session, request_id, user)
 
     bus = get_bus()
     finished = claim.status in ("complete", "failed", "withheld")

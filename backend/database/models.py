@@ -73,6 +73,7 @@ class Claim(Base):
     __tablename__ = "claims"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(String(32), index=True)  # owner; NULL = before accounts, shown to no one
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -413,6 +414,8 @@ class AuditLog(Base):
     hash: Mapped[str] = mapped_column(String(64), unique=True)
     # Copied from payload["email_id"] for filtering; not part of the hash.
     email_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    # Whose activity this is (not part of the hash); NULL for system events.
+    user_id: Mapped[str | None] = mapped_column(String(32), index=True)
 
 
 class Email(Base):
@@ -423,6 +426,7 @@ class Email(Base):
     __tablename__ = "emails"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(String(32), index=True)  # owner; NULL = before accounts, shown to no one
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     source: Mapped[str] = mapped_column(String(16), default="paste")  # upload | paste | demo | gmail | whatsapp
@@ -460,13 +464,15 @@ class Email(Base):
 
 
 class MailAccount(Base):
-    """A connected mailbox (one per provider in this prototype). Tokens are Fernet-encrypted at rest
+    """A user's connected mailbox (one per user and provider). Tokens are Fernet-encrypted at rest
     and never returned by any route or written to logs."""
 
-    __tablename__ = "mail_accounts"
+    __tablename__ = "user_mail_accounts"
+    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_user_mail_accounts_user_provider"),)
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    provider: Mapped[str] = mapped_column(String(16), unique=True)  # gmail
+    user_id: Mapped[str] = mapped_column(String(32), index=True)
+    provider: Mapped[str] = mapped_column(String(16))  # gmail
     email_address: Mapped[str | None] = mapped_column(String(320))
     status: Mapped[str] = mapped_column(String(24), default="disconnected")  # connected | reconnect_required | disconnected
     scope: Mapped[str | None] = mapped_column(Text)
@@ -481,12 +487,13 @@ class MailAccount(Base):
 
 
 class MailTask(Base):
-    """One mail-agent task per (provider, message id): its state, steps and every transition."""
+    """One mail-agent task per (user, provider, message id): its state, steps and every transition."""
 
-    __tablename__ = "mail_tasks"
-    __table_args__ = (UniqueConstraint("provider", "message_id", name="uq_mail_tasks_provider_message"),)
+    __tablename__ = "user_mail_tasks"
+    __table_args__ = (UniqueConstraint("user_id", "provider", "message_id", name="uq_user_mail_tasks_message"),)
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(32), index=True)
     provider: Mapped[str] = mapped_column(String(16))
     message_id: Mapped[str] = mapped_column(String(128))
     email_id: Mapped[str | None] = mapped_column(String(32), index=True)
@@ -506,6 +513,7 @@ class SimulatedOutbox(Base):
     __tablename__ = "simulated_outbox"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str | None] = mapped_column(String(32), index=True)  # owner; NULL = before accounts, shown to no one
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     task_id: Mapped[str] = mapped_column(String(32), index=True)
     step_id: Mapped[str] = mapped_column(String(32), unique=True)  # a step can reach the outbox only once
@@ -528,6 +536,7 @@ class ShieldApproval(Base):
     __tablename__ = "approvals"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(32), index=True)  # owner; NULL = before accounts, shown to no one
     email_id: Mapped[str] = mapped_column(String(64), index=True)
     action: Mapped[str] = mapped_column(String(48))
     target: Mapped[str | None] = mapped_column(Text)
@@ -598,6 +607,7 @@ class WhatsAppCheck(Base):
     __tablename__ = "whatsapp_checks"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(String(32), index=True)  # owner; NULL = before accounts, shown to no one
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     sender_hash: Mapped[str] = mapped_column(String(64), index=True)
     message_id: Mapped[str | None] = mapped_column(String(64), unique=True)  # provider id, for retried webhooks
@@ -636,3 +646,91 @@ class RuntimeSetting(Base):
     value: Mapped[str | None] = mapped_column(String(64))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     updated_by: Mapped[str | None] = mapped_column(String(128))
+
+
+# ------------------------------------------------------------------------------------------ accounts
+
+
+class User(Base):
+    """A person signed in with Google. Everything they check or connect is owned by this id."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    google_sub: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    name: Mapped[str | None] = mapped_column(String(200))
+    picture_url: Mapped[str | None] = mapped_column(Text)
+    role: Mapped[str] = mapped_column(String(16), default="user")  # user | admin
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "email": self.email, "name": self.name, "picture_url": self.picture_url,
+                "role": self.role, "created_at": iso(self.created_at)}
+
+
+class UserSession(Base):
+    """A signed-in browser. Only the SHA-256 of the cookie value is stored, never the value."""
+
+    __tablename__ = "user_sessions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)  # sha256 of the session cookie
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    csrf_token: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    user_agent: Mapped[str | None] = mapped_column(String(200))
+
+
+class ApiToken(Base):
+    """A personal token for the browser extension. Only its SHA-256 is stored; revocable."""
+
+    __tablename__ = "api_tokens"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="extension")
+    label: Mapped[str] = mapped_column(String(100), default="Browser extension")
+    prefix: Mapped[str] = mapped_column(String(16))  # first characters, shown so the user can tell tokens apart
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "kind": self.kind, "label": self.label, "prefix": self.prefix,
+                "created_at": iso(self.created_at), "last_used_at": iso(self.last_used_at)}
+
+
+class UserSettings(Base):
+    """Per-user agent settings: policy mode, trusted recipient domains and which inbox the agent reads."""
+
+    __tablename__ = "user_settings"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    policy_mode: Mapped[str] = mapped_column(String(16), default="strict")
+    allowed_domains: Mapped[list | None] = mapped_column(JSON)  # None = the defaults in shield/config/policy.yml
+    mail_provider: Mapped[str] = mapped_column(String(16), default="auto")  # auto | gmail | eml
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class WhatsAppLink(Base):
+    """Which user a WhatsApp number belongs to (salted hash of the number only)."""
+
+    __tablename__ = "whatsapp_links"
+
+    sender_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppLinkCode(Base):
+    """A short-lived code the user sends from WhatsApp ("LINK 123456") to link their number."""
+
+    __tablename__ = "whatsapp_link_codes"
+
+    code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

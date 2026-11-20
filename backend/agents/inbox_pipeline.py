@@ -24,7 +24,7 @@ from config import settings
 from database import connection
 from database.models import Claim, Email, new_slug, utcnow
 from models.groq_client import Usage, call_nano, track_usage, usage_stage
-from services import dns_checks, llm_status, shield_runtime
+from services import dns_checks, llm_status, runtime_settings, shield_runtime
 from services.registry import is_fresh, lookup_repeat
 from services.safe_fetch import FetchBlocked, FetchError, expand_link
 from services.safety import check_sensitive
@@ -56,6 +56,8 @@ class InboxOptions:
     # False (WhatsApp): the stored and streamed verdict has the message text and excerpts removed;
     # the full verdict is only returned to the caller, in memory.
     store_message_text: bool = True
+    # Whose message this is: claims found in it are fact-checked as theirs, under their policy.
+    user_id: str | None = None
 
 
 async def _q_llm(system: str, user: str, max_tokens: int) -> dict:
@@ -67,7 +69,8 @@ async def _q_llm(system: str, user: str, max_tokens: int) -> dict:
 # ------------------------------------------------------------------------------ claims
 
 
-async def _check_claim(text: str, hidden: bool, language: str, sem: asyncio.Semaphore) -> tuple[ClaimItem, bool, str | None]:
+async def _check_claim(text: str, hidden: bool, language: str, sem: asyncio.Semaphore,
+                       user_id: str | None = None) -> tuple[ClaimItem, bool, str | None]:
     """Fact-check one claim. Returns (item, answered_from_registry, failure)."""
     clean, _ = shield_guard(text)
     clean = truncate(redact_pii(clean), 300)
@@ -76,11 +79,11 @@ async def _check_claim(text: str, hidden: bool, language: str, sem: asyncio.Sema
                          credibility=0, hidden=hidden), False, None
     normalized = normalize(clean)
     async with connection.session_factory()() as s:
-        found = await lookup_repeat(s, normalized, include_private=True)
+        found = await lookup_repeat(s, normalized, include_private=True, user_id=user_id)
         if found and is_fresh(found[0].created_at):
             c = found[0]
             return _item(c, clean, hidden), True, None
-        claim = Claim(input_type="text", raw_input=clean, input_hash=input_hash(clean), normalized_text=normalized or None,
+        claim = Claim(user_id=user_id, input_type="text", raw_input=clean, input_hash=input_hash(clean), normalized_text=normalized or None,
                       requested_language=language, platform="email", status="queued", slug=new_slug(), is_public=False)
         s.add(claim)
         await s.commit()
@@ -101,7 +104,8 @@ def _item(c: Claim, text: str, hidden: bool) -> ClaimItem:
                      credibility=int(round((c.confidence or 0) * 100)), hidden=hidden)
 
 
-async def fact_check_claims(visible: list[str], hidden: list[str], language: str) -> tuple[list[ClaimItem], int, list[str]]:
+async def fact_check_claims(visible: list[str], hidden: list[str], language: str,
+                            user_id: str | None = None) -> tuple[list[ClaimItem], int, list[str]]:
     """Fact-check up to INBOX_MAX_CLAIMS claims (visible first). Returns (items, registry_hits, failures)."""
     picked, seen = [], set()
     for text, is_hidden in [*((t, False) for t in visible), *((t, True) for t in hidden)]:
@@ -111,7 +115,7 @@ async def fact_check_claims(visible: list[str], hidden: list[str], language: str
             picked.append((text, is_hidden))
     picked = picked[: settings.INBOX_MAX_CLAIMS]
     sem = asyncio.Semaphore(settings.INBOX_FACTCHECK_CONCURRENCY)
-    results = await asyncio.gather(*(_check_claim(t, h, language, sem) for t, h in picked))
+    results = await asyncio.gather(*(_check_claim(t, h, language, sem, user_id) for t, h in picked))
     items = [r[0] for r in results]
     return items, sum(1 for r in results if r[1]), [r[2] for r in results if r[2]]
 
@@ -180,10 +184,16 @@ def _llm_status(opts: InboxOptions, problem: llm_status.LLMProblem | None) -> LL
     return LLMStatus(state="ok")
 
 
-async def _record(v: UnifiedVerdict, source: str, sha256: str) -> None:
-    """Audit trail for one verdict. Approvals are created by the mail agent for its own steps
-    (services/mail_agent.py); the proposed actions here are the policy's view of the message."""
-    log = shield_runtime.audit()
+async def _record(v: UnifiedVerdict, source: str, sha256: str, user_id: str | None = None) -> None:
+    """Audit trail for one verdict (filed under the message's owner). Approvals are created by the mail agent for
+    its own steps (services/mail_agent.py); the proposed actions here are the policy's view of the message."""
+    base = shield_runtime.audit()
+
+    class _Owned:  # every record below belongs to the same user
+        async def append(self, actor, event_type, payload):
+            return await base.append(actor, event_type, payload, user_id=user_id)
+
+    log = _Owned()
     await log.append("system", "email_received", {"email_id": v.email_id, "source": source, "sha256": sha256,
                                                   "mode": v.mode})
     await log.append("agent:shield", "scan_summary", {
@@ -271,7 +281,7 @@ async def analyze(email_id: str, raw: bytes, opts: InboxOptions) -> UnifiedVerdi
                 language = opts.language if opts.language != "auto" else reading.language
                 with usage_stage("fact_check"):
                     claim_items, registry_hits, claim_failures = await fact_check_claims(
-                        reading.claims.visible, reading.claims.hidden, language)
+                        reading.claims.visible, reading.claims.hidden, language, user_id=opts.user_id)
                 failures += claim_failures
                 stages["fact_check"] = round((time.perf_counter() - t) * 1000, 1)
                 verdicts = ", ".join(i.verdict for i in claim_items)
@@ -285,7 +295,7 @@ async def analyze(email_id: str, raw: bytes, opts: InboxOptions) -> UnifiedVerdi
         status = _llm_status(opts, problem)
 
         await run.set_agent(5, "running", "Scoring harm and checking every action against the policy")
-        cfg = shield_runtime.policy_store().get()
+        cfg = await runtime_settings.policy_for(opts.user_id)
         verdict = finalize(rs, email_id, mode=cfg.mode, reading=reading, claims=claim_items, extra_failures=failures,
                            run_mode="full" if opts.use_llm else "rules", source=opts.source,
                            allowed_domains=cfg.allowed_domains, llm_status=status)
@@ -332,7 +342,7 @@ async def analyze(email_id: str, raw: bytes, opts: InboxOptions) -> UnifiedVerdi
 
         verdict.llm_usage = LLMUsage(**meter.as_dict(), claims_from_registry=registry_hits) if opts.use_llm else None
         t = time.perf_counter()
-        await _record(verdict, opts.source, pe.sha256)
+        await _record(verdict, opts.source, pe.sha256, opts.user_id)
         stages["audit"] = round((time.perf_counter() - t) * 1000, 1)
         verdict.latency_ms.per_stage = stages
         verdict.latency_ms.total = int((time.perf_counter() - t0) * 1000)

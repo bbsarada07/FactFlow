@@ -21,6 +21,9 @@ sys.path.insert(0, str(BACKEND))
 from config import settings  # noqa: E402
 
 
+USER_ID = "measure-script"  # tasks are filed under a stand-in owner
+
+
 async def main(db: Path) -> int:
     import secrets
 
@@ -34,11 +37,11 @@ async def main(db: Path) -> int:
     settings.APPROVAL_SECRET = secrets.token_urlsafe(32)  # in-process only, so approval creation is measured
     settings.MAIL_AGENT_MAX_PER_MINUTE = 1000
     await connection.init_db()
-    eml = mail_agent.eml_provider()
+    eml = mail_agent.eml_provider(USER_ID)
     rows = []
     for ref in await eml.list_new(None):
         t0 = time.perf_counter()
-        task_id = await mail_agent.process(eml, RawMessageRef("eml", ref.message_id), use_llm=False)
+        task_id = await mail_agent.process(USER_ID, eml, RawMessageRef("eml", ref.message_id), use_llm=False)
         total = (time.perf_counter() - t0) * 1000
         async with connection.session_factory()() as s:
             task = await s.get(MailTask, task_id)

@@ -1,11 +1,11 @@
-"""/api/approvals: human-in-the-loop decisions (operator token required)."""
+"""/api/approvals: the signed-in user's human-in-the-loop decisions. Nobody can see or decide another user's."""
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from services import mail_agent, shield_runtime
-from services.operator_auth import require_operator
+from services import auth, mail_agent, shield_runtime
+from services.auth import CurrentUser
 from shield.approvals import ApprovalError, sign
 
 router = APIRouter(prefix="/api/approvals", tags=["approvals"])
@@ -32,13 +32,13 @@ def _store():
 
 @router.get("")
 async def list_approvals(status_: Literal["pending", "approved", "denied", "expired"] | None = Query(None, alias="status"),
-                         limit: int = Query(100, ge=1, le=200), _actor: str = Depends(require_operator)):
-    """Approvals, newest first. Pending ones carry the single-use token needed to decide them."""
+                         limit: int = Query(100, ge=1, le=200), user: CurrentUser = Depends(auth.current_user)):
+    """The user's approvals, newest first. Pending ones carry the single-use token needed to decide them."""
     store = shield_runtime.approvals()
     if store is None:
         return {"enabled": False, "items": []}
     items = []
-    for a in await store.list(status_, limit):
+    for a in await store.list(status_, limit, user_id=user.id):
         row = a.model_dump(mode="json")
         row["token"] = sign(store.secret, a) if a.status == "pending" else None
         items.append(row)
@@ -46,11 +46,14 @@ async def list_approvals(status_: Literal["pending", "approved", "denied", "expi
 
 
 @router.post("/{approval_id}/decision")
-async def decide(approval_id: str, body: DecisionRequest, actor: str = Depends(require_operator)):
+async def decide(approval_id: str, body: DecisionRequest, user: CurrentUser = Depends(auth.session_user)):
     """Approve once or deny. The token binds the decision to one (email, action, target). The mail
     agent's task then resumes: an approved step runs (outgoing steps only reach the simulated
     outbox), a denied or expired one ends."""
     store = _store()
+    if await store.owner(approval_id) != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown approval")
+    actor = user.email
     try:
         approval = await store.decide(approval_id, body.decision, body.token, actor)
     except ApprovalError as exc:
@@ -60,7 +63,7 @@ async def decide(approval_id: str, body: DecisionRequest, actor: str = Depends(r
                 await mail_agent.on_approval_decided(expired)
         raise HTTPException(ERROR_STATUS.get(exc.code, status.HTTP_400_BAD_REQUEST), str(exc)) from None
     await mail_agent.on_approval_decided(approval)
-    task = await mail_agent.task_for_approval(approval)
+    task = await mail_agent.task_for_approval(approval, user.id)
     step = next((s for s in (task or {}).get("steps", []) if s.get("approval_id") == approval.id), None)
     return {
         "approval": approval.model_dump(mode="json"),

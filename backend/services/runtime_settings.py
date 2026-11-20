@@ -1,61 +1,88 @@
-"""Operator settings that survive a restart: the policy mode (strict / balanced) and the chosen mail provider.
+"""Per-user agent settings that survive a restart: policy mode (strict / balanced), trusted recipient domains,
+and which inbox the agent reads (auto / gmail / eml).
 
-Stored in the `runtime_settings` table (SQLite and PostgreSQL). At startup `restore()` loads them; a missing or
-invalid policy mode means "strict" and a missing or invalid provider means "auto", so a restart can never loosen
-the policy. Changes are saved before they are applied in memory (api/policy.py, api/mail.py), so the stored value
-is never looser than the running one.
+Stored in the `user_settings` table. A user with no row, or a stored value that is not valid, gets the safe
+defaults: strict mode, the trusted domains from shield/config/policy.yml, and "auto" for the inbox. So a missing
+or damaged row can never loosen anyone's policy. Changes go through PolicyStore's planning rules (loosening needs
+confirm=true), are written to the audit log, and only then saved.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 
-from loguru import logger
-
 from database import connection
-from database.models import RuntimeSetting
-from services import mail_agent, shield_runtime
+from database.models import UserSettings
+from services import shield_runtime
+from shield.policy import PolicyConfig, PolicyStore
 
-POLICY_MODE = "policy_mode"
-MAIL_PROVIDER = "mail_provider"
-ALLOWED = {POLICY_MODE: ("strict", "balanced"), MAIL_PROVIDER: ("auto", "gmail", "eml")}
-DEFAULTS = {POLICY_MODE: "strict", MAIL_PROVIDER: "auto"}
+MODES = ("strict", "balanced")
+PROVIDERS = ("auto", "gmail", "eml")
+_locks: dict[str, asyncio.Lock] = {}
 
 
-async def read(key: str) -> tuple[str, bool]:
-    """(value, stored): the stored value when it is valid, otherwise the safe default and False."""
+def lock(user_id: str) -> asyncio.Lock:
+    """One settings change at a time per user."""
+    return _locks.setdefault(user_id, asyncio.Lock())
+
+
+async def _row(user_id: str) -> UserSettings | None:
     async with connection.session_factory()() as s:
-        row = await s.get(RuntimeSetting, key)
-    value = row.value if row is not None else None
-    if value in ALLOWED[key]:
-        return value, True
-    return DEFAULTS[key], False
+        return await s.get(UserSettings, user_id)
 
 
-async def save(key: str, value: str, actor: str) -> None:
-    if value not in ALLOWED[key]:
-        raise ValueError(f"invalid value for {key}")
+async def policy_for(user_id: str | None) -> PolicyConfig:
+    """The policy this user's agent runs under (the system defaults when user_id is None)."""
+    base = shield_runtime.policy_store().get()
+    if user_id is None:
+        return base
+    row = await _row(user_id)
+    if row is None:
+        return replace(base, mode="strict")
+    mode = row.policy_mode if row.policy_mode in MODES else "strict"
+    domains = base.allowed_domains if row.allowed_domains is None else tuple(sorted(set(row.allowed_domains)))
+    return replace(base, mode=mode, allowed_domains=domains)
+
+
+async def mail_provider(user_id: str) -> str:
+    row = await _row(user_id)
+    return row.mail_provider if row is not None and row.mail_provider in PROVIDERS else "auto"
+
+
+async def _save(user_id: str, **values) -> None:
     async with connection.session_factory()() as s:
-        row = await s.get(RuntimeSetting, key)
+        row = await s.get(UserSettings, user_id)
         if row is None:
-            s.add(RuntimeSetting(key=key, value=value, updated_by=actor))
-        else:
-            row.value, row.updated_by = value, actor
+            row = UserSettings(user_id=user_id)
+            s.add(row)
+        for k, v in values.items():
+            setattr(row, k, v)
         await s.commit()
 
 
-async def restore() -> dict:
-    """Apply the stored settings to the running process (called once at startup)."""
-    mode, mode_stored = await read(POLICY_MODE)
-    provider, provider_stored = await read(MAIL_PROVIDER)
-    store = shield_runtime.policy_store()
-    async with shield_runtime.policy_lock:
-        current = store.get()
-        if current.mode != mode:
-            store.apply(replace(current, mode=mode), current)
-    mail_agent.set_active(provider)
-    result = {"policy_mode": mode, "policy_mode_stored": mode_stored,
-              "mail_provider": provider, "mail_provider_stored": provider_stored}
-    await shield_runtime.audit().append("system", "settings_restored", result)
-    if not mode_stored:
-        logger.info("No valid stored policy mode; starting in strict mode")
-    return result
+async def change_policy(user_id: str, actor: str, *, mode: str | None = None, domains: list[str] | None = None,
+                        confirm: bool = False) -> PolicyConfig:
+    """Plan, audit, then save one policy change. Raises PermissionError (needs confirm) or ValueError."""
+    async with lock(user_id):
+        current = await policy_for(user_id)
+        store = PolicyStore(current)
+        if mode is not None:
+            new, change = store.plan_mode(mode, confirm=confirm, actor=actor)
+        else:
+            new, change = store.plan_domains(domains or [], confirm=confirm, actor=actor)
+        if change is None:
+            return current
+        await shield_runtime.audit().append(actor, "policy_changed", change, user_id=user_id)
+        if change["field"] == "policy_mode":
+            await _save(user_id, policy_mode=new.mode)
+        else:
+            await _save(user_id, allowed_domains=list(new.allowed_domains))
+        return new
+
+
+async def set_mail_provider(user_id: str, provider: str, actor: str) -> None:
+    if provider not in PROVIDERS:
+        raise ValueError("provider must be auto, gmail or eml")
+    async with lock(user_id):
+        await _save(user_id, mail_provider=provider)
+    await shield_runtime.audit().append(actor, "mail_provider_changed", {"provider": provider}, user_id=user_id)

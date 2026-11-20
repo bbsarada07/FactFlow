@@ -150,10 +150,7 @@ def test_sandbox_api_outbox_routes(mail_env):
     """Test /api/sandbox/outbox listing and clear routes."""
     client = mail_env.client
 
-    # Require operator token
-    unauth = client.get("/api/sandbox/outbox")
-    assert unauth.status_code == 401
-
+    # Sign-in is required (tested in test_accounts.py); here the test user is signed in.
     # Authenticated list
     resp = client.get("/api/sandbox/outbox", headers=OP)
     assert resp.status_code == 200
@@ -193,10 +190,7 @@ def test_benchmark_api_routes(mail_env):
     """Test /api/benchmark/run, /runs and /latest endpoints."""
     client = mail_env.client
 
-    # Operator check
-    unauth = client.post("/api/benchmark/run", json={"mode": "rules"})
-    assert unauth.status_code == 401
-
+    # Running needs an admin (the test user is one; non-admins are tested in test_accounts.py).
     # Run sample
     resp = client.post(
         "/api/benchmark/run",

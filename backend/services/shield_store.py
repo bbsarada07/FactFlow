@@ -45,8 +45,9 @@ class SqlAuditLog:
         row = await session.scalar(select(AuditLog).order_by(AuditLog.seq.desc()).limit(1))
         return _record(row) if row else None
 
-    async def append(self, actor: str, event_type: str, payload: dict) -> AuditRecord:
-        """Append one event. Payload PII is redacted before hashing and storage."""
+    async def append(self, actor: str, event_type: str, payload: dict, user_id: str | None = None) -> AuditRecord:
+        """Append one event. Payload PII is redacted before hashing and storage. `user_id` (whose activity this
+        is) is stored next to the record for filtering; it is not part of the hash."""
         async with self._lock:
             for _ in range(APPEND_RETRIES):
                 async with self.sf() as s:
@@ -54,7 +55,7 @@ class SqlAuditLog:
                     email_id = rec.payload.get("email_id")
                     s.add(AuditLog(seq=rec.seq, ts=rec.ts, actor=rec.actor, event_type=rec.event_type,
                                    payload_json=rec.payload, prev_hash=rec.prev_hash, hash=rec.hash,
-                                   email_id=str(email_id)[:64] if email_id else None))
+                                   email_id=str(email_id)[:64] if email_id else None, user_id=user_id))
                     try:
                         await s.commit()
                         return rec
@@ -62,10 +63,14 @@ class SqlAuditLog:
                         await s.rollback()  # another process appended first; retry on its head
             raise RuntimeError("could not append to the audit log after repeated conflicts")
 
-    async def page(self, offset: int = 0, limit: int = 50, email_id: str | None = None) -> tuple[list[AuditRecord], int]:
-        """Records in sequence order, optionally only those about one email."""
+    async def page(self, offset: int = 0, limit: int = 50, email_id: str | None = None,
+                   user_id: str | None = None, everyone: bool = False) -> tuple[list[AuditRecord], int]:
+        """Records in sequence order: one user's (default) or all of them (`everyone`, admins only),
+        optionally only those about one email."""
         async with self.sf() as s:
             count_q, q = select(func.count()).select_from(AuditLog), select(AuditLog).order_by(AuditLog.seq)
+            if not everyone:
+                count_q, q = count_q.where(AuditLog.user_id == user_id), q.where(AuditLog.user_id == user_id)
             if email_id:
                 count_q, q = count_q.where(AuditLog.email_id == email_id), q.where(AuditLog.email_id == email_id)
             total = await s.scalar(count_q) or 0
@@ -82,6 +87,10 @@ class SqlAuditLog:
         async with self.sf() as s:
             rows = (await s.scalars(select(AuditLog).order_by(AuditLog.seq))).all()
             return verify_chain(_record(r) for r in rows)
+
+    async def owner_of(self, seq: int) -> str | None:
+        async with self.sf() as s:
+            return await s.scalar(select(AuditLog.user_id).where(AuditLog.seq == seq))
 
 
 def _approval(row: ShieldApproval) -> Approval:
@@ -100,26 +109,32 @@ class SqlApprovals:
         validate_secret(secret)  # fail fast: no approvals without a signing secret
         self.sf, self.secret, self.audit, self.ttl, self.clock = session_factory, secret, audit, ttl_seconds, clock
 
-    async def create(self, **fields) -> tuple[Approval, str]:
-        """Store a pending approval and return it with its single-use token."""
+    async def create(self, user_id: str | None = None, **fields) -> tuple[Approval, str]:
+        """Store a pending approval for `user_id` and return it with its single-use token."""
         a = new_approval(now=self.clock(), ttl_seconds=self.ttl, **fields)
         async with self.sf() as s:
-            s.add(ShieldApproval(**a.model_dump()))
+            s.add(ShieldApproval(**a.model_dump(), user_id=user_id))
             await s.commit()
         if self.audit:
             await self.audit.append("system", "approval_created", {
                 "approval_id": a.id, "email_id": a.email_id, "action": a.action, "target": a.target,
-                "rule_id": a.rule_id})
+                "rule_id": a.rule_id}, user_id=user_id)
         return a, sign(self.secret, a)
+
+    async def owner(self, approval_id: str) -> str | None:
+        async with self.sf() as s:
+            return await s.scalar(select(ShieldApproval.user_id).where(ShieldApproval.id == approval_id))
 
     async def get(self, approval_id: str) -> Approval | None:
         async with self.sf() as s:
             row = await s.get(ShieldApproval, approval_id)
             return _approval(row) if row else None
 
-    async def list(self, status: str | None = None, limit: int = 100) -> list[Approval]:
+    async def list(self, status: str | None = None, limit: int = 100, user_id: str | None = None) -> list[Approval]:
+        """One user's approvals, newest first."""
         async with self.sf() as s:
-            q = select(ShieldApproval).order_by(ShieldApproval.created_at.desc()).limit(limit)
+            q = (select(ShieldApproval).where(ShieldApproval.user_id == user_id)
+                 .order_by(ShieldApproval.created_at.desc()).limit(limit))
             if status:
                 q = q.where(ShieldApproval.status == status)
             return [_approval(r) for r in (await s.scalars(q)).all()]
@@ -144,12 +159,13 @@ class SqlApprovals:
                 await self._set_status(approval_id, {"status": "expired"})
             if self.audit and current is not None:
                 await self.audit.append(f"human:{decided_by}", "approval_refused",
-                                        {"approval_id": approval_id, "reason": exc.code})
+                                        {"approval_id": approval_id, "reason": exc.code},
+                                        user_id=await self.owner(approval_id))
             raise
         if not await self._set_status(approval_id, {"status": status, "decided_by": decided_by, "decided_at": now}):
             raise ApprovalError("not_pending", "This approval was decided by another request.")
         if self.audit:
             await self.audit.append(f"human:{decided_by}", "approval_decided",
                                     {"approval_id": approval_id, "decision": status, "action": current.action,
-                                     "target": current.target})
+                                     "target": current.target}, user_id=await self.owner(approval_id))
         return current.model_copy(update={"status": status, "decided_by": decided_by, "decided_at": now})

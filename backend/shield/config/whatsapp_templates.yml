@@ -39,6 +39,9 @@ en:
   ocr_missing: "Hindi/Telugu text in images cannot be read on this server yet (OCR language data is missing), so this check may be incomplete."
   empty: "Send a message or a screenshot to check it."
   failed: "Sorry, this message could not be checked. Please try again later."
+  not_linked: "This WhatsApp number is not linked to a FactFlow account yet. Sign in at {site}/settings, tap Link WhatsApp, and send the LINK code shown there."
+  linked: "Done: this number is now linked to your FactFlow account. Send any message or screenshot to check it."
+  bad_code: "That LINK code is wrong or has expired. Get a new one at {site}/settings."
 
 hi:
   label:
@@ -71,6 +74,9 @@ hi:
   ocr_missing: "इस सर्वर पर अभी तस्वीरों में हिंदी/तेलुगु टेक्स्ट नहीं पढ़ा जा सकता (OCR भाषा डेटा नहीं है), इसलिए यह जाँच अधूरी हो सकती है।"
   empty: "जाँच के लिए कोई संदेश या स्क्रीनशॉट भेजें।"
   failed: "क्षमा करें, यह संदेश जाँचा नहीं जा सका। कृपया बाद में फिर कोशिश करें।"
+  not_linked: "यह WhatsApp नंबर अभी किसी FactFlow खाते से जुड़ा नहीं है। {site}/settings पर साइन इन करें, Link WhatsApp दबाएँ, और वहाँ दिखाया गया LINK कोड भेजें।"
+  linked: "हो गया: यह नंबर अब आपके FactFlow खाते से जुड़ गया है। जाँच के लिए कोई भी संदेश या स्क्रीनशॉट भेजें।"
+  bad_code: "यह LINK कोड गलत है या उसकी समय-सीमा खत्म हो गई है। {site}/settings पर नया कोड लें।"
 
 te:
   label:
@@ -103,3 +109,6 @@ te:
   ocr_missing: "ఈ సర్వర్‌లో ఇంకా చిత్రాల్లోని హిందీ/తెలుగు వచనాన్ని చదవలేము (OCR భాషా డేటా లేదు), కాబట్టి ఈ తనిఖీ అసంపూర్ణంగా ఉండవచ్చు."
   empty: "తనిఖీ కోసం సందేశం లేదా స్క్రీన్‌షాట్ పంపండి."
   failed: "క్షమించండి, ఈ సందేశాన్ని తనిఖీ చేయలేకపోయాం. దయచేసి తర్వాత మళ్లీ ప్రయత్నించండి."
+  not_linked: "ఈ WhatsApp నంబర్ ఇంకా ఏ FactFlow ఖాతాకూ లింక్ కాలేదు. {site}/settings లో సైన్ ఇన్ చేసి, Link WhatsApp నొక్కి, అక్కడ చూపిన LINK కోడ్‌ను పంపండి."
+  linked: "పూర్తయింది: ఈ నంబర్ ఇప్పుడు మీ FactFlow ఖాతాకు లింక్ అయింది. తనిఖీ కోసం ఏదైనా సందేశం లేదా స్క్రీన్‌షాట్ పంపండి."
+  bad_code: "ఈ LINK కోడ్ తప్పు లేదా గడువు ముగిసింది. {site}/settings లో కొత్తది పొందండి."

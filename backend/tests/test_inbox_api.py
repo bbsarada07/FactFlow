@@ -1,5 +1,6 @@
 """Inbox pipeline and its routes: all 14 demo emails, rules vs full mode, graceful degradation,
-caching, registry reuse, token accounting, approvals, audit, policy and operator-token checks.
+caching, registry reuse, token accounting, approvals, audit and policy (as the signed-in test user;
+isolation between users is tested in test_accounts.py).
 
 No network: the quarantined reader, explainer and claim fact-checks are faked.
 """
@@ -44,16 +45,14 @@ def app(db_url, monkeypatch):
     from api.verify import RateLimiter
     from database import connection
     from models.groq_client import LLMResult
-    from services import operator_auth, shield_runtime
+    from services import shield_runtime
     import main
 
     monkeypatch.setattr(settings, "ASYNC_DATABASE_URL", db_url)
     monkeypatch.setattr(connection, "engine", None)
     monkeypatch.setattr(connection, "SessionLocal", None)
-    monkeypatch.setattr(settings, "OPERATOR_TOKEN", OP["X-Operator-Token"])
     monkeypatch.setattr(settings, "APPROVAL_SECRET", "a" * 40)
     monkeypatch.setattr(inbox, "limiter", RateLimiter(1000))
-    monkeypatch.setattr(operator_auth, "failures", RateLimiter(5, noun="failed attempts"))
     monkeypatch.setattr(shield_runtime, "_policy", None)
 
     calls = {"reader": 0, "explainer": 0, "factcheck": 0}
@@ -239,34 +238,14 @@ def test_async_submission_streams_and_completes(app):
     assert got["status"] == "complete" and got["verdict"]["overall"]["label"] != "SAFE"
 
 
-def test_message_content_needs_the_view_token_or_the_operator(app):
+def test_the_owner_reads_their_analysis_by_its_plain_urls(app):
     client, _ = app
     body = run_demo(client, "02_benign_meeting_invite")
-    email_id = body["email_id"]
-    assert client.get(f"/api/inbox/{email_id}").status_code == 401
-    assert client.get(f"/api/inbox/{email_id}?view_token=wrong").status_code == 401
-    assert client.get(f"/api/inbox/{email_id}?view_token={body['view_token']}").status_code == 200
-    assert client.get(f"/api/inbox/{email_id}", headers=OP).status_code == 200
-    assert client.get(f"/api/inbox/{email_id}/stream").status_code == 401
-
-
-# ------------------------------------------------------------------- operator-protected routes
-
-def test_operator_token_is_required_and_rate_limited(app):
-    client, _ = app
-    assert client.get("/api/inbox").status_code == 401
-    assert client.get("/api/inbox", headers=OP).status_code == 200
-    for _ in range(5):
-        client.get("/api/audit", headers={"X-Operator-Token": "wrong"})
-    assert client.get("/api/audit", headers={"X-Operator-Token": "wrong"}).status_code == 429
-    assert client.get("/api/audit", headers=OP).status_code == 429  # locked out for the rest of the minute
-
-
-def test_protected_routes_are_closed_without_a_configured_token(app, monkeypatch):
-    client, _ = app
-    monkeypatch.setattr(settings, "OPERATOR_TOKEN", "")
-    for path in ("/api/inbox", "/api/approvals", "/api/audit", "/api/audit/verify"):
-        assert client.get(path, headers=OP).status_code == 503
+    assert body["view_token"] is None  # results are read by signing in, not with a token in the URL
+    assert body["result_url"] == f"/api/inbox/{body['email_id']}"
+    assert client.get(body["result_url"]).status_code == 200
+    listed = client.get("/api/inbox").json()["items"]
+    assert [i["email_id"] for i in listed] == [body["email_id"]]
 
 
 def test_strict_mode_runs_protective_steps_automatically_on_a_dangerous_email(app):
@@ -303,7 +282,6 @@ def test_policy_mode_switch_needs_confirmation_and_changes_decisions(app):
     client, _ = app
     assert client.get("/api/policy").json()["mode"] == "strict"
     assert client.put("/api/policy/mode", json={"mode": "balanced"}, headers=OP).status_code == 409
-    assert client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True}).status_code == 401
     assert client.put("/api/policy/mode", json={"mode": "balanced", "confirm": True}, headers=OP).json()["mode"] == "balanced"
     v = UnifiedVerdict.model_validate(run_demo(client, "09_fake_kyc_lookalike")["verdict"])
     assert {(p.action, p.policy.decision) for p in v.proposed_actions if p.origin == "user"} == {

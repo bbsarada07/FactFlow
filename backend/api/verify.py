@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from database.connection import get_session
 from database.models import Claim, iso, new_slug, registry_url
+from services import auth
+from services.auth import CurrentUser
 from services.input_service import InputError, validate_screenshot
 from services.registry import is_fresh, lookup_repeat
 from services.safety import PRIVATE_PERSON_MESSAGE, WITHHELD_LABEL, check_sensitive
@@ -123,7 +125,8 @@ def _response(claim: Claim, mode: str, cached: bool = False, matched_at: datetim
 
 @router.post("/verify", response_model=VerifyResponse, status_code=status.HTTP_202_ACCEPTED)
 async def verify(
-    body: VerifyRequest, request: Request, response: Response, session: AsyncSession = Depends(get_session)
+    body: VerifyRequest, request: Request, response: Response, session: AsyncSession = Depends(get_session),
+    user: CurrentUser = Depends(auth.current_user),
 ):
     """Verify a claim.
 
@@ -143,7 +146,7 @@ async def verify(
         except InputError as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
 
-    limiter.check(request.client.host if request.client else "unknown")
+    limiter.check(f"user:{user.id}")
 
     if body.image_base64 or body.image_url:
         input_type, source_url = "image", body.image_url
@@ -156,6 +159,7 @@ async def verify(
         # Private-person / self-harm rule: before any search, model call or public write.
         # Only a generic label is stored; the input text is not kept anywhere.
         withheld = Claim(
+            user_id=user.id,
             input_type=input_type,
             raw_input=WITHHELD_LABEL,
             claim_text=WITHHELD_LABEL,
@@ -181,7 +185,7 @@ async def verify(
     normalized = normalize(text)
     previous: Claim | None = None
     if input_type == "text":
-        found = await lookup_repeat(session, normalized)
+        found = await lookup_repeat(session, normalized, user_id=user.id)
         if found:
             match_claim, match = found
             if is_fresh(match_claim.created_at):
@@ -194,6 +198,7 @@ async def verify(
 
     platform = (body.platform or "web").lower()
     claim = Claim(
+        user_id=user.id,
         input_type=input_type,
         raw_input=text,
         input_hash=input_hash(text) if text else "",

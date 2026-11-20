@@ -75,6 +75,13 @@ _ADDED_DEFAULTS = {
 _INDEXES = (
     "CREATE UNIQUE INDEX IF NOT EXISTS ix_claims_slug ON claims (slug)",
     "CREATE INDEX IF NOT EXISTS ix_claims_is_public ON claims (is_public)",
+    # owner columns added to tables that existed before accounts
+    "CREATE INDEX IF NOT EXISTS ix_claims_user_id ON claims (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_emails_user_id ON emails (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_approvals_user_id ON approvals (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_simulated_outbox_user_id ON simulated_outbox (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_audit_log_user_id ON audit_log (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_whatsapp_checks_user_id ON whatsapp_checks (user_id)",
 )
 
 

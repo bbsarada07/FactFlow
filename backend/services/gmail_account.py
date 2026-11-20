@@ -1,9 +1,10 @@
-"""The connected Gmail account: OAuth connect/callback/disconnect, encrypted token storage, and the
-token source the read-only Gmail provider uses.
+"""Each user's connected Gmail account: OAuth connect/callback/disconnect, encrypted token storage, and the
+token source the Gmail provider uses.
 
-Tokens are Fernet-encrypted in the `mail_accounts` table and never logged or returned by any
-route. An expired or revoked token puts the account in "reconnect_required" instead of raising
-out of the poller.
+Every function takes the owner's user_id; one user can never read or use another user's tokens. Tokens are
+Fernet-encrypted in the `user_mail_accounts` table and never logged or returned by any route. An expired or
+revoked token puts the account in "reconnect_required" instead of raising out of the poller. One Gmail address
+can be connected to only one FactFlow account (two agents on one mailbox would act twice).
 """
 from __future__ import annotations
 
@@ -45,31 +46,40 @@ class GmailSetupError(Exception):
 
 
 class _States:
-    """OAuth state values waiting for their callback: single use, 10-minute life, kept in memory."""
+    """OAuth state values waiting for their callback: single use, 10-minute life, kept in memory, and bound to
+    the user who started the connection."""
 
     def __init__(self) -> None:
-        self._items: dict[str, tuple[str, float]] = {}
+        self._items: dict[str, tuple[str, str, float]] = {}
 
-    def create(self, verifier: str) -> str:
+    def create(self, verifier: str, user_id: str) -> str:
         now = time.monotonic()
-        self._items = {k: v for k, v in self._items.items() if now - v[1] < STATE_TTL_SECONDS}
+        self._items = {k: v for k, v in self._items.items() if now - v[2] < STATE_TTL_SECONDS}
         state = secrets.token_urlsafe(32)
-        self._items[state] = (verifier, now)
+        self._items[state] = (verifier, user_id, now)
         return state
 
-    def pop(self, state: str) -> str | None:
+    def pop(self, state: str) -> tuple[str, str] | None:
+        """(verifier, user_id) for a fresh state, else None."""
         item = self._items.pop(state or "", None)
-        if item is None or time.monotonic() - item[1] >= STATE_TTL_SECONDS:
+        if item is None or time.monotonic() - item[2] >= STATE_TTL_SECONDS:
             return None
-        return item[0]
+        return item[0], item[1]
 
 
 states = _States()
 
 
+def redirect_uri() -> str:
+    return settings.GOOGLE_REDIRECT_URI or f"{settings.FRONTEND_URL.rstrip('/')}/api/mail/gmail/callback"
+
+
+class AddressTaken(Exception):
+    """This Gmail address is already connected to another FactFlow account."""
+
+
 def missing_settings() -> list[str]:
-    missing = [name for name in ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI")
-               if not getattr(settings, name)]
+    missing = [name for name in ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET") if not getattr(settings, name)]
     if fernet() is None:
         missing.append("TOKEN_ENCRYPTION_KEY")
     return missing
@@ -79,18 +89,19 @@ def oauth_client() -> OAuthClient:
     missing = missing_settings()
     if missing:
         raise GmailSetupError("Gmail is not set up on the server; missing: " + ", ".join(missing))
-    return OAuthClient(settings.GOOGLE_CLIENT_ID, settings.GOOGLE_CLIENT_SECRET, settings.GOOGLE_REDIRECT_URI)
+    return OAuthClient(settings.GOOGLE_CLIENT_ID, settings.GOOGLE_CLIENT_SECRET, redirect_uri())
 
 
-async def _account(session) -> MailAccount | None:
-    return await session.scalar(select(MailAccount).where(MailAccount.provider == PROVIDER))
+async def _account(session, user_id: str) -> MailAccount | None:
+    return await session.scalar(select(MailAccount).where(MailAccount.user_id == user_id,
+                                                          MailAccount.provider == PROVIDER))
 
 
-def start_connect() -> str:
-    """The Google consent URL (gmail.readonly only), with a fresh state and PKCE challenge."""
+def start_connect(user_id: str, login_hint: str | None = None) -> str:
+    """The Google consent URL (gmail.readonly only), with a fresh state bound to this user and a PKCE challenge."""
     client = oauth_client()
     verifier, challenge = pkce_pair()
-    return authorization_url(client, states.create(verifier), challenge)
+    return authorization_url(client, states.create(verifier, user_id), challenge, login_hint=login_hint)
 
 
 async def _save_tokens(row: MailAccount, tokens: TokenSet) -> None:
@@ -102,12 +113,14 @@ async def _save_tokens(row: MailAccount, tokens: TokenSet) -> None:
     row.scope = tokens.scope
 
 
-async def finish_connect(state: str, code: str) -> dict:
-    """Handle the OAuth callback. Raises ProviderAuthError (bad state or code), ScopeError or GmailSetupError."""
+async def finish_connect(state: str, code: str, user_id: str) -> dict:
+    """Handle the OAuth callback for the signed-in `user_id`. Raises ProviderAuthError (bad state or code, or a
+    state started by someone else), ScopeError, AddressTaken or GmailSetupError."""
     client = oauth_client()
-    verifier = states.pop(state)
-    if verifier is None:
+    saved = states.pop(state)
+    if saved is None or saved[1] != user_id:
         raise ProviderAuthError("the connect request expired or was already used; start again")
+    verifier = saved[0]
     try:
         tokens = await exchange_code(client, code, verifier, transport=HTTP_TRANSPORT)
     except ScopeError as exc:
@@ -118,24 +131,33 @@ async def finish_connect(state: str, code: str) -> dict:
         raise ProviderAuthError("Google did not return a refresh token; remove FactFlow's access in your Google "
                                 "account settings and connect again")
     profile = await GmailApiProvider(_StaticTokens(tokens.access_token), transport=HTTP_TRANSPORT).profile()
+    address = str(profile.get("emailAddress") or "").strip().lower()[:320] or None
     async with connection.session_factory()() as s:
-        row = await _account(s)
+        if address:
+            other = await s.scalar(select(MailAccount.id).where(
+                MailAccount.email_address == address, MailAccount.user_id != user_id,
+                MailAccount.status != "disconnected"))
+            if other is not None:
+                await revoke(tokens.refresh_token or tokens.access_token, transport=HTTP_TRANSPORT)
+                raise AddressTaken(address)
+        row = await _account(s, user_id)
         if row is None:
-            row = MailAccount(provider=PROVIDER)
+            row = MailAccount(user_id=user_id, provider=PROVIDER)
             s.add(row)
         await _save_tokens(row, tokens)
-        row.email_address = str(profile.get("emailAddress") or "")[:320] or None
+        row.email_address = address
         row.status, row.connected_at, row.last_error, row.sync_cursor = "connected", utcnow(), None, None
         await s.commit()
-    await shield_runtime.audit().append("human:operator", "mail_connected", {"provider": PROVIDER, "scope": GMAIL_READONLY_SCOPE})
-    return await status()
+    await shield_runtime.audit().append("agent:mail", "mail_connected", {"provider": PROVIDER, "scope": GMAIL_READONLY_SCOPE},
+                                        user_id=user_id)
+    return await status(user_id)
 
 
-async def disconnect() -> dict:
+async def disconnect(user_id: str) -> dict:
     """Revoke the token at Google and delete it here. Local deletion happens even if Google is unreachable."""
     revoked = False
     async with connection.session_factory()() as s:
-        row = await _account(s)
+        row = await _account(s, user_id)
         if row is not None:
             f = fernet()
             token = (decrypt(f, row.refresh_token_enc) or decrypt(f, row.access_token_enc)) if f else None
@@ -145,14 +167,15 @@ async def disconnect() -> dict:
             row.access_token_expires_at = None
             row.status, row.last_error = "disconnected", None
             await s.commit()
-    await shield_runtime.audit().append("human:operator", "mail_disconnected", {"provider": PROVIDER, "revoked": revoked})
-    return {"revoked": revoked, **await status()}
+    await shield_runtime.audit().append("agent:mail", "mail_disconnected", {"provider": PROVIDER, "revoked": revoked},
+                                        user_id=user_id)
+    return {"revoked": revoked, **await status(user_id)}
 
 
-async def mark(status_: str, error: str | None) -> None:
+async def mark(user_id: str, status_: str, error: str | None) -> None:
     """Record a connection problem (never a token) without raising."""
     async with connection.session_factory()() as s:
-        row = await _account(s)
+        row = await _account(s, user_id)
         if row is not None:
             row.status, row.last_error = status_, (error or "")[:300] or None
             if status_ == "reconnect_required":
@@ -160,10 +183,10 @@ async def mark(status_: str, error: str | None) -> None:
             await s.commit()
 
 
-async def status() -> dict:
+async def status(user_id: str) -> dict:
     """What the UI shows: never any token."""
     async with connection.session_factory()() as s:
-        row = await _account(s)
+        row = await _account(s, user_id)
     configured = not missing_settings()
     if row is None:
         return {"provider": PROVIDER, "configured": configured, "status": "disconnected", "email_address": None,
@@ -188,14 +211,17 @@ class _StaticTokens:
 
 
 class StoredTokens:
-    """Token source backed by the encrypted `mail_accounts` row; refreshes when needed."""
+    """Token source backed by one user's encrypted account row; refreshes when needed."""
+
+    def __init__(self, user_id: str) -> None:
+        self.user_id = user_id
 
     async def _row_tokens(self) -> tuple[str | None, datetime | None, str | None]:
         f = fernet()
         if f is None:
             raise ProviderAuthError("TOKEN_ENCRYPTION_KEY is missing or changed")
         async with connection.session_factory()() as s:
-            row = await _account(s)
+            row = await _account(s, self.user_id)
             if row is None or row.status != "connected":
                 raise ProviderAuthError("Gmail is not connected")
             expires = row.access_token_expires_at
@@ -212,44 +238,51 @@ class StoredTokens:
     async def force_refresh(self) -> str:
         _, _, refresh_token = await self._row_tokens()
         if not refresh_token:
-            await mark("reconnect_required", "no refresh token is stored")
+            await mark(self.user_id, "reconnect_required", "no refresh token is stored")
             raise ProviderAuthError("Gmail needs to be reconnected")
         try:
             tokens = await refresh(oauth_client(), refresh_token, transport=HTTP_TRANSPORT)
         except (ProviderAuthError, ScopeError, GmailSetupError) as exc:
-            await mark("reconnect_required", str(exc))
+            await mark(self.user_id, "reconnect_required", str(exc))
             logger.warning("Gmail access expired or was revoked; reconnect required")
             raise ProviderAuthError("Gmail needs to be reconnected") from exc
         except ProviderTemporaryError:
             raise
         async with connection.session_factory()() as s:
-            row = await _account(s)
+            row = await _account(s, self.user_id)
             await _save_tokens(row, tokens)
             await s.commit()
         return tokens.access_token
 
 
-async def provider() -> GmailApiProvider | None:
-    """The read-only Gmail provider when an account is connected."""
+async def provider(user_id: str) -> GmailApiProvider | None:
+    """This user's Gmail provider when their account is connected."""
     async with connection.session_factory()() as s:
-        row = await _account(s)
+        row = await _account(s, user_id)
     if row is None or row.status != "connected":
         return None
-    return GmailApiProvider(StoredTokens(), transport=HTTP_TRANSPORT, first_sync=settings.MAIL_FIRST_SYNC,
+    return GmailApiProvider(StoredTokens(user_id), transport=HTTP_TRANSPORT, first_sync=settings.MAIL_FIRST_SYNC,
                             max_per_sync=settings.MAIL_MAX_PER_SYNC)
 
 
-async def cursor() -> datetime | None:
+async def connected_user_ids() -> list[str]:
+    """Users whose Gmail is connected (the poller's work list)."""
     async with connection.session_factory()() as s:
-        row = await _account(s)
+        return list((await s.scalars(select(MailAccount.user_id).where(
+            MailAccount.provider == PROVIDER, MailAccount.status == "connected"))).all())
+
+
+async def cursor(user_id: str) -> datetime | None:
+    async with connection.session_factory()() as s:
+        row = await _account(s, user_id)
     if row is None or row.sync_cursor is None:
         return None
     return row.sync_cursor if row.sync_cursor.tzinfo else row.sync_cursor.replace(tzinfo=timezone.utc)
 
 
-async def record_sync(new_cursor: datetime | None, error: str | None) -> None:
+async def record_sync(user_id: str, new_cursor: datetime | None, error: str | None) -> None:
     async with connection.session_factory()() as s:
-        row = await _account(s)
+        row = await _account(s, user_id)
         if row is None:
             return
         row.last_sync_at = utcnow()

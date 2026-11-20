@@ -8,6 +8,8 @@ import re
 from models.groq_client import LLMResult
 
 OP = {"X-Operator-Token": "op-token-for-tests-0123456789"}  # operator header used by the tests
+TEST_USER_ID = "testuser" + "0" * 24  # the signed-in user every API test runs as (see conftest.signed_in)
+TEST_USER_EMAIL = "tester@example.com"
 
 
 def reading_for(user: str) -> dict:

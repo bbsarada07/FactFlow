@@ -74,7 +74,25 @@ def wa(mail_env, monkeypatch):
     monkeypatch.setattr(whatsapp_service, "HTTP_TRANSPORT", twilio.transport)
     monkeypatch.setattr(whatsapp_service, "sender_limiter", RateLimiter(10, noun="WhatsApp checks", window=3600))
     mail_env.twilio = twilio
+    link_number(mail_env, SENDER)
+    link_number(mail_env, "+919999900002")  # the Meta fixture's sender
     return mail_env
+
+
+def link_number(env, number: str, user_id: str | None = None) -> None:
+    """Link a WhatsApp number to a user (the test user by default), as "LINK <code>" would."""
+    from standins import TEST_USER_ID
+    from database import connection
+    from database.models import WhatsAppLink
+    from shield.whatsapp_reply import hash_sender
+
+    async def add():
+        async with connection.session_factory()() as s:
+            s.add(WhatsAppLink(sender_hash=hash_sender(settings.WHATSAPP_HASH_SALT, number),
+                               user_id=user_id or TEST_USER_ID))
+            await s.commit()
+
+    env.client.portal.call(add)
 
 
 def post(env, params: dict, signature: str | None = None, url: str = URL):
@@ -124,7 +142,7 @@ def test_valid_signature_is_accepted_and_the_reply_goes_to_the_sender_only(wa):
     assert len(reply) <= MAX_REPLY_CHARS
     assert t["consent"] in reply  # first message from this sender
     assert t["label"]["DANGEROUS"] in reply or t["label"]["SUSPICIOUS"] in reply
-    assert "1930" in reply and "https://app.factflow.example/inbox/" in reply
+    assert "1930" in reply and "https://app.factflow.example/shield/report/" in reply
     [check] = checks(wa)
     assert check["delivery"] == "sent" and check["input_type"] == "text" and check["label"] in ("DANGEROUS", "SUSPICIOUS")
 
@@ -377,3 +395,58 @@ def test_messaging_apis_are_called_only_from_the_whatsapp_provider():
                if "send_text(" in p.read_text(encoding="utf-8", errors="ignore")
                and not p.relative_to(backend).as_posix().startswith(("venv/", "tests/"))]
     assert sorted(callers) == ["services/whatsapp_service.py", "shield/providers/whatsapp.py"]
+
+
+# ------------------------------------------------------------------ linking a number to an account
+
+def test_an_unlinked_number_gets_linking_instructions_and_nothing_is_checked(wa):
+    from database import connection
+    from database.models import Email
+    from sqlalchemy import func, select
+
+    params = with_id(fixture("twilio_text.json"), 900, "Your KYC is pending, send OTP now")
+    params["From"] = "whatsapp:+919999900777"  # not linked
+    assert post(wa, params).status_code == 200
+    reply = wa.twilio.sent[-1]["Body"]
+    assert "not linked to a FactFlow account" in reply and "https://app.factflow.example/settings" in reply
+    assert wa.models.calls["reader"] == 0  # nothing was analysed
+
+    async def emails():
+        async with connection.session_factory()() as s:
+            return await s.scalar(select(func.count()).select_from(Email))
+
+    assert wa.client.portal.call(emails) == 0
+
+
+def test_link_command_links_the_number_to_the_code_owner(wa):
+    from datetime import timedelta
+
+    from database import connection
+    from database.models import WhatsAppCheck, WhatsAppLinkCode, utcnow
+    from sqlalchemy import select
+
+    from standins import TEST_USER_ID
+
+    async def add_code():
+        async with connection.session_factory()() as s:
+            s.add(WhatsAppLinkCode(code="482913", user_id=TEST_USER_ID, expires_at=utcnow() + timedelta(minutes=5)))
+            await s.commit()
+
+    wa.client.portal.call(add_code)
+    params = with_id(fixture("twilio_text.json"), 901, "LINK 000000")
+    params["From"] = "whatsapp:+919999900888"
+    post(wa, params)
+    assert "wrong or has expired" in wa.twilio.sent[-1]["Body"]
+    post(wa, {**with_id(fixture("twilio_text.json"), 902, "link 482913"), "From": "whatsapp:+919999900888"})
+    assert "now linked to your FactFlow account" in wa.twilio.sent[-1]["Body"]
+    post(wa, {**with_id(fixture("twilio_text.json"), 903, "LINK 482913"), "From": "whatsapp:+919999900999"})
+    assert "wrong or has expired" in wa.twilio.sent[-1]["Body"]  # single use
+
+    post(wa, {**with_id(fixture("twilio_text.json"), 904, "Drinking hot water kills the virus"),
+              "From": "whatsapp:+919999900888"})
+
+    async def owners():
+        async with connection.session_factory()() as s:
+            return {r.user_id for r in (await s.scalars(select(WhatsAppCheck).where(WhatsAppCheck.input_type != "command"))).all()}
+
+    assert wa.client.portal.call(owners) == {TEST_USER_ID}

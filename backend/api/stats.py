@@ -1,4 +1,4 @@
-"""GET /api/stats — aggregate numbers for the tracker dashboard."""
+"""GET /api/stats — numbers for the signed-in user's tracker (their own checks plus the seed examples)."""
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends
@@ -8,13 +8,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agents.context import HARM_TYPES, VERDICTS
 from database.connection import get_session
 from database.models import Claim, utcnow
+from services import auth
+from services.auth import CurrentUser
 
 router = APIRouter(prefix="/api", tags=["stats"])
 
 
 @router.get("/stats")
-async def stats(session: AsyncSession = Depends(get_session)):
-    done = (Claim.status == "complete") & Claim.is_public.is_(True)
+async def stats(session: AsyncSession = Depends(get_session), user: CurrentUser = Depends(auth.current_user)):
+    owned = (Claim.user_id == user.id) | (Claim.is_seed.is_(True) & Claim.user_id.is_(None))
+    done = (Claim.status == "complete") & owned
     live = Claim.is_seed.is_(False)
     since = utcnow() - timedelta(hours=24)
 

@@ -1,8 +1,6 @@
 """Process-wide Shield objects: the audit log, the approval store and the policy settings."""
 from __future__ import annotations
 
-import asyncio
-
 from config import settings
 from database import connection
 from services.shield_store import SqlApprovals, SqlAuditLog
@@ -11,7 +9,6 @@ from shield.policy import PolicyStore, load_config
 
 _audit: dict[int, SqlAuditLog] = {}
 _policy: PolicyStore | None = None
-policy_lock = asyncio.Lock()
 
 
 def audit() -> SqlAuditLog:
@@ -42,8 +39,8 @@ def approvals() -> SqlApprovals | None:
 
 
 def policy_store() -> PolicyStore:
-    """Runtime policy settings, starting from shield/config/policy.yml. Changes are kept in memory
-    (and in the audit log); a restart goes back to policy.yml."""
+    """The system default policy from shield/config/policy.yml. The benchmark and the sandbox demo use it
+    directly; each user's policy starts from it (services/runtime_settings.policy_for)."""
     global _policy
     if _policy is None:
         _policy = PolicyStore(load_config())

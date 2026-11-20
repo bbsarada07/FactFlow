@@ -1,6 +1,6 @@
 """Sandbox API routes (Phase 4A): simulated email assistant with shield=on / shield=off.
 
-Protected by OPERATOR_TOKEN and rate limited.
+Each run belongs to the signed-in user (their own outbox, approvals and audit records). Rate limited per user.
 """
 import base64
 import binascii
@@ -13,7 +13,8 @@ from api.verify import RateLimiter
 from config import settings
 from database import connection
 from database.models import Email
-from services.operator_auth import require_operator
+from services import auth
+from services.auth import CurrentUser
 from shield import sandbox_agent
 from shield.email_parser import MAX_BYTES
 from shield.sandbox_agent import VulnerableDemoDisabledError
@@ -35,14 +36,14 @@ class SandboxRunRequest(BaseModel):
 async def run_sandbox(
     request: Request,
     body: SandboxRunRequest,
-    _actor: str = Depends(require_operator),
+    user: CurrentUser = Depends(auth.current_user),
 ):
     """Run simulated email assistant on an email with shield=on (protected) or shield=off (vulnerable baseline).
 
     Vulnerable baseline requires env ALLOW_VULNERABLE_DEMO=true.
     Both modes write only to simulated_outbox.
     """
-    sandbox_limiter.check(request.client.host if request.client else "unknown")
+    sandbox_limiter.check(f"user:{user.id}")
 
     # Resolve email bytes
     email_bytes: bytes | None = None
@@ -62,7 +63,8 @@ async def run_sandbox(
 
     if email_id:
         async with connection.session_factory()() as s:
-            if await s.get(Email, email_id) is None:
+            row = await s.get(Email, email_id)
+            if row is None or row.user_id != user.id:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, f"Email {email_id} not found")
 
     if len(email_bytes) > MAX_BYTES:
@@ -73,13 +75,13 @@ async def run_sandbox(
 
     if not shield_on:
         try:
-            res = await sandbox_agent.run_vulnerable_assistant(email_bytes, email_id=email_id)
+            res = await sandbox_agent.run_vulnerable_assistant(email_bytes, email_id=email_id, user_id=user.id)
         except VulnerableDemoDisabledError as exc:
             raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from None
         return res.model_dump()
 
     use_llm = body.mode == "full" and settings.INBOX_USE_LLM
-    res = await sandbox_agent.run_protected_assistant(email_bytes, use_llm=use_llm, email_id=email_id)
+    res = await sandbox_agent.run_protected_assistant(email_bytes, use_llm=use_llm, email_id=email_id, user_id=user.id)
     return res.model_dump()
 
 
@@ -88,18 +90,18 @@ async def get_outbox(
     request: Request,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    _actor: str = Depends(require_operator),
+    user: CurrentUser = Depends(auth.current_user),
 ):
-    """List simulated outbox entries."""
-    outbox_limiter.check(request.client.host if request.client else "unknown")
-    items = await sandbox_agent.list_simulated_outbox(limit=limit, offset=offset)
+    """List your simulated outbox entries."""
+    outbox_limiter.check(f"user:{user.id}")
+    items = await sandbox_agent.list_simulated_outbox(limit=limit, offset=offset, user_id=user.id)
     return {"simulated": True, "count": len(items), "items": items}
 
 
 @router.delete("/outbox")
 @router.post("/outbox/clear")
-async def clear_outbox(request: Request, _actor: str = Depends(require_operator)):
-    """Clear all simulated outbox entries."""
-    outbox_limiter.check(request.client.host if request.client else "unknown")
-    cleared = await sandbox_agent.clear_simulated_outbox()
+async def clear_outbox(request: Request, user: CurrentUser = Depends(auth.session_user)):
+    """Clear your simulated outbox entries."""
+    outbox_limiter.check(f"user:{user.id}")
+    cleared = await sandbox_agent.clear_simulated_outbox(user.id)
     return {"simulated": True, "cleared": cleared}

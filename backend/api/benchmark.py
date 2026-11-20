@@ -1,6 +1,6 @@
 """Benchmark API routes (Phase 4B): run red-team benchmark and fetch results.
 
-Protected by OPERATOR_TOKEN and rate limited. One run at a time under an asyncio.Lock.
+Running needs an admin (ADMIN_EMAILS); reading results needs sign-in. Rate limited. One run at a time under an asyncio.Lock.
 """
 import asyncio
 from typing import Literal
@@ -12,7 +12,8 @@ from sqlalchemy import select
 from api.verify import RateLimiter
 from database import connection
 from database.models import BenchmarkRun
-from services.operator_auth import require_operator
+from services import auth
+from services.auth import CurrentUser
 from shield import benchmark
 
 router = APIRouter(prefix="/api/benchmark", tags=["benchmark"])
@@ -29,7 +30,7 @@ class BenchmarkRunRequest(BaseModel):
 async def run_benchmark(
     request: Request,
     body: BenchmarkRunRequest | None = None,
-    _actor: str = Depends(require_operator),
+    _admin: CurrentUser = Depends(auth.require_admin),
 ):
     """Trigger a benchmark run over the benchmark dataset.
 
@@ -60,7 +61,7 @@ async def run_benchmark(
 async def list_benchmark_runs(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    _actor: str = Depends(require_operator),
+    _user: CurrentUser = Depends(auth.current_user),
 ):
     """List historical benchmark runs."""
     async with connection.session_factory()() as s:
@@ -76,7 +77,7 @@ async def list_benchmark_runs(
 
 
 @router.get("/latest")
-async def get_latest_benchmark_run(_actor: str = Depends(require_operator)):
+async def get_latest_benchmark_run(_user: CurrentUser = Depends(auth.current_user)):
     """Fetch the latest completed benchmark run."""
     async with connection.session_factory()() as s:
         row = (
@@ -93,7 +94,7 @@ async def get_latest_benchmark_run(_actor: str = Depends(require_operator)):
 
 
 @router.get("/runs/{run_id}")
-async def get_benchmark_run(run_id: str, _actor: str = Depends(require_operator)):
+async def get_benchmark_run(run_id: str, _user: CurrentUser = Depends(auth.current_user)):
     """Fetch a specific benchmark run by ID."""
     async with connection.session_factory()() as s:
         row = await s.get(BenchmarkRun, run_id)
