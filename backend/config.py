@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     REPEAT_CORPUS_SIZE: int = 500
 
     # Knowledge Base / Semantic Retrieval (RAG v1)
+    # False skips KB retrieval entirely, so sentence-transformers/PyTorch is never imported.
+    # Use on small hosts (e.g. Render free, 512 MB): loading the model there kills the process.
+    KB_ENABLED: bool = True
     KB_SIMILARITY_THRESHOLD: float = 0.60
     KB_TOP_K: int = 5
 

@@ -71,14 +71,10 @@ async def retrieve(
 
     Returns an empty list if query is blank, or if the top match is below threshold.
     """
-    if not query or not query.strip():
+    if not settings.KB_ENABLED or not query or not query.strip():
         return []
 
     thresh = settings.KB_SIMILARITY_THRESHOLD if threshold is None else threshold
-    q_vec = embed_text(query)
-    q_norm = np.linalg.norm(q_vec)
-    if q_norm == 0:
-        return []
 
     stmt = select(
         KBDocument.id,
@@ -105,6 +101,13 @@ async def retrieve(
             embs.append(emb)
 
     if not valid_rows:
+        return []
+
+    # Embed only once there is something to compare against: loading the model imports PyTorch,
+    # which is heavy, and an empty knowledge base needs no query vector.
+    q_vec = embed_text(query)
+    q_norm = np.linalg.norm(q_vec)
+    if q_norm == 0:
         return []
 
     mat = np.array(embs, dtype=np.float32)
