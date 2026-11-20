@@ -26,10 +26,10 @@ function SectionHeader({ kicker, title, children }) {
 }
 
 const PIPELINE_FACTS = [
-  ["6", "specialised agents"],
-  ["3", "live evidence sources"],
-  ["12", "output languages"],
-  ["1", "verdict you can forward"],
+  ["6", "fact-check agents"],
+  ["6", "email detectors"],
+  ["4", "live evidence sources"],
+  ["0", "steps taken from email text"],
 ];
 
 const REVENUE = [
@@ -142,17 +142,17 @@ export default function AboutPage() {
       </section>
 
       {/* 2 — Architecture */}
-      <section className="mx-auto max-w-6xl px-4 py-24">
-        <SectionHeader kicker="ARCHITECTURE" title="Six agents. One forensic verdict.">
-          An orchestrator routes every claim through triage, live evidence search, conditional deep reasoning, explanation and
-          harm scoring, streaming each step to your screen as it happens.
+      <section id="how-it-works" className="mx-auto max-w-7xl scroll-mt-16 px-4 py-24">
+        <SectionHeader kicker="HOW IT WORKS" title="One agent. Everything you read and send, checked.">
+          FactFlow fact-checks what you are asked to believe and shields what you are asked to do. Pick a flow below: each step
+          lights up in order with a note on what happens. Click any box to jump to it.
         </SectionHeader>
         <motion.div
           variants={reveal}
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="rounded-lg border border-subtle bg-surface p-4 sm:p-8"
+          className="rounded-lg border border-subtle bg-surface p-4 sm:p-6"
         >
           <ArchitectureDiagram />
         </motion.div>
