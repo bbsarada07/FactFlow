@@ -27,7 +27,7 @@ import {
 import toast from "react-hot-toast";
 
 import ShieldNav from "@/components/shield/ShieldNav";
-import OperatorTokenModal from "@/components/shield/OperatorTokenModal";
+import SignInAgain from "@/components/SignInAgain";
 import {
   getLatestBenchmark,
   listBenchmarkRuns,
@@ -49,7 +49,6 @@ export default function ShieldBenchmarkPage() {
   const [running, setRunning] = useState(false);
   const [runMode, setRunMode] = useState("rules"); // 'rules' | 'llm'
   const [error, setError] = useState(null);
-  const [tokenModalOpen, setTokenModalOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -197,23 +196,17 @@ export default function ShieldBenchmarkPage() {
             </div>
             <h3 className="font-display text-[16px] font-bold text-primary">
               {error.status === 401
-                ? "Operator Token Required"
+                ? "Sign-in required"
                 : "Unable to Load Benchmark"}
             </h3>
             <p className="mx-auto mt-2 max-w-md text-[13px] text-secondary">
               {error.status === 401
-                ? "Viewing benchmark metrics requires OPERATOR_TOKEN authentication."
+                ? "Your session has ended. Sign in again to see the benchmark."
                 : error.message}
             </p>
             <div className="mt-4 flex justify-center gap-3">
               {error.status === 401 ? (
-                <button
-                  type="button"
-                  onClick={() => setTokenModalOpen(true)}
-                  className="btn-red !py-2 !px-5 !text-[13px]"
-                >
-                  Enter Operator Token
-                </button>
+                <SignInAgain />
               ) : (
                 <button
                   type="button"
@@ -378,12 +371,6 @@ export default function ShieldBenchmarkPage() {
           </div>
         )}
       </div>
-
-      <OperatorTokenModal
-        isOpen={tokenModalOpen}
-        onClose={() => setTokenModalOpen(false)}
-        onTokenSaved={() => fetchData()}
-      />
     </>
   );
 }

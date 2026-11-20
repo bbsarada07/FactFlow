@@ -21,8 +21,8 @@ import {
 import toast from "react-hot-toast";
 
 import ShieldNav from "@/components/shield/ShieldNav";
+import SignInAgain from "@/components/SignInAgain";
 import ShieldBadge from "@/components/shield/ShieldBadge";
-import OperatorTokenModal from "@/components/shield/OperatorTokenModal";
 import {
   listInbox,
   listDemoEmails,
@@ -32,8 +32,6 @@ import {
   getMyChecks,
   clearMyChecks,
   escapeSuspiciousCharacters,
-  hasOperatorToken,
-  onOperatorTokenChange,
   USE_MOCKS,
 } from "@/lib/shieldApi";
 
@@ -122,7 +120,7 @@ export default function ShieldInboxPage() {
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [view, setView] = useState("session"); // "operator" (full inbox) | "session" (my checks)
+  const [view, setView] = useState("operator"); // "operator": your inbox from the server | "session": this tab's checks (if it fails)
   const [activeFilter, setActiveFilter] = useState("ALL");
   const [myChecks, setMyChecks] = useState([]);
 
@@ -132,8 +130,6 @@ export default function ShieldInboxPage() {
   const [batch, setBatch] = useState(null); // { done, total, waiting, results: {name: {label, score, error}} }
   const batchAbort = useRef(null);
 
-  const [tokenModalOpen, setTokenModalOpen] = useState(false);
-
   const [pasteOpen, setPasteOpen] = useState(false);
   const [rawText, setRawText] = useState("");
   const [emlFile, setEmlFile] = useState(null);
@@ -141,26 +137,16 @@ export default function ShieldInboxPage() {
   const [scanning, setScanning] = useState(false);
   const fileInput = useRef(null);
 
-  // Read Gmail callback query params if redirected
+  // Old Gmail callback links (?gmail=...) now belong to the Settings page
   useEffect(() => {
-    if (router.query.gmail === "connected") {
-      toast.success("Gmail successfully connected (read-only)!");
-    } else if (router.query.gmail === "error") {
-      toast.error(`Gmail connection error: ${router.query.reason || "unknown"}`);
-    }
-  }, [router.query]);
+    if (router.query.gmail) router.replace("/settings" + window.location.search);
+  }, [router]);
 
   const refreshMyChecks = useCallback(() => setMyChecks(getMyChecks()), []);
 
   const fetchInbox = useCallback(async () => {
     refreshMyChecks();
     setError(null);
-    if (!USE_MOCKS && !hasOperatorToken()) {
-      // No token: show this session's checks; nothing to ask the server for.
-      setView("session");
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     try {
       const labelParam = activeFilter === "ALL" ? null : activeFilter;
@@ -180,7 +166,6 @@ export default function ShieldInboxPage() {
     fetchInbox();
   }, [fetchInbox]);
 
-  useEffect(() => onOperatorTokenChange(() => fetchInbox()), [fetchInbox]);
 
   useEffect(() => () => batchAbort.current?.abort(), []);
 
@@ -408,12 +393,10 @@ export default function ShieldInboxPage() {
               <div className="text-[12.5px] text-secondary">
                 <div className="font-semibold text-primary text-[13.5px]">My checks (this browser tab)</div>
                 {error?.status === 401
-                  ? "The saved operator token was rejected, so only the messages you checked in this tab are shown."
-                  : error?.status === 503
-                  ? "The server has no OPERATOR_TOKEN configured, so the full inbox is closed. Your own checks still work."
+                  ? "Your session has ended, so only the messages you checked in this tab are shown. Sign in again to see your inbox."
                   : error
-                  ? `The full inbox could not be loaded: ${error.message}`
-                  : "Demo emails and your own checks are listed here. The operator token unlocks the full inbox of every analysed message."}
+                  ? `Your inbox could not be loaded (${error.message}), so only the messages you checked in this tab are shown.`
+                  : "The messages you checked in this tab."}
               </div>
             </div>
             <div className="flex shrink-0 gap-2">
@@ -429,13 +412,7 @@ export default function ShieldInboxPage() {
                   <Trash2 size={12} /> Clear list
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => setTokenModalOpen(true)}
-                className="btn-ghost !py-1.5 !text-[12px]"
-              >
-                <KeyRound size={12} /> {error?.status === 401 ? "Fix token" : "Operator token"}
-              </button>
+              <SignInAgain />
             </div>
           </div>
         )}
@@ -493,7 +470,7 @@ export default function ShieldInboxPage() {
           </div>
         )}
 
-        {/* Error with the operator inbox that is not about auth */}
+        {/* Error loading your inbox */}
         {!loading && error && view === "operator" && (
           <div className="rounded-lg border border-red/40 bg-card p-6 text-center">
             <AlertCircle size={24} className="mx-auto mb-3 text-red" />
@@ -577,7 +554,6 @@ export default function ShieldInboxPage() {
             <div className="p-4 text-[12.5px] text-secondary border-b border-subtle bg-card flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span>
                 Benign mail, hidden-text injections, lookalike senders, Hindi and Telugu scams, UPI fraud and a QR code.
-                No operator token needed.
               </span>
               <button
                 type="button"
@@ -677,12 +653,6 @@ export default function ShieldInboxPage() {
           </div>
         </div>
       )}
-
-      <OperatorTokenModal
-        isOpen={tokenModalOpen}
-        onClose={() => setTokenModalOpen(false)}
-        // no onTokenSaved: saving fires the operator-token event, which already reloads the inbox
-      />
     </>
   );
 }

@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
-import { Mail, CheckSquare, BarChart3, ShieldCheck, KeyRound, Sparkles } from "lucide-react";
+import { Mail, CheckSquare, BarChart3, ShieldCheck, Settings, Sparkles } from "lucide-react";
 import MockBanner from "@/components/shield/MockBanner";
-import OperatorTokenModal from "@/components/shield/OperatorTokenModal";
-import { hasOperatorToken, onOperatorTokenChange, USE_MOCKS } from "@/lib/shieldApi";
+import { USE_MOCKS } from "@/lib/shieldApi";
 
 const NAV_ITEMS = [
   { href: "/shield", label: "Inbox", icon: Mail },
@@ -15,13 +13,6 @@ const NAV_ITEMS = [
 
 export default function ShieldNav() {
   const { pathname } = useRouter();
-  const [tokenModalOpen, setTokenModalOpen] = useState(false);
-  const [hasToken, setHasToken] = useState(false);
-
-  useEffect(() => {
-    setHasToken(hasOperatorToken());
-    return onOperatorTokenChange(() => setHasToken(hasOperatorToken()));
-  }, []);
 
   return (
     <>
@@ -51,21 +42,14 @@ export default function ShieldNav() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setTokenModalOpen(true)}
-              className={`pill transition-all ${
-                hasToken
-                  ? "border-green/40 text-green bg-green/10 hover:bg-green/20"
-                  : "border-subtle text-secondary hover:text-primary hover:bg-hover"
-              }`}
-              title="Configure operator authentication token in sessionStorage"
+            <Link
+              href="/settings"
+              className="pill border-subtle text-secondary hover:text-primary hover:bg-hover transition-all"
+              title="Gmail connection, policy mode, extension and WhatsApp"
             >
-              <KeyRound size={12} className={hasToken ? "text-green" : "text-secondary"} />
-              <span className="text-[10.5px]">
-                {hasToken ? "OPERATOR TOKEN SET" : "SET OPERATOR TOKEN"}
-              </span>
-            </button>
+              <Settings size={12} />
+              <span className="text-[10.5px]">AGENT SETTINGS</span>
+            </Link>
           </div>
         </div>
 
@@ -95,12 +79,6 @@ export default function ShieldNav() {
           })}
         </nav>
       </div>
-
-      <OperatorTokenModal
-        isOpen={tokenModalOpen}
-        onClose={() => setTokenModalOpen(false)}
-        onTokenSaved={(token) => setHasToken(Boolean(token))}
-      />
     </>
   );
 }

@@ -1,5 +1,9 @@
-const API_URL = "http://localhost:8000";
-const DASHBOARD_URL = "http://localhost:3000";
+const DEFAULT_SITE = "https://factflow-2.onrender.com";
+
+async function site() {
+  const { siteUrl } = await chrome.storage.sync.get({ siteUrl: DEFAULT_SITE });
+  return siteUrl;
+}
 const COLORS = { FALSE: "#FF2D2D", TRUE: "#00E676", MISLEADING: "#FF6B00", UNVERIFIED: "#8888A0", SATIRE: "#B04FD0" };
 
 function ago(ts) {
@@ -36,7 +40,7 @@ async function renderHistory() {
     time.className = "time";
     time.textContent = ago(h.at);
     li.append(badge, claim, time);
-    li.addEventListener("click", () => chrome.tabs.create({ url: `${DASHBOARD_URL}/tracker` }));
+    li.addEventListener("click", async () => chrome.tabs.create({ url: `${await site()}/tracker` }));
     list.appendChild(li);
   }
 }
@@ -44,11 +48,18 @@ async function renderHistory() {
 async function checkBackend() {
   const dot = document.getElementById("dot");
   const label = document.getElementById("status");
+  const { token } = await chrome.storage.local.get("token");
+  if (!token) {
+    dot.className = "dot off";
+    label.textContent = "NOT CONNECTED";
+    label.title = "Open FactFlow, go to Settings, and click Connect under Browser extension.";
+    return;
+  }
   try {
-    const r = await fetch(`${API_URL}/health`, { cache: "no-store" });
+    const r = await fetch(`${await site()}/health`, { cache: "no-store" });
     const ok = r.ok;
     dot.className = `dot ${ok ? "on" : "off"}`;
-    label.textContent = ok ? "ONLINE" : "DEGRADED";
+    label.textContent = ok ? "CONNECTED" : "DEGRADED";
   } catch {
     dot.className = "dot off";
     label.textContent = "OFFLINE";
@@ -60,8 +71,9 @@ document.getElementById("verify").addEventListener("click", async () => {
   window.close();
 });
 
-document.getElementById("dashboard").addEventListener("click", () => {
-  chrome.tabs.create({ url: DASHBOARD_URL });
+document.getElementById("dashboard").addEventListener("click", async () => {
+  const { token } = await chrome.storage.local.get("token");
+  chrome.tabs.create({ url: `${await site()}${token ? "/" : "/settings"}` });
 });
 
 chrome.storage.onChanged.addListener((changes) => changes.history && renderHistory());

@@ -6,12 +6,12 @@ import safeVerdict from "@/mocks/verdict.safe.json";
 import suspiciousVerdict from "@/mocks/verdict.suspicious.json";
 import dangerousVerdict from "@/mocks/verdict.dangerous.json";
 
+import { csrfHeaders } from "@/lib/auth";
 import { API_URL } from "@/lib/config";
 
 // Mock data only when explicitly asked for; anything else (including unset) uses the real backend.
 export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
-const OPERATOR_TOKEN_STORAGE_KEY = "shield_operator_token";
 
 /** Custom error wrapper for Shield API calls. */
 export class ShieldApiError extends Error {
@@ -24,80 +24,10 @@ export class ShieldApiError extends Error {
 }
 
 // -----------------------------------------------------------------------------
-// OPERATOR AUTH (Stored only in sessionStorage, never hard-coded or logged)
-// -----------------------------------------------------------------------------
-
-export function getOperatorToken() {
-  if (typeof window === "undefined") return null;
-  return window.sessionStorage.getItem(OPERATOR_TOKEN_STORAGE_KEY) || null;
-}
-
-export const OPERATOR_TOKEN_EVENT = "shield:operator-token";
-
-function announceTokenChange() {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(OPERATOR_TOKEN_EVENT));
-}
-
-export function setOperatorToken(token) {
-  if (typeof window === "undefined") return;
-  if (token && typeof token === "string" && token.trim()) {
-    window.sessionStorage.setItem(OPERATOR_TOKEN_STORAGE_KEY, token.trim());
-  } else {
-    window.sessionStorage.removeItem(OPERATOR_TOKEN_STORAGE_KEY);
-  }
-  announceTokenChange();
-}
-
-export function clearOperatorToken() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(OPERATOR_TOKEN_STORAGE_KEY);
-  announceTokenChange();
-}
-
-export function hasOperatorToken() {
-  return Boolean(getOperatorToken());
-}
-
-/** Calls `callback` whenever the operator token is saved or cleared (in any component). Returns an unsubscribe. */
-export function onOperatorTokenChange(callback) {
-  if (typeof window === "undefined") return () => {};
-  window.addEventListener(OPERATOR_TOKEN_EVENT, callback);
-  return () => window.removeEventListener(OPERATOR_TOKEN_EVENT, callback);
-}
-
-/**
- * Checks a token against the server before it is saved.
- * Returns { ok, status, message }: ok=true means the server accepted it.
- */
-export async function verifyOperatorToken(token) {
-  if (USE_MOCKS) return { ok: true, status: 200, message: "Mock mode: token not checked." };
-  let res;
-  try {
-    res = await fetch(`${API_URL}/api/inbox?limit=1`, { headers: { "X-Operator-Token": token } });
-  } catch {
-    return { ok: false, status: 0, message: `Cannot reach the backend at ${API_URL}.` };
-  }
-  if (res.ok) return { ok: true, status: res.status, message: "Token accepted by the server." };
-  const body = await res.json().catch(() => ({}));
-  if (res.status === 401) return { ok: false, status: 401, message: "The server rejected this token. Check for typos or extra spaces." };
-  if (res.status === 429) return { ok: false, status: 429, message: body.detail || "Too many wrong attempts. Wait a minute and try again." };
-  if (res.status === 503) {
-    return {
-      ok: false,
-      status: 503,
-      message: "The server has no OPERATOR_TOKEN configured, so no token can work yet. Set it in the backend environment and restart.",
-    };
-  }
-  return { ok: false, status: res.status, message: body.detail || `Unexpected response (${res.status}).` };
-}
-
-// -----------------------------------------------------------------------------
 // MY CHECKS (view tokens for messages analysed in this browser session)
 // -----------------------------------------------------------------------------
-// Every analysis returns a view_token that lets whoever submitted the message read the result
-// without the operator token. They are kept in sessionStorage only (cleared when the tab closes),
-// so a demo can run end to end without ever entering the operator token.
+// A short list of the messages checked in this tab, for quick access. The real list is the signed-in
+// user's inbox on the server (listInbox); nothing here grants access to anything.
 
 const MY_CHECKS_STORAGE_KEY = "shield_my_checks";
 const MY_CHECKS_LIMIT = 40;
@@ -176,30 +106,23 @@ export { escapeSuspiciousCharacters };
 // INTERNAL HTTP REQUEST HANDLER
 // -----------------------------------------------------------------------------
 
-async function request(path, options = {}, isOperator = false) {
+// Every request carries the session cookie (same origin) and, for changes, the CSRF token.
+async function request(path, options = {}) {
   const headers = {
     "Content-Type": "application/json",
+    ...csrfHeaders(options.method),
     ...(options.headers || {}),
   };
-
-  if (isOperator) {
-    const token = getOperatorToken();
-    if (token) {
-      headers["X-Operator-Token"] = token;
-    }
-  }
 
   let res;
   try {
     res = await fetch(`${API_URL}${path}`, {
       ...options,
+      credentials: "same-origin",
       headers,
     });
   } catch {
-    throw new ShieldApiError(
-      `Cannot connect to FactFlow backend at ${API_URL}. Please ensure the server is running.`,
-      0
-    );
+    throw new ShieldApiError("Cannot reach FactFlow right now. Check your connection and try again.", 0);
   }
 
   let body = {};
@@ -215,9 +138,9 @@ async function request(path, options = {}, isOperator = false) {
     }
 
     if (res.status === 401) {
-      msg = "Authentication failed: Operator token is missing or invalid.";
+      msg = "Your session has ended. Sign in again to continue.";
     } else if (res.status === 403) {
-      msg = "Forbidden: Invalid token or operation not permitted.";
+      msg = typeof body.detail === "string" ? body.detail : "You are not allowed to do this.";
     } else if (res.status === 409) {
       msg = body.detail || "Conflict: Request could not be processed due to a conflict.";
     } else if (res.status === 410) {
@@ -373,7 +296,7 @@ const mockStore = {
 // PUBLIC SHIELD API FUNCTIONS
 // -----------------------------------------------------------------------------
 
-/** List analyzed inbox messages (Requires Operator token in real mode). */
+/** The signed-in user's analysed messages. */
 export async function listInbox({ limit = 30, offset = 0, label = null, source = null } = {}) {
   if (USE_MOCKS) {
     let items = mockStore.verdicts.map((v) => ({
@@ -410,11 +333,11 @@ export async function listInbox({ limit = 30, offset = 0, label = null, source =
   if (label) params.set("label", label);
   if (source) params.set("source", source);
 
-  return request(`/api/inbox?${params.toString()}`, { method: "GET" }, true);
+  return request(`/api/inbox?${params.toString()}`, { method: "GET" });
 }
 
 /** Get a single analysis and verdict by email_id. */
-export async function getInboxEmail(emailId, viewToken = null) {
+export async function getInboxEmail(emailId) {
   if (USE_MOCKS) {
     const found = mockStore.verdicts.find((v) => v.email_id === emailId) || mockStore.verdicts[2];
     return {
@@ -428,16 +351,7 @@ export async function getInboxEmail(emailId, viewToken = null) {
     };
   }
 
-  const token = viewToken || getViewToken(emailId);
-  if (token) {
-    try {
-      return await request(`/api/inbox/${emailId}?view_token=${encodeURIComponent(token)}`, { method: "GET" });
-    } catch (err) {
-      // A stale view token (e.g. the server's SECRET_KEY changed) falls back to the operator token.
-      if (err.status !== 401 || !hasOperatorToken()) throw err;
-    }
-  }
-  return request(`/api/inbox/${emailId}`, { method: "GET" }, true);
+  return request(`/api/inbox/${emailId}`, { method: "GET" });
 }
 
 /** Analyze raw RFC822 or pasted text. */
@@ -539,9 +453,8 @@ export async function runAllDemoEmails(names, onProgress, { signal } = {}) {
 
 /**
  * Subscribe to the streaming analysis pipeline events.
- * Handles EventSource for view_tokens or fetch ReadableStream for operator tokens.
  */
-export function subscribeToEmailStream(emailId, onEvent, onError, viewToken = null) {
+export function subscribeToEmailStream(emailId, onEvent, onError) {
   if (USE_MOCKS) {
     // Simulate pipeline stage progression
     const stages = [
@@ -593,42 +506,11 @@ export function subscribeToEmailStream(emailId, onEvent, onError, viewToken = nu
   let aborted = false;
   const controller = new AbortController();
 
-  if (viewToken) {
-    // Submitter stream via native EventSource
-    const sseUrl = `${API_URL}/api/inbox/${emailId}/stream?view_token=${encodeURIComponent(viewToken)}`;
-    const source = new EventSource(sseUrl);
-
-    source.addEventListener("agent", (e) => {
-      try {
-        onEvent(JSON.parse(e.data));
-      } catch (err) {
-        console.error("Failed to parse SSE event:", err);
-      }
-    });
-
-    source.addEventListener("result", (e) => {
-      try {
-        onEvent(JSON.parse(e.data));
-        source.close();
-      } catch (err) {
-        console.error("Failed to parse SSE result:", err);
-      }
-    });
-
-    source.addEventListener("error", (e) => {
-      onError?.(e);
-      source.close();
-    });
-
-    return () => source.close();
-  }
-
-  // Operator stream via fetch ReadableStream (since EventSource cannot send headers)
+  // Stream via fetch ReadableStream, with the session cookie
   (async () => {
     try {
-      const token = getOperatorToken();
       const res = await fetch(`${API_URL}/api/inbox/${emailId}/stream`, {
-        headers: token ? { "X-Operator-Token": token } : {},
+        credentials: "same-origin",
         signal: controller.signal,
       });
 
@@ -692,7 +574,7 @@ export async function listApprovals(status = null, limit = 100) {
   }
 
   const query = status ? `?status=${encodeURIComponent(status)}&limit=${limit}` : `?limit=${limit}`;
-  return request(`/api/approvals${query}`, { method: "GET" }, true);
+  return request(`/api/approvals${query}`, { method: "GET" });
 }
 
 export async function decideApproval(approvalId, decision, token) {
@@ -750,7 +632,7 @@ export async function getAuditLog({ offset = 0, limit = 50, emailId = null } = {
   const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
   if (emailId) params.set("email_id", emailId);
 
-  return request(`/api/audit?${params.toString()}`, { method: "GET" }, true);
+  return request(`/api/audit?${params.toString()}`, { method: "GET" });
 }
 
 export async function verifyAuditChain() {
@@ -764,7 +646,7 @@ export async function verifyAuditChain() {
     };
   }
 
-  return request("/api/audit/verify", { method: "GET" }, true);
+  return request("/api/audit/verify", { method: "GET" });
 }
 
 // -----------------------------------------------------------------------------
@@ -775,7 +657,7 @@ export async function getLatestBenchmark() {
   if (USE_MOCKS) {
     return mockStore.benchmarkRuns[0];
   }
-  return request("/api/benchmark/latest", { method: "GET" }, true);
+  return request("/api/benchmark/latest", { method: "GET" });
 }
 
 export async function listBenchmarkRuns(limit = 20, offset = 0) {
@@ -785,7 +667,7 @@ export async function listBenchmarkRuns(limit = 20, offset = 0) {
       runs: mockStore.benchmarkRuns.slice(offset, offset + limit),
     };
   }
-  return request(`/api/benchmark/runs?limit=${limit}&offset=${offset}`, { method: "GET" }, true);
+  return request(`/api/benchmark/runs?limit=${limit}&offset=${offset}`, { method: "GET" });
 }
 
 export async function runBenchmark({ mode = "rules", sample_size = null } = {}) {

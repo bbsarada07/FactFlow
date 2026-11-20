@@ -6,13 +6,19 @@ import VerdictCard from "@/components/VerdictCard";
 import { SERVER_API_URL, SITE_URL } from "@/lib/config";
 import { formatDate } from "@/lib/theme";
 
-/** Server-side fetch of the public verdict so link previews (OG / Twitter) carry the verdict and claim. */
-export async function getServerSideProps({ params, req }) {
+/** Server-side fetch of the verdict, as the signed-in person (their session cookie is passed on). Verdicts are
+ * private to whoever ran the check, so a signed-out visitor is sent to sign in and anyone else gets 404. */
+export async function getServerSideProps({ params, req, resolvedUrl }) {
   let res;
   try {
-    res = await fetch(`${SERVER_API_URL}/api/v/${encodeURIComponent(params.slug)}`);
+    res = await fetch(`${SERVER_API_URL}/api/v/${encodeURIComponent(params.slug)}`, {
+      headers: req.headers.cookie ? { cookie: req.headers.cookie } : {},
+    });
   } catch {
     return { props: { record: null, error: "The verification service is unreachable right now." } };
+  }
+  if (res.status === 401) {
+    return { redirect: { destination: `/login?next=${encodeURIComponent(resolvedUrl)}`, permanent: false } };
   }
   if (res.status === 404) return { notFound: true };
   if (!res.ok) return { props: { record: null, error: `Could not load this verdict (${res.status}).` } };

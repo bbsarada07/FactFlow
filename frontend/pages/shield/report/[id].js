@@ -23,6 +23,7 @@ import {
 import toast from "react-hot-toast";
 
 import ShieldNav from "@/components/shield/ShieldNav";
+import SignInAgain from "@/components/SignInAgain";
 import ShieldBadge, { ActionBadge } from "@/components/shield/ShieldBadge";
 import VisibleVsAiReads from "@/components/shield/VisibleVsAiReads";
 import Accordion from "@/components/Accordion";
@@ -30,10 +31,8 @@ import ConfidenceRing from "@/components/ConfidenceRing";
 import ConfidenceBand from "@/components/ConfidenceBand";
 import HarmBadge from "@/components/HarmBadge";
 import AgentProgress, { AGENT_DEFAULTS } from "@/components/AgentProgress";
-import OperatorTokenModal from "@/components/shield/OperatorTokenModal";
 import {
   getInboxEmail,
-  getViewToken,
   rememberCheck,
   subscribeToEmailStream,
   escapeSuspiciousCharacters,
@@ -82,7 +81,6 @@ export default function EmailTrustReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
-  const [tokenModalOpen, setTokenModalOpen] = useState(false);
   const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
 
   // Streaming progress state
@@ -146,8 +144,7 @@ export default function EmailTrustReportPage() {
           streamRetries.current += 1;
           setTimeout(fetchVerdict, 1500);
         }
-      },
-      getViewToken(id)
+      }
     );
 
     return () => unsubscribe();
@@ -238,22 +235,18 @@ export default function EmailTrustReportPage() {
               <ShieldAlert size={36} className="text-red mx-auto mb-3" />
             )}
             <h3 className="font-display text-[18px] font-bold text-primary">
-              {errorStatus === 401 ? "This report is private" : "Report Generation Error"}
+              {errorStatus === 401 ? "Sign in to open this report" : errorStatus === 404 ? "Report not found" : "Report Generation Error"}
             </h3>
             <p className="mt-2 text-[13px] text-secondary max-w-md mx-auto">
               {errorStatus === 401
-                ? "Reports open without a token only in the browser tab session that ran the check. To open any report, enter the operator token."
+                ? "Your session has ended. Each report is visible only to the account that ran the check."
+                : errorStatus === 404
+                ? "There is no report with this id in your account. Reports are private to whoever ran the check."
                 : error}
             </p>
             <div className="mt-5 flex justify-center gap-3">
               {errorStatus === 401 && (
-                <button
-                  type="button"
-                  onClick={() => setTokenModalOpen(true)}
-                  className="btn-red !py-2 !px-5 !text-[13px]"
-                >
-                  <Lock size={13} /> Enter Operator Token
-                </button>
+                <SignInAgain />
               )}
               <button
                 type="button"
@@ -762,12 +755,6 @@ export default function EmailTrustReportPage() {
           </div>
         )}
       </div>
-
-      <OperatorTokenModal
-        isOpen={tokenModalOpen}
-        onClose={() => setTokenModalOpen(false)}
-        onTokenSaved={(token) => token && fetchVerdict()}
-      />
     </>
   );
 }

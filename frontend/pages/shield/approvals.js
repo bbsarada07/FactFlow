@@ -19,8 +19,8 @@ import {
 import toast from "react-hot-toast";
 
 import ShieldNav from "@/components/shield/ShieldNav";
+import SignInAgain from "@/components/SignInAgain";
 import ShieldBadge from "@/components/shield/ShieldBadge";
-import OperatorTokenModal from "@/components/shield/OperatorTokenModal";
 import {
   listApprovals,
   decideApproval,
@@ -36,7 +36,6 @@ export default function ShieldApprovalsPage() {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("pending");
   const [decidingId, setDecidingId] = useState(null);
-  const [tokenModalOpen, setTokenModalOpen] = useState(false);
 
   const fetchApprovals = useCallback(async () => {
     setLoading(true);
@@ -178,27 +177,21 @@ export default function ShieldApprovalsPage() {
             </div>
             <h3 className="font-display text-[16px] font-bold text-primary">
               {error.status === 401
-                ? "Operator Token Required"
+                ? "Sign-in required"
                 : error.status === 503
                 ? "Approvals Disabled (503)"
                 : "Unable to Load Approvals"}
             </h3>
             <p className="mx-auto mt-2 max-w-md text-[13px] text-secondary">
               {error.status === 401
-                ? "The approvals endpoint is protected by OPERATOR_TOKEN. Enter your token in the operator authentication settings."
+                ? "Your session has ended. Sign in again to see your approvals."
                 : error.status === 503
                 ? "The backend is missing the APPROVAL_SECRET configuration (must be at least 32 characters)."
                 : error.message}
             </p>
             <div className="mt-4 flex justify-center gap-3">
               {error.status === 401 ? (
-                <button
-                  type="button"
-                  onClick={() => setTokenModalOpen(true)}
-                  className="btn-red !py-2 !px-5 !text-[13px]"
-                >
-                  Enter Operator Token
-                </button>
+                <SignInAgain />
               ) : (
                 <button
                   type="button"
@@ -345,12 +338,6 @@ export default function ShieldApprovalsPage() {
           </div>
         )}
       </div>
-
-      <OperatorTokenModal
-        isOpen={tokenModalOpen}
-        onClose={() => setTokenModalOpen(false)}
-        onTokenSaved={() => fetchApprovals()}
-      />
     </>
   );
 }

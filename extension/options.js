@@ -1,32 +1,24 @@
-// Options page: stores the FactFlow API base URL in chrome.storage.sync under "apiBase".
-const DEFAULT_API_BASE = "http://localhost:8000";
+// Options page: shows whether this browser's extension is connected to a FactFlow account, and disconnects it.
+// Connecting happens on the FactFlow website (Settings -> Browser extension -> Connect), never by pasting a token.
+const DEFAULT_SITE = "https://factflow-2.onrender.com";
 
-const input = document.getElementById("apiBase");
-const status = document.getElementById("status");
-
-/** Load the saved API base URL (or the dev default) into the input. */
-async function load() {
-  const { apiBase } = await chrome.storage.sync.get({ apiBase: DEFAULT_API_BASE });
-  input.value = apiBase;
+async function render() {
+  const [{ token }, { siteUrl }] = await Promise.all([
+    chrome.storage.local.get("token"),
+    chrome.storage.sync.get({ siteUrl: DEFAULT_SITE }),
+  ]);
+  document.getElementById("dot").className = `dot ${token ? "on" : ""}`;
+  document.getElementById("state").textContent = token ? `Connected to your account on ${siteUrl}` : "Not connected";
+  document.getElementById("help").textContent = token
+    ? "Checks you start from this browser are saved in your FactFlow account. Disconnecting here removes the token from this browser; to revoke it everywhere, use Settings on the website."
+    : "Open FactFlow, sign in, go to Settings and click Connect under Browser extension.";
+  document.getElementById("open").href = `${siteUrl}/settings`;
+  document.getElementById("disconnect").hidden = !token;
 }
 
-/** Validate and save the API base URL. */
-async function save() {
-  const value = input.value.trim().replace(/\/+$/, "") || DEFAULT_API_BASE;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error();
-  } catch {
-    status.textContent = "Enter a valid http(s) URL, e.g. http://localhost:8000";
-    status.style.color = "#FF6B6B";
-    return;
-  }
-  await chrome.storage.sync.set({ apiBase: value });
-  input.value = value;
-  status.textContent = `Saved: ${value}`;
-  status.style.color = "#00E676";
-}
-
-document.getElementById("save").addEventListener("click", save);
-input.addEventListener("keydown", (e) => e.key === "Enter" && save());
-load();
+document.getElementById("disconnect").addEventListener("click", async () => {
+  await chrome.storage.local.remove("token");
+  render();
+});
+chrome.storage.onChanged.addListener(render);
+render();

@@ -1,7 +1,10 @@
+import { LogIn, LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useEffect, useRef, useState } from "react";
 
 import Logo from "@/components/Logo";
+import { signInUrl, signOut, useAuth } from "@/lib/auth";
 
 const LINKS = [
   { href: "/", label: "Verify" },
@@ -54,9 +57,87 @@ export default function Navbar() {
         })}
       </nav>
 
-      <div className="hidden shrink-0 items-center gap-3 lg:flex">
-        <span className="mono text-[11px] text-muted">GROQ × GPT-OSS</span>
-      </div>
+      <AccountMenu />
     </header>
+  );
+}
+
+function initials(user) {
+  const base = (user?.name || user?.email || "?").trim();
+  return base
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join("");
+}
+
+/** Sign in, or the signed-in person's menu (settings, sign out). */
+function AccountMenu() {
+  const { status, user } = useAuth();
+  const { asPath, pathname } = useRouter();
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (e) => box.current && !box.current.contains(e.target) && setOpen(false);
+    const esc = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+
+  if (status === "loading") return <div className="h-8 w-8 shrink-0" />;
+  if (status !== "signed_in") {
+    if (pathname === "/login") return <div className="w-8 shrink-0" />;
+    return (
+      <a href={signInUrl(asPath)} className="btn-red shrink-0 !py-1.5 !px-3 !text-[12px]">
+        <LogIn size={13} /> Sign in
+      </a>
+    );
+  }
+
+  return (
+    <div className="relative shrink-0" ref={box}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 rounded-full border border-subtle py-0.5 pl-0.5 pr-2 transition-colors hover:border-active"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Your account"
+      >
+        {user?.picture_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={user.picture_url} alt="" referrerPolicy="no-referrer" className="h-7 w-7 rounded-full" />
+        ) : (
+          <span
+            className="mono flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold text-primary"
+            style={{ background: "rgba(255,45,45,0.2)" }}
+          >
+            {initials(user)}
+          </span>
+        )}
+        <span className="hidden max-w-[140px] truncate text-[12.5px] text-secondary lg:inline">{user?.name || user?.email}</span>
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-11 w-64 overflow-hidden rounded-md border border-subtle bg-card shadow-xl">
+          <div className="border-b border-subtle px-4 py-3">
+            <div className="truncate text-[13.5px] font-semibold text-primary">{user?.name || "Your account"}</div>
+            <div className="truncate text-[12px] text-secondary">{user?.email}</div>
+          </div>
+          <Link href="/settings" role="menuitem" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-secondary hover:bg-hover hover:text-primary">
+            <Settings size={14} /> Agent settings
+          </Link>
+          <button type="button" role="menuitem" onClick={signOut} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] text-secondary hover:bg-hover hover:text-primary">
+            <LogOut size={14} /> Sign out
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

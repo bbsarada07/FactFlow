@@ -3,8 +3,10 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { Toaster } from "react-hot-toast";
 
+import AuthGate from "@/components/AuthGate";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
+import { AuthProvider } from "@/lib/auth";
 import { EASE } from "@/lib/theme";
 import { ConfigProvider } from "@/lib/useConfig";
 import "@/styles/globals.css";
@@ -12,6 +14,7 @@ import "@/styles/globals.css";
 export default function App({ Component, pageProps }) {
   const router = useRouter();
   return (
+    <AuthProvider>
     <ConfigProvider>
       <Head>
         <title>FactFlow — Rumours spread. Facts flow.</title>
@@ -27,7 +30,9 @@ export default function App({ Component, pageProps }) {
           transition={{ duration: 0.4, ease: EASE }}
           style={{ paddingTop: "var(--nav-height)" }}
         >
-          <Component {...pageProps} />
+          <AuthGate>
+            <Component {...pageProps} />
+          </AuthGate>
         </motion.main>
       </AnimatePresence>
       <Footer />
@@ -44,5 +49,6 @@ export default function App({ Component, pageProps }) {
         }}
       />
     </ConfigProvider>
+    </AuthProvider>
   );
 }

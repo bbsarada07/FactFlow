@@ -7,20 +7,21 @@
       body { margin: 0; padding: 32px; background: #040407; color: #F0F0F5; font-family: Inter, "Segoe UI", system-ui, sans-serif; font-size: 14px; }
       main { max-width: 480px; }
       h1 { font-size: 18px; margin: 0 0 20px; }
-      label { display: block; font-size: 12px; letter-spacing: 1px; color: #8888A0; margin-bottom: 6px; }
-      input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid #2A2A3A; background: #111118; color: #F0F0F5; font: 13px Consolas, monospace; }
-      input:focus { outline: none; border-color: #FF2D2D; }
-      button { margin-top: 14px; padding: 9px 22px; border: 0; border-radius: 100px; background: #FF2D2D; color: #fff; font-weight: 600; cursor: pointer; }
-      #status { margin-top: 12px; min-height: 18px; font-size: 12px; color: #8888A0; }
+      p { color: #8888A0; line-height: 1.55; }
+      .row { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border: 1px solid #2A2A3A; border-radius: 10px; background: #111118; }
+      .dot { width: 9px; height: 9px; border-radius: 50%; background: #8888A0; flex: none; }
+      .dot.on { background: #00E676; }
+      button, a.button { display: inline-block; margin-top: 14px; padding: 9px 22px; border: 0; border-radius: 100px; background: #FF2D2D; color: #fff; font-weight: 600; cursor: pointer; text-decoration: none; font-size: 13px; }
+      button.ghost { background: transparent; border: 1px solid #2A2A3A; color: #F0F0F5; }
     </style>
   </head>
   <body>
     <main>
       <h1>FactFlow — Options</h1>
-      <label for="apiBase">API BASE URL</label>
-      <input id="apiBase" type="url" placeholder="http://localhost:8000" spellcheck="false" />
-      <button id="save" type="button">Save</button>
-      <div id="status" role="status"></div>
+      <div class="row"><span id="dot" class="dot"></span><span id="state">Checking…</span></div>
+      <p id="help"></p>
+      <a id="open" class="button" href="#" target="_blank" rel="noopener">Open FactFlow settings</a>
+      <button id="disconnect" class="ghost" type="button" hidden>Disconnect this browser</button>
     </main>
     <script src="options.js"></script>
   </body>
