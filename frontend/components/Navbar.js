@@ -59,7 +59,7 @@ export default function Navbar() {
         </span>
       </Link>
 
-      <nav className="flex h-full items-stretch gap-1 sm:gap-2 md:gap-5 overflow-x-auto no-scrollbar">
+      <nav className="flex h-full items-stretch gap-1 sm:gap-2 md:gap-5 overflow-x-auto no-scrollbar nav-fade pr-8 md:pr-0">
         {LINKS.map((l) => {
           const active = l.match ? l.match(pathname) : l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
           return (

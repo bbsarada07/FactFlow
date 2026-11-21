@@ -3,6 +3,7 @@ from fastapi import APIRouter
 
 from config import settings
 from models.gemini_client import vision_available
+from services import whatsapp_service
 
 router = APIRouter(prefix="/api", tags=["config"])
 
@@ -24,4 +25,7 @@ async def public_config():
         "frontend_url": settings.FRONTEND_URL.rstrip("/"),
         "max_claim_chars": settings.MAX_CLAIM_CHARS,
         "repeat_window_days": settings.REPEAT_WINDOW_DAYS,
+        # WhatsApp checks are offered only when the server has provider credentials (docs/WHATSAPP_SETUP.md).
+        "whatsapp": {"enabled": not whatsapp_service.missing_settings(),
+                     "number": settings.TWILIO_WHATSAPP_FROM if settings.WHATSAPP_PROVIDER == "twilio" else None},
     }

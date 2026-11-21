@@ -268,7 +268,7 @@ export default function VerifyPage() {
         if (started.status === "withheld") {
           withhold(started.message);
         } else if (started.cached) {
-          // Repeat claim: answered from the public registry, no new analysis.
+          // Repeat claim: answered from your own earlier check, no new analysis.
           setCachedMatch({ slug: started.matched_slug, at: started.matched_at });
           const { data } = await getResult(started.request_id);
           finish(data);
@@ -498,7 +498,7 @@ export default function VerifyPage() {
                 verdict instead of re-running the analysis.
               </span>
               <Link href={`/v/${cachedMatch.slug}`} className="btn-ghost">
-                View public record
+                Open that verdict
               </Link>
             </motion.div>
           )}

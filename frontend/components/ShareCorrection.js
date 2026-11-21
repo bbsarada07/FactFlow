@@ -27,12 +27,13 @@ async function copyText(text) {
   }
 }
 
-function ShareButton({ href, onClick, label, children, color }) {
+function ShareButton({ href, onClick, onOpen, label, children, color }) {
   const cls =
     "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-hover";
   const style = { borderColor: `${color}55`, color };
   return href ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={cls} style={style} aria-label={label}>
+    <a href={href} target="_blank" rel="noopener noreferrer" className={cls} style={style} aria-label={label}
+      onClick={onOpen ? (e) => { e.preventDefault(); onOpen(href); } : undefined}>
       {children}
     </a>
   ) : (
@@ -44,9 +45,24 @@ function ShareButton({ href, onClick, label, children, color }) {
 
 /**
  * Correction in place: a short sourced reply (EN / HI / TE, plus the user's own language when
- * different) with one-tap share links. Facebook and LinkedIn share the registry page URL.
+ * different) with one-tap share links. The correction links to the verdict's page, so for its owner every share
+ * button first makes that page public (`sharing`, from useVerdictSharing): the claim, verdict and sources only,
+ * never who checked it. SharingBar shows the state and lets the owner stop sharing.
  */
-export default function ShareCorrection({ correction, localReply, localLanguage, verdict }) {
+export default function ShareCorrection({ correction, localReply, localLanguage, verdict, sharing }) {
+  const ensureShared = sharing?.ensureShared ?? (async () => true);
+
+  // Open the window during the click (so pop-up blockers allow it), then point it at the share link.
+  async function openShare(url) {
+    const win = window.open("", "_blank", "noopener");
+    if (await ensureShared()) {
+      if (win) win.location.href = url;
+      else window.open(url, "_blank", "noopener");
+    } else if (win) {
+      win.close();
+    }
+  }
+
   const tabs = useMemo(() => {
     const t = [];
     if (correction?.text_en) t.push({ key: "en", label: "English", text: correction.text_en });
@@ -67,14 +83,14 @@ export default function ShareCorrection({ correction, localReply, localLanguage,
   const links = shareLinks(current.text, correction?.registry_url);
 
   async function copy() {
-    if (await copyText(current.text)) {
+    if ((await ensureShared()) && (await copyText(current.text))) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   }
 
   async function instagram() {
-    if (await copyText(current.text)) {
+    if ((await ensureShared()) && (await copyText(current.text))) {
       setIgHint(true);
       toast.success("Copied. Paste into your story or DM.");
     }
@@ -118,21 +134,21 @@ export default function ShareCorrection({ correction, localReply, localLanguage,
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <ShareButton href={links.whatsapp} label="Share on WhatsApp" color="#25D366">
+        <ShareButton href={links.whatsapp} onOpen={openShare} label="Share on WhatsApp" color="#25D366">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d={WHATSAPP_PATH} />
           </svg>
           WhatsApp
         </ShareButton>
-        <ShareButton href={links.x} label="Share on X" color="#F0F0F5">
+        <ShareButton href={links.x} onOpen={openShare} label="Share on X" color="#F0F0F5">
           <Twitter size={13} /> X
         </ShareButton>
         {correction?.registry_url && (
           <>
-            <ShareButton href={links.facebook} label="Share on Facebook" color="#6EA2FF">
+            <ShareButton href={links.facebook} onOpen={openShare} label="Share on Facebook" color="#6EA2FF">
               <Facebook size={13} /> Facebook
             </ShareButton>
-            <ShareButton href={links.linkedin} label="Share on LinkedIn" color="#6EA2FF">
+            <ShareButton href={links.linkedin} onOpen={openShare} label="Share on LinkedIn" color="#6EA2FF">
               <Linkedin size={13} /> LinkedIn
             </ShareButton>
           </>

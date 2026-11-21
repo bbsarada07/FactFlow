@@ -26,6 +26,7 @@ import {
 } from "recharts";
 import toast from "react-hot-toast";
 
+import { useAuth } from "@/lib/auth";
 import ShieldNav from "@/components/shield/ShieldNav";
 import SignInAgain from "@/components/SignInAgain";
 import {
@@ -74,6 +75,9 @@ export default function ShieldBenchmarkPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const handleRunBenchmark = async () => {
     setRunning(true);
@@ -157,8 +161,9 @@ export default function ShieldBenchmarkPage() {
 
             <button
               type="button"
-              disabled={running}
+              disabled={running || !isAdmin}
               onClick={handleRunBenchmark}
+              title={isAdmin ? undefined : "Only an admin can run the benchmark (it uses the shared model quota)."}
               className="btn-red !py-2 !px-4 !text-[12.5px]"
             >
               {running ? (

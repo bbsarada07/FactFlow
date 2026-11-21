@@ -9,6 +9,7 @@ import { stanceDisagreement } from "@/lib/stance.mjs";
 import HonestUncertainty from "@/components/HonestUncertainty";
 import MythVsFact from "@/components/MythVsFact";
 import ShareCorrection from "@/components/ShareCorrection";
+import SharingBar, { useVerdictSharing } from "@/components/VerdictSharing";
 import { HARM_COLORS, LEVEL_COLORS, TIER_COLORS, verdictStyle } from "@/lib/theme";
 
 function VerdictWord({ word, color }) {
@@ -111,6 +112,8 @@ export default function VerdictCard({ result, compact = false, showRegistryLink 
   const models = [...new Set((result.agents || []).map((a) => a.model).filter(Boolean))];
   const gated = unverified && result.model_verdict && result.model_verdict !== "UNVERIFIED";
   const disagreement = stanceDisagreement(result.sources);
+  // Only the owner gets a request id here (seed examples have no owner), so only they can share or stop sharing.
+  const sharing = useVerdictSharing(archive || result.is_owner === false ? undefined : result.request_id, result.shared);
 
   return (
     <motion.article
@@ -163,9 +166,9 @@ export default function VerdictCard({ result, compact = false, showRegistryLink 
             {result.image_info?.label && (
               <span className="rounded border border-subtle px-1.5 text-secondary">{result.image_info.label.toUpperCase()}</span>
             )}
-            {showRegistryLink && result.slug && result.is_public !== false && (
+            {showRegistryLink && result.slug && (
               <Link href={`/v/${result.slug}`} className="flex items-center gap-1 text-secondary hover:text-primary">
-                PUBLIC RECORD /v/{result.slug} <ArrowUpRight size={11} />
+                VERDICT PAGE{sharing.shared ? " · SHARED" : ""} <ArrowUpRight size={11} />
               </Link>
             )}
           </div>
@@ -269,8 +272,11 @@ export default function VerdictCard({ result, compact = false, showRegistryLink 
             localReply={result.whatsapp_reply}
             localLanguage={result.language_name}
             verdict={result.verdict}
+            sharing={sharing}
           />
         )}
+
+        <SharingBar sharing={sharing} url={result.registry_url} />
 
         {!archive && (
           <Accordion title="Details">

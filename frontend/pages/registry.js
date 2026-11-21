@@ -8,7 +8,7 @@ import { VerdictBadge } from "@/components/HarmBadge";
 import { searchRegistry } from "@/lib/api";
 import { EASE, timeAgo } from "@/lib/theme";
 
-/** Public verdict registry: search every public verdict by claim text. */
+/** Your verdicts: search everything you have checked by claim text (only you see this list). */
 export default function RegistryPage() {
   const [q, setQ] = useState("");
   const [items, setItems] = useState(null);
@@ -29,15 +29,15 @@ export default function RegistryPage() {
   return (
     <>
       <Head>
-        <title>Verdict Registry — FactFlow</title>
+        <title>Your verdicts — FactFlow</title>
       </Head>
       <header className="mx-auto max-w-3xl px-4 pb-8 pt-20 text-center">
-        <div className="mono mb-5 text-[11px] tracking-[3px] text-red">PUBLIC VERDICT REGISTRY</div>
+        <div className="mono mb-5 text-[11px] tracking-[3px] text-red">YOUR VERDICTS</div>
         <h1 className="m-0 font-display font-bold leading-tight tracking-[-0.02em]" style={{ fontSize: "clamp(34px, 6vw, 52px)" }}>
-          Every verdict, on the record.
+          Everything you have checked.
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-[16px] text-secondary">
-          Each public check gets a permanent page. When the same claim comes back, it is recognised and answered from here.
+          Each check keeps its own page, visible only to you until you share it. When the same claim reaches you again, it is recognised and answered from here.
         </p>
         <label className="relative mx-auto mt-8 block max-w-xl">
           <span className="sr-only">Search verdicts</span>
@@ -61,7 +61,7 @@ export default function RegistryPage() {
         {!items && !error && Array.from({ length: 5 }).map((_, i) => <div key={i} className="mb-2 h-[64px] animate-pulse rounded-md bg-card" />)}
         {items && items.length === 0 && (
           <p className="py-12 text-center text-secondary">
-            {q ? "No public verdict matches that yet." : "No public verdicts yet."}{" "}
+            {q ? "None of your checks matches that yet." : "You have not checked anything yet."}{" "}
             <Link href={q ? `/?claim=${encodeURIComponent(q)}` : "/"} className="text-red hover:underline">
               Check a claim
             </Link>

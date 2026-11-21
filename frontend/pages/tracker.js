@@ -131,7 +131,7 @@ export default function TrackerPage() {
   return (
     <>
       <Head>
-        <title>Live Tracker — FactFlow</title>
+        <title>Your tracker — FactFlow</title>
       </Head>
       <StatsBar stats={stats} />
 

@@ -394,3 +394,37 @@ def test_files_outgoing_alerts_and_agent_settings_are_private(env):
     assert b.get("/api/agent/settings").json()["autonomy"] == "auto"
     assert b.get("/api/agent/outgoing").json()["items"] == [] and b.get("/api/agent/alerts").json()["items"] == []
     assert b.post("/api/agent/outgoing/not-yours/cancel").status_code == 404
+
+
+def test_sharing_a_verdict_opens_only_that_page_and_can_be_undone(env):
+    from database import connection
+    from database.models import Claim
+
+    a = sign_in(env, "share-a@example.com")
+    b = sign_in(env, "share-b@example.com")
+    anon = browser(env)
+    claim = a.post("/api/verify", json={"text": "Free laptops for all students are being given by the government."}).json()
+    assert a.post(f"/api/result/{claim['request_id']}/share").status_code == 409  # not finished yet
+
+    async def complete():
+        async with connection.session_factory()() as s:
+            c = await s.get(Claim, claim["request_id"])
+            c.status, c.verdict, c.confidence = "complete", "FALSE", 0.9
+            await s.commit()
+
+    env.first.portal.call(complete)
+    slug = claim["slug"]
+    assert anon.get(f"/api/v/{slug}").status_code == 401 and b.get(f"/api/v/{slug}").status_code == 404
+    assert b.post(f"/api/result/{claim['request_id']}/share").status_code == 404  # only the owner shares
+    shared = a.post(f"/api/result/{claim['request_id']}/share").json()
+    assert shared["shared"] is True and shared["registry_url"].endswith(f"/v/{slug}")
+    page = anon.get(f"/api/v/{slug}").json()
+    assert page["verdict"] == "FALSE" and page["shared"] is True and page["is_owner"] is False
+    assert "user_id" not in page and "raw_input" not in page and "share-a" not in str(page)
+    assert "request_id" not in page and "request_id" not in b.get(f"/api/v/{slug}").json()
+    own = a.get(f"/api/v/{slug}").json()
+    assert own["is_owner"] is True and own["request_id"] == claim["request_id"]  # so the owner can stop sharing there
+    assert a.get(f"/api/v/{slug}").json()["view_count"] == own["view_count"]  # the owner's visits are not views
+    assert claim["request_id"] not in str(b.get("/api/registry").json())  # shared is not listed or searchable
+    assert a.delete(f"/api/result/{claim['request_id']}/share").json() == {"shared": False}
+    assert anon.get(f"/api/v/{slug}").status_code == 401 and b.get(f"/api/v/{slug}").status_code == 404

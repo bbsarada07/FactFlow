@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.connection import get_session
-from database.models import Claim
+from database.models import Claim, iso, registry_url, utcnow
 from services import auth
 from services.auth import CurrentUser
 
@@ -46,3 +46,31 @@ async def status(request_id: str, session: AsyncSession = Depends(get_session),
         "error": claim.error,
         "agents": agents,
     }
+
+
+@router.post("/result/{request_id}/share")
+async def share(request_id: str, session: AsyncSession = Depends(get_session),
+                user: CurrentUser = Depends(auth.session_user)):
+    """Make this verdict's page open to anyone with the link (to share the correction). Only the claim, the
+    verdict and the evidence are shown; never who checked it."""
+    claim = await owned_claim(session, request_id, user)
+    if claim.user_id != user.id:
+        raise HTTPException(404, "Unknown request_id")  # seed examples are already open
+    if claim.status != "complete":
+        raise HTTPException(409, "Only a finished verdict can be shared")
+    if claim.shared_at is None:
+        claim.shared_at = utcnow()
+        await session.commit()
+    return {"shared": True, "registry_url": registry_url(claim.slug), "shared_at": iso(claim.shared_at)}
+
+
+@router.delete("/result/{request_id}/share")
+async def unshare(request_id: str, session: AsyncSession = Depends(get_session),
+                  user: CurrentUser = Depends(auth.session_user)):
+    """Stop sharing: the page is private again (links already sent stop working)."""
+    claim = await owned_claim(session, request_id, user)
+    if claim.user_id != user.id:
+        raise HTTPException(404, "Unknown request_id")
+    claim.shared_at = None
+    await session.commit()
+    return {"shared": False}

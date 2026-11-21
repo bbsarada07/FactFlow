@@ -20,7 +20,7 @@ export default function StatsBar({ stats }) {
       style={{ top: "var(--nav-height)", background: "rgba(13,13,18,0.92)", backdropFilter: "blur(16px)" }}
     >
       <div className="mx-auto flex max-w-6xl divide-x divide-[var(--border-subtle)]">
-        <Stat value={stats?.claims_today} label="Claims today" sub={stats ? `${stats.total_claims.toLocaleString()} all-time` : null} />
+        <Stat value={stats?.claims_today} label="Your checks today" sub={stats ? `${stats.total_claims.toLocaleString()} in total, with examples` : null} />
         <Stat value={stats?.false_or_misleading_pct} suffix="%" label="False / misleading" sub="share of all verdicts" />
         <Stat value={stats?.critical_threats} label="Critical threats" sub="harm level critical" />
       </div>

@@ -139,7 +139,8 @@ missing one.
 | `GET`/`POST /api/agent/files`, `PATCH`/`DELETE /api/agent/files/{id}` | signed in / **website** | My files: what the agent may send (`shareable`), up to 10 MB each, base64 upload |
 | `GET /api/agent/alerts`, `POST /api/agent/alerts/{id}/dismiss` | signed in / **website** | Alerts, e.g. a leak found in mail you sent from Gmail |
 | `DELETE /api/account` | **website** | Revoke Gmail and delete the account and everything in it |
-| `POST /api/verify`, `/api/result/{id}`, `/api/stream/{id}`, `/api/history`, `/api/stats`, `/api/registry`, `/api/v/{slug}`, `/api/incidents` | signed in / owner | See "Claim pipeline and public routes" |
+| `POST /api/verify`, `/api/result/{id}`, `/api/stream/{id}`, `/api/history`, `/api/stats`, `/api/registry`, `/api/result/{id}/share`, `/api/incidents` | signed in / owner | See "Claim pipeline and public routes" |
+| `GET /api/v/{slug}` | owner, or anyone once shared | See "Claim pipeline and public routes" |
 | `/api/config`, `/api/accuracy`, `/health` | public | See "Claim pipeline and public routes" |
 
 ### POST /api/inbox/analyze
@@ -1418,15 +1419,19 @@ rate-limited per client (`MAX_REQUESTS_PER_MINUTE`).
 
 | `GET /api/stream/{request_id}` | Server-Sent Events: `start`, `agent`, `result`, `error` |
 
-| `GET /api/result/{request_id}` | The full Truth Autopsy Report (`200`), or `202 {status}` while it runs; `404` for an unknown id |
+| `GET /api/result/{request_id}` | The full Truth Autopsy Report (`200`), or `202 {status}` while it runs; `404` for an unknown id or one owned by someone else. Includes `shared` (bool) and `is_owner` |
+
+| `POST /api/result/{request_id}/share` | Owner only. Makes the verdict page `/v/{slug}` readable by anyone with the link: `{shared: true, registry_url, shared_at}`. `404` if not the owner, `409` while the check is still running |
+
+| `DELETE /api/result/{request_id}/share` | Owner only. Makes the verdict page private again: `{shared: false}` |
 
 | `GET /api/status/{request_id}` | `{request_id, status, progress (0-100), verdict, error, agents}`; `404` for an unknown id |
 
 | `GET /api/history?limit=20&offset=0` | `{total, items}`: recent completed checks (claim summaries) |
 
-| `GET /api/registry?q=&limit=20` | Public verdicts. Empty `q` lists the latest; otherwise a fuzzy search, and each item has `match_score`. Answers `{query, items}` |
+| `GET /api/registry?q=&limit=20` | The signed-in user's own completed verdicts ("Your verdicts"). Other people's verdicts are never listed or searchable, even when shared. Empty `q` lists the latest; otherwise a fuzzy search, and each item has `match_score` and `shared`. Answers `{query, items}` |
 
-| `GET /api/v/{slug}?track=true` | One public verdict record for its share page, with `urgency`, `processing_ms`, `processing_time_seconds` and `versions` (other checks of the same claim). It counts a view unless `track=false`. `404` if the slug is not public |
+| `GET /api/v/{slug}?track=true` | One verdict record for its page, with `urgency`, `processing_ms`, `processing_time_seconds`, `versions` (other checks of the same claim the visitor may see), `shared`, `is_owner`, and `request_id` for the owner only. Readable by its owner, or by anyone once shared. It counts a view unless `track=false`. A private verdict answers `401` to a signed-out visitor (so the page can offer sign-in) and `404` to anyone else |
 
 | `GET /api/incidents` | `{items}`: the documented incidents, each with `latest_run` |
 

@@ -31,7 +31,7 @@ export default function Footer() {
         </p>
         <nav className="flex gap-4">
           <Link href="/registry" className="hover:text-primary">
-            Registry
+            My verdicts
           </Link>
           <Link href="/about" className="hover:text-primary">
             How it works

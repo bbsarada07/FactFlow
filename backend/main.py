@@ -27,6 +27,21 @@ logger.remove()
 logger.add(sys.stderr, level="DEBUG" if settings.DEBUG else "INFO", diagnose=False)
 
 
+async def keep_alive() -> None:
+    """Request our own public URL now and then, so free hosting does not put the agent to sleep."""
+    import httpx
+
+    while True:
+        await asyncio.sleep(settings.KEEP_ALIVE_MINUTES * 60)
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                await client.get(settings.KEEP_ALIVE_URL)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - never let the keep-alive crash anything
+            logger.warning(f"keep-alive request failed ({type(exc).__name__})")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     dialect = await connection.init_db()
@@ -35,6 +50,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"FactFlow ready · db={dialect} · nano={settings.NANO_MODEL} · ultra={settings.ULTRA_MODEL}")
     loops = [asyncio.create_task(mail_agent.poll_forever()),  # each user's Gmail: check, act, scan sent, digest
              asyncio.create_task(mail_sender.dispatch_forever())] if settings.MAIL_POLL_ENABLED else []  # undo window
+    if settings.KEEP_ALIVE_URL:
+        loops.append(asyncio.create_task(keep_alive()))
     yield
     for loop in loops:
         loop.cancel()

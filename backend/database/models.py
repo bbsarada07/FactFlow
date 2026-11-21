@@ -99,6 +99,8 @@ class Claim(Base):
     # Public registry
     slug: Mapped[str | None] = mapped_column(String(12), unique=True, index=True, default=new_slug)
     is_public: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    # Set when the owner shares this verdict: its page (/v/{slug}) is then open to anyone with the link.
+    shared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     normalized_text: Mapped[str | None] = mapped_column(Text)
     view_count: Mapped[int] = mapped_column(Integer, default=0)
     repeat_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -166,6 +168,7 @@ class Claim(Base):
             "platform": self.platform,
             "is_seed": self.is_seed,
             "is_public": self.is_public,
+            "shared": self.shared_at is not None,
             "view_count": self.view_count or 0,
             "repeat_count": self.repeat_count or 0,
         }

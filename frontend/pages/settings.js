@@ -30,6 +30,7 @@ import {
   unlinkWhatsApp,
 } from "@/lib/api";
 import { signOut, useAuth } from "@/lib/auth";
+import { useConfig } from "@/lib/useConfig";
 import { timeAgo } from "@/lib/theme";
 
 const GMAIL_ERRORS = {
@@ -70,6 +71,8 @@ function Status({ ok, children }) {
 export default function SettingsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const config = useConfig();
+  const whatsappOn = Boolean(config?.whatsapp?.enabled);
   const [mail, setMail] = useState(null);
   const [policy, setPolicy] = useState(null);
   const [tokens, setTokens] = useState([]);
@@ -435,9 +438,16 @@ export default function SettingsPage() {
             )}
           </Section>
 
-          <Section icon={MessageCircle} title="WhatsApp" aside={whatsapp ? <Status ok={whatsapp.linked_numbers > 0}>{whatsapp.linked_numbers ? "LINKED" : "NOT LINKED"}</Status> : null}>
-            <p className="m-0 text-[14px] text-secondary">
-              Forward any message to the FactFlow WhatsApp number and the verdict comes back in the chat. Link your number once so
+          <Section icon={MessageCircle} title="WhatsApp" aside={whatsappOn && whatsapp ? <Status ok={whatsapp.linked_numbers > 0}>{whatsapp.linked_numbers ? "LINKED" : "NOT LINKED"}</Status> : <Status>COMING SOON</Status>}>
+            {!whatsappOn ? (
+              <p className="m-0 text-[14px] text-secondary">
+                Forwarding WhatsApp messages to FactFlow for a check is not switched on on this server yet. Until then, use the
+                browser extension on WhatsApp Web, or paste the message on the Check page.
+              </p>
+            ) : (
+              <>
+<p className="m-0 text-[14px] text-secondary">
+              Forward any message to the FactFlow WhatsApp number{config?.whatsapp?.number ? ` (${config.whatsapp.number})` : ""} and the verdict comes back in the chat. Link your number once so
               the checks are yours.
             </p>
             {code ? (
@@ -461,6 +471,8 @@ export default function SettingsPage() {
                 </button>
               )}
             </div>
+              </>
+            )}
           </Section>
 
           <section className="rounded-lg border p-5 sm:p-6" style={{ borderColor: "rgba(255,45,45,0.35)" }}>

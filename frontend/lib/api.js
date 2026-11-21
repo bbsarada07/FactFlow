@@ -96,3 +96,5 @@ export const checkCompose = (msg) =>
 export const sendCompose = (msg) =>
   api("/api/agent/compose/send", { method: "POST", body: JSON.stringify(msg) }).then((r) => r.data);
 export const deleteAccount = () => api("/api/account", { method: "DELETE" }).then((r) => r.data);
+export const shareVerdict = (requestId) => api(`/api/result/${requestId}/share`, { method: "POST" }).then((r) => r.data);
+export const unshareVerdict = (requestId) => api(`/api/result/${requestId}/share`, { method: "DELETE" }).then((r) => r.data);

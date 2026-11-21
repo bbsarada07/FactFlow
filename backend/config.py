@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     ALLOWED_EMAILS: str = ""  # comma-separated; empty = anyone Google lets sign in (Testing mode: test users only)
     ADMIN_EMAILS: str = ""  # comma-separated; admins can run the benchmark and read system audit events
     SESSION_DAYS: int = 30
+    # Free hosting sleeps after ~15 minutes without visitors, and a sleeping agent checks no mail. When set, the
+    # backend requests this public URL (its own /health) every KEEP_ALIVE_MINUTES so it stays awake. One service
+    # awake all month uses ~720 of the 750 free Render hours per workspace.
+    KEEP_ALIVE_URL: str = ""
+    KEEP_ALIVE_MINUTES: float = 10.0
 
     # Shown to users in the footer / navbar (must name the real provider)
     INFERENCE_PROVIDER: str = "Groq"

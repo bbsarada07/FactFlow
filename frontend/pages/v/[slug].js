@@ -41,7 +41,7 @@ function clip(text, n) {
   return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t;
 }
 
-/** Public, shareable verdict page for one registry record. */
+/** One verdict's page: for its owner, or for anyone once the owner shared it. */
 export default function PublicVerdictPage({ record, pageUrl, error }) {
   if (!record) {
     return (
@@ -78,9 +78,15 @@ export default function PublicVerdictPage({ record, pageUrl, error }) {
 
       <div className="mx-auto max-w-[880px] px-4 pb-24 pt-10">
         <div className="mono mb-2 flex flex-wrap items-center justify-between gap-3 text-[11.5px] text-secondary">
-          <Link href="/registry" className="flex items-center gap-1.5 hover:text-primary">
-            <ArrowLeft size={13} /> PUBLIC VERDICT REGISTRY
-          </Link>
+          {record.is_owner ? (
+            <Link href="/registry" className="flex items-center gap-1.5 hover:text-primary">
+              <ArrowLeft size={13} /> YOUR VERDICTS
+            </Link>
+          ) : (
+            <Link href="/" className="flex items-center gap-1.5 hover:text-primary">
+              <ArrowLeft size={13} /> CHECK A CLAIM YOURSELF
+            </Link>
+          )}
           <span className="flex items-center gap-3">
             <span>Checked {formatDate(record.created_at)}</span>
             <span className="flex items-center gap-1">

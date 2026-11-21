@@ -269,3 +269,18 @@ button {
     white-space: nowrap;
   }
 }
+
+/* Horizontal strips that scroll (the top navigation on phones): no scrollbar, and a fade on the right edge
+   while more items are off screen, so the cut-off reads as "scroll for more". */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+@media (max-width: 767px) {
+  .nav-fade {
+    -webkit-mask-image: linear-gradient(to right, #000 82%, transparent);
+    mask-image: linear-gradient(to right, #000 82%, transparent);
+  }
+}
