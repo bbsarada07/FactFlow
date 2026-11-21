@@ -4,18 +4,40 @@ import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 
 import Logo from "@/components/Logo";
+import { getNeedsYou } from "@/lib/api";
 import { signInUrl, signOut, useAuth, useSignIn } from "@/lib/auth";
 
 const LINKS = [
-  { href: "/", label: "Verify" },
+  { href: "/", label: "Check" },
+  { href: "/shield", label: "Mail", match: (p) => (p.startsWith("/shield") && p !== "/shield/approvals") || p === "/compose" },
+  { href: "/shield/approvals", label: "Needs you", badge: true },
   { href: "/tracker", label: "Tracker" },
   { href: "/incidents", label: "Incidents" },
-  { href: "/shield", label: "Shield" },
   { href: "/about", label: "About" },
 ];
 
+/** How many things wait for the signed-in user (approvals + alerts), refreshed every minute. */
+function useNeedsYouCount() {
+  const { status } = useAuth();
+  const { asPath } = useRouter();
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (status !== "signed_in") return undefined;
+    let alive = true;
+    const load = () => getNeedsYou().then((r) => alive && setCount(r.total || 0)).catch(() => {});
+    load();
+    const id = setInterval(load, 60000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [status, asPath]);
+  return status === "signed_in" ? count : 0;
+}
+
 export default function Navbar() {
   const { pathname } = useRouter();
+  const needsYou = useNeedsYouCount();
 
   return (
     <header
@@ -39,7 +61,7 @@ export default function Navbar() {
 
       <nav className="flex h-full items-stretch gap-1 sm:gap-2 md:gap-5 overflow-x-auto no-scrollbar">
         {LINKS.map((l) => {
-          const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+          const active = l.match ? l.match(pathname) : l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
           return (
             <Link
               key={l.href}
@@ -49,6 +71,15 @@ export default function Navbar() {
               }`}
             >
               {l.label}
+              {l.badge && needsYou > 0 && (
+                <span
+                  className="mono ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
+                  style={{ background: "#FF2D2D" }}
+                  aria-label={`${needsYou} waiting for you`}
+                >
+                  {needsYou > 99 ? "99+" : needsYou}
+                </span>
+              )}
               {active && (
                 <span className="absolute inset-x-1 bottom-0 h-[2px] rounded-full bg-red" style={{ boxShadow: "0 0 12px #FF2D2D" }} />
               )}

@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Mail, CheckSquare, BarChart3, ShieldCheck, Settings, Sparkles } from "lucide-react";
+import { Mail, CheckSquare, BarChart3, PenLine, ShieldCheck, Settings, Sparkles } from "lucide-react";
 import MockBanner from "@/components/shield/MockBanner";
 import { USE_MOCKS } from "@/lib/shieldApi";
 
 const NAV_ITEMS = [
   { href: "/shield", label: "Inbox", icon: Mail },
-  { href: "/shield/approvals", label: "Approvals", icon: CheckSquare },
+  { href: "/shield/approvals", label: "Needs you", icon: CheckSquare },
+  { href: "/compose", label: "Write", icon: PenLine },
   { href: "/shield/advanced/benchmark", label: "Benchmark", icon: BarChart3 },
   { href: "/shield/advanced/audit", label: "Audit Log", icon: ShieldCheck },
 ];
@@ -26,7 +27,7 @@ export default function ShieldNav() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-display text-[17px] font-bold tracking-tight text-primary">
-                  Shield Control Panel
+                  Your mail agent
                 </span>
                 {USE_MOCKS ? (
                   <span className="pill text-[9.5px] bg-orange/10 border border-orange/40 text-orange">

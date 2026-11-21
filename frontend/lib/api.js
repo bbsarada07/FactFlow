@@ -24,13 +24,18 @@ export async function api(path, options = {}) {
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
+    const structured = body.detail && typeof body.detail === "object" && !Array.isArray(body.detail) ? body.detail : null;
     const detail =
       res.status === 401
         ? "Your session has ended. Sign in again to continue."
-        : Array.isArray(body.detail)
-          ? body.detail.map((d) => d.msg).join("; ")
-          : body.detail || `Request failed (${res.status})`;
-    throw new ApiError(detail, res.status);
+        : structured
+          ? structured.message || `Request failed (${res.status})`
+          : Array.isArray(body.detail)
+            ? body.detail.map((d) => d.msg).join("; ")
+            : body.detail || `Request failed (${res.status})`;
+    const error = new ApiError(detail, res.status);
+    error.data = structured; // e.g. the findings of a pre-send check
+    throw error;
   }
   return { status: res.status, data: body };
 }
@@ -68,3 +73,26 @@ export const getWhatsAppLink = () => api("/api/account/whatsapp").then((r) => r.
 export const newWhatsAppCode = () => api("/api/account/whatsapp/link-code", { method: "POST" }).then((r) => r.data);
 export const unlinkWhatsApp = () => api("/api/account/whatsapp", { method: "DELETE" }).then((r) => r.data);
 export const signOutEverywhere = () => api("/api/auth/logout-everywhere", { method: "POST" }).then((r) => r.data);
+
+// --------------------------------------------------------------------------------------------- agent
+
+export const getAgentSettings = () => api("/api/agent/settings").then((r) => r.data);
+export const setAgentSettings = (values) =>
+  api("/api/agent/settings", { method: "PUT", body: JSON.stringify(values) }).then((r) => r.data);
+export const getNeedsYou = () => api("/api/agent/needs-you").then((r) => r.data);
+export const listOutgoing = () => api("/api/agent/outgoing").then((r) => r.data);
+export const cancelOutgoing = (id) => api(`/api/agent/outgoing/${id}/cancel`, { method: "POST" }).then((r) => r.data);
+export const sendOutgoingNow = (id) => api(`/api/agent/outgoing/${id}/send-now`, { method: "POST" }).then((r) => r.data);
+export const listAlerts = () => api("/api/agent/alerts").then((r) => r.data);
+export const dismissAlert = (id) => api(`/api/agent/alerts/${id}/dismiss`, { method: "POST" }).then((r) => r.data);
+export const listMyFiles = () => api("/api/agent/files").then((r) => r.data);
+export const uploadMyFile = (payload) =>
+  api("/api/agent/files", { method: "POST", body: JSON.stringify(payload) }).then((r) => r.data);
+export const updateMyFile = (id, values) =>
+  api(`/api/agent/files/${id}`, { method: "PATCH", body: JSON.stringify(values) }).then((r) => r.data);
+export const deleteMyFile = (id) => api(`/api/agent/files/${id}`, { method: "DELETE" }).then((r) => r.data);
+export const checkCompose = (msg) =>
+  api("/api/agent/compose/check", { method: "POST", body: JSON.stringify(msg) }).then((r) => r.data);
+export const sendCompose = (msg) =>
+  api("/api/agent/compose/send", { method: "POST", body: JSON.stringify(msg) }).then((r) => r.data);
+export const deleteAccount = () => api("/api/account", { method: "DELETE" }).then((r) => r.data);

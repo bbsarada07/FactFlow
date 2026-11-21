@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+import GmailBanner from "@/components/agent/GmailBanner";
+import OutgoingQueue from "@/components/agent/OutgoingQueue";
 import ShieldNav from "@/components/shield/ShieldNav";
 import SignInAgain from "@/components/SignInAgain";
 import ShieldBadge from "@/components/shield/ShieldBadge";
@@ -270,6 +272,8 @@ export default function ShieldInboxPage() {
 
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <ShieldNav />
+        <GmailBanner />
+        <OutgoingQueue limit={6} />
 
         {/* Page Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

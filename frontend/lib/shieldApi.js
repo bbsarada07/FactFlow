@@ -577,7 +577,7 @@ export async function listApprovals(status = null, limit = 100) {
   return request(`/api/approvals${query}`, { method: "GET" });
 }
 
-export async function decideApproval(approvalId, decision, token) {
+export async function decideApproval(approvalId, decision, token, editedText = null) {
   if (USE_MOCKS) {
     const item = mockStore.approvals.find((a) => a.id === approvalId);
     if (!item) {
@@ -607,9 +607,8 @@ export async function decideApproval(approvalId, decision, token) {
     `/api/approvals/${approvalId}/decision`,
     {
       method: "POST",
-      body: JSON.stringify({ decision, token }),
-    },
-    true
+      body: JSON.stringify(editedText ? { decision, token, edited_text: editedText } : { decision, token }),
+    }
   );
 }
 

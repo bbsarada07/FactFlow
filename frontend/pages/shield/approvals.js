@@ -15,9 +15,13 @@ import {
   HelpCircle,
   Lock,
   ServerOff,
+  Paperclip,
+  Send,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+import AlertsList from "@/components/agent/AlertsList";
+import OutgoingQueue from "@/components/agent/OutgoingQueue";
 import ShieldNav from "@/components/shield/ShieldNav";
 import SignInAgain from "@/components/SignInAgain";
 import ShieldBadge from "@/components/shield/ShieldBadge";
@@ -36,6 +40,7 @@ export default function ShieldApprovalsPage() {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("pending");
   const [decidingId, setDecidingId] = useState(null);
+  const [drafts, setDrafts] = useState({}); // approval id -> reply text as edited by the user
 
   const fetchApprovals = useCallback(async () => {
     setLoading(true);
@@ -66,12 +71,20 @@ export default function ShieldApprovalsPage() {
     }
 
     setDecidingId(approval.id);
+    const isSend = Boolean(approval.evidence?.draft);
+    const original = approval.evidence?.draft || "";
+    const edited = drafts[approval.id];
     try {
-      const res = await decideApproval(approval.id, decision, approval.token);
+      await decideApproval(approval.id, decision, approval.token,
+        isSend && decision === "approve" && edited !== undefined && edited !== original ? edited : null);
       toast.success(
         decision === "approve"
-          ? "Step approved once. Task executed safely into simulated outbox."
-          : "Step denied. Protective block recorded."
+          ? isSend
+            ? "Queued: it goes out in a couple of minutes, and you can still undo it below."
+            : "Approved once."
+          : isSend
+            ? "Not sent."
+            : "Denied. Nothing was done."
       );
       // Refresh list
       await fetchApprovals();
@@ -82,7 +95,7 @@ export default function ShieldApprovalsPage() {
       } else if (err.status === 409) {
         toast.error("Conflict (409): This approval was already decided.");
       } else if (err.status === 410) {
-        toast.error("Expired (410): The 10-minute approval window has elapsed.");
+        toast.error("This request has expired. Nothing was done.");
       } else {
         toast.error(`Error (${err.status}): ${err.message}`);
       }
@@ -106,11 +119,11 @@ export default function ShieldApprovalsPage() {
             <div className="flex items-center gap-2">
               <CheckSquare className="text-red" size={22} />
               <h1 className="font-display text-[22px] font-bold text-primary sm:text-[26px]">
-                Human-in-the-Loop Approvals
+                Needs you
               </h1>
             </div>
             <p className="mt-1 text-[13px] text-secondary">
-              Review and authorize sensitive autonomous actions (forwarding emails, external sharing, opening links).
+              Your agent did not act on these on its own. Nothing happens until you decide.
             </p>
           </div>
 
@@ -125,14 +138,19 @@ export default function ShieldApprovalsPage() {
           </button>
         </div>
 
+        <AlertsList />
+        <OutgoingQueue limit={5} onlyActive />
+
         {/* Safety Callout */}
         <div className="mb-6 rounded-lg border border-subtle bg-surface p-4 text-[12.5px] leading-relaxed text-secondary">
           <div className="flex items-center gap-2 text-primary font-semibold mb-1">
             <Shield size={15} className="text-red shrink-0" />
-            <span>FactFlow Quarantine Guarantee</span>
+            <span>How your agent decides</span>
           </div>
-          Nothing in FactFlow touches your real mailbox or contacts. Approved outgoing steps are written to the{" "}
-          <strong className="text-primary font-mono">simulated outbox only</strong>. There is no &ldquo;always allow&rdquo; setting, and <strong>Deny</strong> is the primary default.
+          It answers routine mail from people you already write to on its own. Anything about money, passwords or ID
+          numbers, first-time senders, invitations, unverified senders and hidden instructions waits here. Whatever you
+          approve is sent from your Gmail after a short delay, so you can still <strong className="text-primary">undo</strong> it.
+          Instructions hidden inside an email are never carried out, and nothing is ever deleted.
         </div>
 
         {/* Filter Bar */}
@@ -212,7 +230,7 @@ export default function ShieldApprovalsPage() {
             <h3 className="font-display text-[16px] font-bold text-primary">No Approval Requests</h3>
             <p className="text-[13px] text-secondary mt-1">
               {filter === "pending"
-                ? "No pending approvals currently require human intervention."
+                ? "Nothing needs you right now. Your agent will ask here when something does."
                 : `No approvals found with status '${filter}'.`}
             </p>
           </div>
@@ -295,11 +313,59 @@ export default function ShieldApprovalsPage() {
                     </div>
                   )}
 
+                  {/* A reply or file your agent drafted */}
+                  {appr.evidence?.draft != null && (
+                    <div className="mt-3 rounded-md border border-subtle bg-surface p-3">
+                      <div className="mb-2 flex flex-wrap items-center gap-2 text-[12.5px] text-secondary">
+                        <Send size={13} className="text-red" />
+                        <span>
+                          Reply to <span className="text-primary">{appr.target}</span>
+                          {appr.evidence.subject ? <> · Re: {appr.evidence.subject}</> : null}
+                        </span>
+                        {appr.evidence.filename && (
+                          <span className="mono inline-flex items-center gap-1 rounded-sm border border-subtle px-1.5 text-[11px] text-primary">
+                            <Paperclip size={11} /> {appr.evidence.filename}
+                          </span>
+                        )}
+                      </div>
+                      {isPending ? (
+                        <textarea
+                          value={drafts[appr.id] ?? appr.evidence.draft}
+                          onChange={(e) => setDrafts((d) => ({ ...d, [appr.id]: e.target.value }))}
+                          rows={Math.min(10, Math.max(4, (drafts[appr.id] ?? appr.evidence.draft).split("\n").length + 1))}
+                          className="w-full resize-y rounded-md border border-subtle bg-card p-3 text-[13.5px] leading-relaxed text-primary focus:border-active focus:outline-none"
+                          aria-label="Reply text (you can edit it before sending)"
+                        />
+                      ) : (
+                        <p className="m-0 whitespace-pre-wrap text-[13.5px] text-primary">{appr.evidence.draft}</p>
+                      )}
+                      {appr.evidence.why_not_automatic?.length > 0 && (
+                        <div className="mt-2 text-[12px] text-muted">
+                          Why your agent asked you:{" "}
+                          {appr.evidence.why_not_automatic.map((w) => escapeSuspiciousCharacters(w)).join("; ")}.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Decision Actions */}
-                  {isPending && (
+                  {isPending && appr.evidence?.draft != null && (
+                    <div className="mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-subtle pt-3">
+                      <span className="mr-auto mono text-[11px] text-muted">
+                        {appr.expires_at ? `Waits until ${new Date(appr.expires_at).toLocaleString()}` : ""}
+                      </span>
+                      <button type="button" disabled={isDeciding} onClick={() => handleDecision(appr, "deny")} className="btn-ghost !py-2 !px-4 !text-[12.5px]">
+                        <X size={14} /> Don&apos;t send
+                      </button>
+                      <button type="button" disabled={isDeciding} onClick={() => handleDecision(appr, "approve")} className="btn-red !py-2 !px-4 !text-[12.5px]">
+                        <Send size={14} /> {appr.evidence.filename ? "Send reply and file" : "Send reply"}
+                      </button>
+                    </div>
+                  )}
+                  {isPending && appr.evidence?.draft == null && (
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-subtle">
                       <div className="text-[11px] mono text-muted">
-                        Expires in ~10m from creation
+                        {appr.expires_at ? `Waits until ${new Date(appr.expires_at).toLocaleString()}` : ""}
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -328,7 +394,7 @@ export default function ShieldApprovalsPage() {
 
                   {!isPending && appr.decided_at && (
                     <div className="mt-3 pt-2 border-t border-subtle mono text-[11px] text-muted flex items-center justify-between">
-                      <span>Decided by: {appr.decided_by || "operator"}</span>
+                      <span>Decided by: {appr.decided_by || "you"}</span>
                       <span>At: {new Date(appr.decided_at).toLocaleString()}</span>
                     </div>
                   )}

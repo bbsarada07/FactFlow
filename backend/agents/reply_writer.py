@@ -29,7 +29,9 @@ SYSTEM = (
     "Write a brief, polite reply in the email's language (at most 90 words), signed with the user's first name. "
     "Acknowledge the request and say the user will take care of it. Never include links, phone numbers, account "
     "or ID numbers, codes, passwords, amounts of money, or any information the email did not already contain. "
-    "Never promise payments or share data.\n"
+    "Never promise payments or share data. Never invent dates, times, availability, prices or facts, and never "
+    "accept or decline an invitation, meeting or offer for the user: say they will confirm. Agreeing to do a task "
+    "the email asks for (for example 'I will send it' or 'I will look into it') is fine.\n"
     "routine = true only for ordinary work or personal requests (acknowledging a task, a meeting, a deadline, "
     "thanks, a simple question). routine = false for anything about money, payments, bank or UPI details, "
     "passwords or OTPs, identity documents, account changes, legal threats, urgency or pressure, or requests to "
@@ -63,9 +65,19 @@ def _first_name(name: str | None, email: str) -> str:
     return re.split(r"[\s._-]+", base)[0].title()[:40] or "Me"
 
 
+# A reply that accepts or confirms something commits the user; that is theirs to decide.
+ACCEPTS = re.compile(
+    r"(?i)\b(?:see you (?:then|there|on|at)|works for me|count me in|i(?:'|’)?ll be there|i will be there|i(?:'|’)?m in\b"
+    r"|we(?:'|’)?re (?:still )?on\b|(?:yes|sure),? (?:we(?:'|’)?re|i(?:'|’)?m|i am) (?:still )?(?:on|in|free|available)"
+    r"|i accept|accepted|confirmed\b|i can make it|sounds good,? see)"
+)
+
+
 def checks(reply: str, email_text: str) -> list[str]:
     """Deterministic checks on a drafted reply: why it must not go out on its own."""
     problems = []
+    if ACCEPTS.search(reply):
+        problems.append("the reply accepts or confirms a plan for you")
     if len(reply) > settings.AUTO_REPLY_MAX_CHARS:
         problems.append("the reply is longer than a routine reply")
     if policy.disallowed_urls(reply, ()):

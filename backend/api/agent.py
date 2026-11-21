@@ -96,6 +96,7 @@ class ComposeRequest(BaseModel):
     body: str = Field(default="", max_length=20000)
     file_ids: list[str] = Field(default_factory=list, max_length=5)
     confirm: bool = False  # send even though the check found something
+    fact_check: bool = False  # also fact-check claims in the message (runs the full pipeline: up to a minute)
 
 
 async def _compose_check(user: CurrentUser, body: ComposeRequest) -> dict:
@@ -109,7 +110,7 @@ async def _compose_check(user: CurrentUser, body: ComposeRequest) -> dict:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "An attached file is not in My files.")
     claims = []
     text = body.body.strip()
-    if settings.INBOX_USE_LLM and len(text) >= 40:
+    if body.fact_check and settings.INBOX_USE_LLM and len(text) >= 40:
         # Fact-check claims you are about to send, like any forward you receive (your history only).
         try:
             items, _, _ = await fact_check_claims([text[:600]], [], "auto", user_id=user.id)

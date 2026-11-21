@@ -1,4 +1,6 @@
-import { CheckCircle2, Chrome, Inbox, LogOut, Mail, MessageCircle, RefreshCw, Shield, Trash2, UserRound } from "lucide-react";
+import {
+  Bot, CheckCircle2, Chrome, FileText, Inbox, LogOut, Mail, MessageCircle, RefreshCw, Shield, Trash2, Upload, UserRound,
+} from "lucide-react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
@@ -7,7 +9,14 @@ import toast from "react-hot-toast";
 import {
   connectGmail,
   createExtensionToken,
+  deleteAccount,
+  deleteMyFile,
   disconnectGmail,
+  getAgentSettings,
+  listMyFiles,
+  setAgentSettings,
+  updateMyFile,
+  uploadMyFile,
   getMailStatus,
   getPolicy,
   getWhatsAppLink,
@@ -68,14 +77,19 @@ export default function SettingsPage() {
   const [code, setCode] = useState(null);
   const [extensionPresent, setExtensionPresent] = useState(false);
   const [busy, setBusy] = useState(null);
+  const [agent, setAgent] = useState(null);
+  const [myFiles, setMyFiles] = useState([]);
 
   const load = useCallback(async () => {
-    const results = await Promise.allSettled([getMailStatus(), getPolicy(), listExtensionTokens(), getWhatsAppLink()]);
-    const [m, p, t, w] = results.map((r) => (r.status === "fulfilled" ? r.value : null));
+    const results = await Promise.allSettled([getMailStatus(), getPolicy(), listExtensionTokens(), getWhatsAppLink(),
+      getAgentSettings(), listMyFiles()]);
+    const [m, p, t, w, a, f] = results.map((r) => (r.status === "fulfilled" ? r.value : null));
     setMail(m);
     setPolicy(p);
     setTokens(t?.items || []);
     setWhatsapp(w);
+    setAgent(a);
+    setMyFiles(f?.items || []);
     const failed = results.find((r) => r.status === "rejected");
     if (failed) toast.error(failed.reason?.message || "Some settings could not be loaded.");
   }, []);
@@ -138,6 +152,34 @@ export default function SettingsPage() {
       window.postMessage({ type: "FACTFLOW_CONNECT_EXTENSION", token: made.token, site: window.location.origin }, window.location.origin);
       return made;
     });
+
+  const onUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Files can be at most 10 MB.");
+      return;
+    }
+    const data = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    await run("upload", () => uploadMyFile({ filename: file.name, content_type: file.type || "application/octet-stream",
+      data_base64: data, shareable: false }), `${file.name} added. Mark it "OK to send" if your agent may send it.`);
+  };
+
+  const removeAccount = async () => {
+    if (!window.confirm("Delete your FactFlow account? Gmail access is revoked and all your checks, mail history, files and settings are deleted. This cannot be undone.")) return;
+    try {
+      await deleteAccount();
+      window.location.assign("/login?signed_out=1");
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
 
   const gmail = mail?.gmail;
   const gmailConnected = gmail?.status === "connected";
@@ -203,6 +245,17 @@ export default function SettingsPage() {
                   {gmail.last_sync_at ? ` Last checked ${timeAgo(gmail.last_sync_at)}.` : ""}
                 </p>
                 {gmail.last_error && <p className="mt-2 text-[13px] text-orange">Last problem: {gmail.last_error}</p>}
+                {gmail.needs_upgrade && (
+                  <div className="mt-3 rounded-md border p-3 text-[13px] text-secondary" style={{ borderColor: "rgba(255,107,0,0.45)" }}>
+                    Gmail is connected with read access only, so your agent cannot reply, send files or quarantine yet.
+                    <button type="button" onClick={startGmail} className="btn-red ml-2 mt-2 !py-1.5 !px-3 !text-[12px] sm:mt-0">
+                      Reconnect to allow replies and labels
+                    </button>
+                  </div>
+                )}
+                <p className="mt-3 text-[12.5px] text-muted">
+                  FactFlow can read, label, archive and send from this Gmail. It never deletes mail.
+                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button type="button" disabled={busy === "sync"} onClick={() => run("sync", syncMail, "Checked for new mail.")} className="btn-ghost !py-2 !text-[13px]">
                     <RefreshCw size={14} className={busy === "sync" ? "animate-spin" : ""} /> Check now
@@ -258,7 +311,69 @@ export default function SettingsPage() {
             )}
           </Section>
 
-          <Section icon={Shield} title="How much your agent does on its own" aside={policy ? <Status ok>{policy.mode.toUpperCase()}</Status> : null}>
+          <Section icon={Bot} title="What your agent does on its own" aside={agent ? <Status ok>{agent.autonomy.toUpperCase()}</Status> : null}>
+            {agent && (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    ["auto", "Automatic", "Answers routine mail from people you write to and sends files you marked OK, with a couple of minutes to undo. Everything else asks you."],
+                    ["drafts", "Drafts only", "Writes the replies but never sends one until you approve it."],
+                    ["off", "Off", "Only reads, checks, labels and quarantines. Never writes back."],
+                  ].map(([value, label, text]) => (
+                    <button key={value} type="button" disabled={busy === "agent"} aria-pressed={agent.autonomy === value}
+                      onClick={() => agent.autonomy !== value && run("agent", () => setAgentSettings({ autonomy: value }), `Your agent is now: ${label}.`)}
+                      className="rounded-md border p-4 text-left transition-colors"
+                      style={agent.autonomy === value ? { borderColor: "#FF2D2D", background: "rgba(255,45,45,0.08)" } : { borderColor: "#2A2A3A" }}>
+                      <div className="font-display text-[15px] font-semibold text-primary">{label}</div>
+                      <div className="mt-1 text-[12.5px] leading-relaxed text-secondary">{text}</div>
+                    </button>
+                  ))}
+                </div>
+                <label className="mt-4 flex items-center gap-3 text-[13.5px] text-secondary">
+                  <input type="checkbox" checked={agent.digest_enabled} disabled={busy === "agent"}
+                    onChange={(e) => run("agent", () => setAgentSettings({ digest_enabled: e.target.checked }))} className="h-4 w-4 accent-[#FF2D2D]" />
+                  Email me a daily digest of what my agent did
+                </label>
+                <p className="mt-3 text-[12.5px] text-muted">
+                  Money, passwords, ID numbers, unknown senders, hidden instructions and anything unusual always wait for you,
+                  whatever you choose here.
+                </p>
+              </>
+            )}
+          </Section>
+
+          <Section icon={FileText} title="My files" aside={<Status ok={myFiles.some((f) => f.shareable)}>{myFiles.length} FILE{myFiles.length === 1 ? "" : "S"}</Status>}>
+            <p className="m-0 text-[14px] text-secondary">
+              When a teammate asks for one of these by email, your agent can send it, but only if you marked it OK to send, the
+              sender is verified and exactly one file matches. Otherwise it asks you. Up to 10 MB each.
+            </p>
+            <label className="btn-ghost mt-4 inline-flex cursor-pointer !py-2 !text-[13px]">
+              <Upload size={14} /> {busy === "upload" ? "Uploading…" : "Add a file"}
+              <input type="file" className="sr-only" onChange={onUpload} disabled={busy === "upload"} />
+            </label>
+            {myFiles.length > 0 && (
+              <ul className="mt-4 divide-y divide-subtle rounded-md border border-subtle">
+                {myFiles.map((f) => (
+                  <li key={f.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5 text-[13px]">
+                    <span className="min-w-0 truncate text-primary">{f.filename} <span className="text-muted">· {Math.max(1, Math.round(f.size / 1024))} KB</span></span>
+                    <span className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-secondary">
+                        <input type="checkbox" checked={f.shareable} onChange={(e) => run(`f-${f.id}`, () => updateMyFile(f.id, { shareable: e.target.checked }))}
+                          className="h-4 w-4 accent-[#FF2D2D]" />
+                        OK to send
+                      </label>
+                      <button type="button" onClick={() => window.confirm(`Delete ${f.filename}?`) && run(`fd-${f.id}`, () => deleteMyFile(f.id), "File deleted.")}
+                        className="rounded p-1.5 text-secondary hover:bg-hover hover:text-primary" aria-label={`Delete ${f.filename}`}>
+                        <Trash2 size={14} />
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          <Section icon={Shield} title="Safety rules" aside={policy ? <Status ok>{policy.mode.toUpperCase()}</Status> : null}>
             {policy && (
               <>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -347,6 +462,16 @@ export default function SettingsPage() {
               )}
             </div>
           </Section>
+
+          <section className="rounded-lg border p-5 sm:p-6" style={{ borderColor: "rgba(255,45,45,0.35)" }}>
+            <h2 className="m-0 font-display text-[16px] font-semibold text-primary">Delete my account and data</h2>
+            <p className="mt-2 text-[13.5px] text-secondary">
+              Revokes FactFlow&apos;s access to your Gmail and deletes your checks, mail history, files, contacts and settings.
+            </p>
+            <button type="button" onClick={removeAccount} className="btn-ghost mt-3 !py-2 !text-[13px]" style={{ borderColor: "rgba(255,45,45,0.5)", color: "#FF6B6B" }}>
+              <Trash2 size={14} /> Delete my account
+            </button>
+          </section>
         </div>
       </div>
     </>

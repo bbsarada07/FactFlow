@@ -310,3 +310,24 @@ def test_deleting_the_account_revokes_gmail_and_removes_everything(gm):
                                                                                .where(User.id == gm.user_id))]
 
     assert gm.client.portal.call(counts) == [0, 0, 0, 0]
+
+
+@pytest.mark.parametrize("reply, accepts", [
+    ("Yes, we're still on for lunch Thursday at 1. I'll see you then.", True),
+    ("Sounds good, see you Friday.", True),
+    ("Count me in for the offsite.", True),
+    ("Thanks, I'll check my schedule and confirm a slot for next week.", False),
+    ("I'll finish the slides and confirm once they're ready.", False),
+])
+def test_a_draft_that_commits_the_user_never_goes_out_on_its_own(reply, accepts):
+    from agents.reply_writer import checks
+
+    assert ("the reply accepts or confirms a plan for you" in checks(reply, "")) is accepts
+
+
+def test_an_invitation_waits_for_the_user_even_from_a_contact(gm):
+    learn_contact(gm, TEAM)
+    task = deliver(gm, raw_mail(TEAM, "Project sync", "Join the project sync on Thursday 3pm in room 4B? Please reply."))
+    step = send_step(task)
+    assert step["status"] == "awaiting_approval"
+    assert any("meeting or invitation" in w for w in step["result"]["why_not"])

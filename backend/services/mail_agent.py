@@ -344,6 +344,8 @@ async def _plan_reply(task: MailTask, v: UnifiedVerdict) -> Step | None:
         why_not.append("you have not written to this sender before")
     if not d.routine:
         why_not.append("the request is not routine" + (f" ({d.reason})" if d.reason else ""))
+    if notes.meeting is not None:
+        why_not.append("it is about a meeting or invitation, so you confirm it yourself")
     why_not += [f"the draft failed a check: {p}" for p in d.problems]
 
     result = {"draft": d.reply, "routine": d.routine, "reason": d.reason, "problems": list(d.problems),
