@@ -37,7 +37,14 @@ export default function AuthGate({ children }) {
       <div className="animate-pulse">
         <Logo size={36} />
       </div>
-      <span className="mono text-[11px] tracking-[1.5px]">LOADING YOUR AGENT…</span>
+      <span className="mono text-[11px] tracking-[1.5px]">
+        {status === "waking" ? "WAKING UP FACTFLOW…" : "LOADING YOUR AGENT…"}
+      </span>
+      {status === "waking" && (
+        <span className="max-w-xs text-center text-[12.5px] text-muted">
+          The server sleeps when nobody has used it for a while. This takes up to a minute.
+        </span>
+      )}
     </div>
   );
 }

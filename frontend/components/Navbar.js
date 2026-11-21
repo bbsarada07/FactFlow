@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 
 import Logo from "@/components/Logo";
-import { signInUrl, signOut, useAuth } from "@/lib/auth";
+import { signInUrl, signOut, useAuth, useSignIn } from "@/lib/auth";
 
 const LINKS = [
   { href: "/", label: "Verify" },
@@ -78,6 +78,7 @@ function AccountMenu() {
   const { asPath, pathname } = useRouter();
   const [open, setOpen] = useState(false);
   const box = useRef(null);
+  const signIn = useSignIn(asPath);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -95,8 +96,8 @@ function AccountMenu() {
   if (status !== "signed_in") {
     if (pathname === "/login") return <div className="w-8 shrink-0" />;
     return (
-      <a href={signInUrl(asPath)} className="btn-red shrink-0 !py-1.5 !px-3 !text-[12px]">
-        <LogIn size={13} /> Sign in
+      <a href={signInUrl(asPath)} onClick={signIn.go} className="btn-red shrink-0 !py-1.5 !px-3 !text-[12px]">
+        <LogIn size={13} /> {signIn.phase === "waking" ? "Waking up…" : "Sign in"}
       </a>
     );
   }
