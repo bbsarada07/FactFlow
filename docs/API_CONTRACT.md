@@ -131,6 +131,14 @@ missing one.
 | `POST /api/benchmark/run` | **admin** | Run the red-team benchmark |
 | `GET /api/benchmark/runs`, `/latest`, `/runs/{run_id}` | signed in | Benchmark results |
 | `POST /api/whatsapp/webhook` | provider signature | WhatsApp checks for linked numbers (section below) |
+| `GET`/`PUT /api/agent/settings` | signed in / **website** | `autonomy` (`auto` \| `drafts` \| `off`) and `digest_enabled` |
+| `GET /api/agent/needs-you` | signed in | Counts for the "Needs you" badge: pending approvals, open alerts, queued mail |
+| `GET /api/agent/outgoing` | signed in | Mail being sent for you (scheduled, sent, cancelled, failed) and the undo window |
+| `POST /api/agent/outgoing/{id}/cancel`, `POST /api/agent/outgoing/{id}/send-now` | **website** | Undo while scheduled (`409` once sent), or send now |
+| `POST /api/agent/compose/check`, `POST /api/agent/compose/send` | signed in / **website** | Check, then send, a message you wrote (send: `409` with `findings` unless `confirm: true`) |
+| `GET`/`POST /api/agent/files`, `PATCH`/`DELETE /api/agent/files/{id}` | signed in / **website** | My files: what the agent may send (`shareable`), up to 10 MB each, base64 upload |
+| `GET /api/agent/alerts`, `POST /api/agent/alerts/{id}/dismiss` | signed in / **website** | Alerts, e.g. a leak found in mail you sent from Gmail |
+| `DELETE /api/account` | **website** | Revoke Gmail and delete the account and everything in it |
 | `POST /api/verify`, `/api/result/{id}`, `/api/stream/{id}`, `/api/history`, `/api/stats`, `/api/registry`, `/api/v/{slug}`, `/api/incidents` | signed in / owner | See "Claim pipeline and public routes" |
 | `/api/config`, `/api/accuracy`, `/health` | public | See "Claim pipeline and public routes" |
 
@@ -1466,3 +1474,26 @@ interface InternalCitation {
 
 If no internal knowledge base document clears the threshold, `internal_citations` is an empty list `[]`. Frontends should show "no matching verified record" rather than implying a weak match.
 
+
+
+## The mail agent acting for you (Phase 3)
+
+Gmail is connected with `gmail.modify` (read, labels, archive) and `gmail.send`. A Gmail connected earlier with
+read access only keeps working read-only; `GET /api/mail/status` shows `gmail.can_send`, `gmail.can_label` and
+`gmail.needs_upgrade` (reconnect once to allow replies and labels). FactFlow never deletes or trashes mail.
+
+For each new email the agent may add one step:
+
+| Step `task` | Action | Goes out on its own only if (rule) | Otherwise |
+|---|---|---|---|
+| `send_reply` | `send_reply` | autonomy `auto`; email SAFE with no warning signs; sender is someone you write to or a trusted domain; no different Reply-To; the drafted reply is routine and passes the checks (no links, no ID/bank numbers, no money or credential topics) (P7-R) | waits in Approvals |
+| `send_file` | `share_data` | all of the above, plus exactly one file in My files clearly matches, you marked it shareable, and the sender passes DKIM and DMARC (P7-F) | waits in Approvals |
+
+The step's `result` carries `draft`, `routine`, `why_not` (the reasons it was not automatic), and for files
+`file_id`, `filename`, `candidates`. The matching approval's `evidence` carries `draft`, `subject`, `filename`
+and `why_not_automatic`. `POST /api/approvals/{id}/decision` accepts `edited_text` to send your edited reply.
+
+Allowed or approved sends are queued (`GET /api/agent/outgoing`) and leave after `MAIL_SEND_DELAY_SECONDS`
+(default 120): `POST /api/agent/outgoing/{id}/cancel` is the undo. Dangerous mail is labelled
+`FactFlow/Quarantine` and archived; waiting items are labelled `FactFlow/Needs you`. Mail you send from Gmail is
+checked for leaks (alerts), and its recipients become known contacts. A daily digest goes to your own inbox.

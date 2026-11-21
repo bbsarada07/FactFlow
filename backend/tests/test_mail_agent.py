@@ -36,7 +36,7 @@ def connect(env) -> None:
     assert r.status_code == 200, r.text
     auth_url = r.json()["auth_url"]
     query = parse_qs(urlsplit(auth_url).query)
-    assert query["scope"] == ["https://www.googleapis.com/auth/gmail.readonly"]
+    assert query["scope"] == ["https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send"]
     assert query["code_challenge_method"] == ["S256"] and query["access_type"] == ["offline"]
     code = env.google.consent(auth_url)
     cb = env.client.get(f"/api/mail/gmail/callback?code={code}&state={query['state'][0]}", follow_redirects=False)

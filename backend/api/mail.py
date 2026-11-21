@@ -14,11 +14,11 @@ from pydantic import BaseModel, Field
 
 from api.verify import RateLimiter
 from config import settings
-from services import auth, gmail_account, llm_status, mail_agent, runtime_settings
+from services import auth, gmail_account, llm_status, mail_agent, mail_sender, runtime_settings
 from services.auth import CurrentUser
 from shield.email_parser import MAX_BYTES
 from shield.providers.base import ProviderAuthError, ProviderTemporaryError, RawMessageRef
-from shield.providers.gmail import GMAIL_READONLY_SCOPE, ScopeError
+from shield.providers.gmail import REQUESTED_SCOPES, ScopeError
 
 router = APIRouter(prefix="/api/mail", tags=["mail"])
 callback_limiter = RateLimiter(20, noun="Gmail connection attempts")
@@ -76,12 +76,12 @@ async def set_provider(body: ProviderRequest, user: CurrentUser = Depends(auth.s
 
 @router.post("/gmail/connect")
 async def gmail_connect(user: CurrentUser = Depends(auth.session_user)):
-    """Start the Google consent flow for this user's own Gmail. Send the browser to `auth_url`."""
+    """Start the Google consent flow for this user's own Gmail (read, send, labels). Send the browser to `auth_url`."""
     try:
         url = gmail_account.start_connect(user.id, login_hint=user.email)
     except gmail_account.GmailSetupError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from None
-    return {"auth_url": url, "scope": GMAIL_READONLY_SCOPE, "expires_in": gmail_account.STATE_TTL_SECONDS}
+    return {"auth_url": url, "scope": " ".join(REQUESTED_SCOPES), "expires_in": gmail_account.STATE_TTL_SECONDS}
 
 
 def _back(result: str, reason: str | None = None) -> RedirectResponse:
@@ -130,6 +130,9 @@ async def sync_now(body: SyncRequest | None = None, user: CurrentUser = Depends(
         raise HTTPException(status.HTTP_409_CONFLICT, "Gmail is not connected" + (
             " (reconnect required)" if status_["reconnect_required"] else ""))
     report = await mail_agent.sync(user.id, provider, use_llm=_use_llm((body or SyncRequest()).mode))
+    if name == "gmail" and not report.reconnect_required:
+        await mail_agent.scan_sent(user.id, provider)  # learn contacts, warn about leaks in sent mail
+    await mail_sender.dispatch_due(user.id)  # anything whose undo window has passed
     return report.model_dump()
 
 

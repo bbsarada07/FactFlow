@@ -20,6 +20,8 @@ ERROR_STATUS = {
 class DecisionRequest(BaseModel):
     decision: Literal["approve", "deny"]
     token: str = Field(min_length=64, max_length=64)
+    edited_text: str | None = Field(default=None, max_length=5000,
+                                    description="for a reply: the text as the user edited it before approving")
 
 
 def _store():
@@ -54,6 +56,7 @@ async def decide(approval_id: str, body: DecisionRequest, user: CurrentUser = De
     if await store.owner(approval_id) != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown approval")
     actor = user.email
+    edited = body.edited_text if body.decision == "approve" and body.edited_text and body.edited_text.strip() else None
     try:
         approval = await store.decide(approval_id, body.decision, body.token, actor)
     except ApprovalError as exc:
@@ -62,7 +65,7 @@ async def decide(approval_id: str, body: DecisionRequest, user: CurrentUser = De
             if expired is not None:
                 await mail_agent.on_approval_decided(expired)
         raise HTTPException(ERROR_STATUS.get(exc.code, status.HTTP_400_BAD_REQUEST), str(exc)) from None
-    await mail_agent.on_approval_decided(approval)
+    await mail_agent.on_approval_decided(approval, edited_text=edited)
     task = await mail_agent.task_for_approval(approval, user.id)
     step = next((s for s in (task or {}).get("steps", []) if s.get("approval_id") == approval.id), None)
     return {
@@ -70,5 +73,6 @@ async def decide(approval_id: str, body: DecisionRequest, user: CurrentUser = De
         "executed": bool(step and step.get("status") == "executed"),
         "step": step,
         "task_state": task["state"] if task else None,
-        "note": "Nothing leaves FactFlow: approved outgoing steps are written to the simulated outbox only.",
+        "note": "An approved reply is queued in your Gmail outbox and can be undone until it is sent "
+                "(demo inbox: simulated only).",
     }

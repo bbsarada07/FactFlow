@@ -86,3 +86,35 @@ async def set_mail_provider(user_id: str, provider: str, actor: str) -> None:
     async with lock(user_id):
         await _save(user_id, mail_provider=provider)
     await shield_runtime.audit().append(actor, "mail_provider_changed", {"provider": provider}, user_id=user_id)
+
+
+AUTONOMY = ("auto", "drafts", "off")
+
+
+async def agent_settings(user_id: str) -> dict:
+    """How much the mail agent does on its own (default auto) and whether it sends a daily digest (default on)."""
+    row = await _row(user_id)
+    autonomy = row.autonomy if row is not None and row.autonomy in AUTONOMY else "auto"
+    digest = True if row is None or row.digest_enabled is None else bool(row.digest_enabled)
+    return {"autonomy": autonomy, "digest_enabled": digest,
+            "last_digest_at": row.last_digest_at.isoformat() if row is not None and row.last_digest_at else None}
+
+
+async def set_agent_settings(user_id: str, actor: str, autonomy: str | None = None, digest_enabled: bool | None = None) -> dict:
+    values = {}
+    if autonomy is not None:
+        if autonomy not in AUTONOMY:
+            raise ValueError("autonomy must be auto, drafts or off")
+        values["autonomy"] = autonomy
+    if digest_enabled is not None:
+        values["digest_enabled"] = bool(digest_enabled)
+    if values:
+        async with lock(user_id):
+            await _save(user_id, **values)
+        await shield_runtime.audit().append(actor, "agent_settings_changed", values, user_id=user_id)
+    return await agent_settings(user_id)
+
+
+async def mark_digest(user_id: str, at) -> None:
+    async with lock(user_id):
+        await _save(user_id, last_digest_at=at)

@@ -16,6 +16,10 @@ override the result. Rules are evaluated top to bottom; the first match wins:
   P6  delete_email                                                -> REQUIRE_APPROVAL
   P7  summarize, extract_action_items, draft_reply, report_phishing,
       quarantine_email                                            -> ALLOW
+  P7-R send_reply, when the mail agent's checks marked it a routine
+       reply the user lets it send (UserContext.auto_reply)       -> ALLOW
+  P7-F share_data (a requested file), when the agent's checks
+       passed for that file (UserContext.auto_file)               -> ALLOW
   P8  anything else                                               -> REQUIRE_APPROVAL
   S1  strict mode only: any signal turns an ALLOW into REQUIRE_APPROVAL, except the warning
       summary and the protective steps (summarize, report_phishing, quarantine_email), which run
@@ -118,13 +122,19 @@ class Signals:
 class UserContext:
     """What the policy engine knows besides the action itself.
 
-    allowed_domains: recipient domains the user trusts (rule P4, E-EGRESS)
-    user_values:     values the user typed themselves (e.g. a recipient address); any other
-                     target is treated as coming from the message or a model
+    allowed_domains:   recipient domains the user trusts (rule P4, E-EGRESS)
+    allowed_addresses: people the user already writes to (rule P4)
+    user_values:       values the user typed or authorised (e.g. a recipient address); any other
+                       target is treated as coming from the message or a model
+    auto_reply / auto_file: set by the mail agent only after its deterministic checks passed (P7-R, P7-F);
+                       never from anything a message or a model said
     """
 
     allowed_domains: tuple[str, ...] = ()
     user_values: tuple[str, ...] = ()
+    allowed_addresses: tuple[str, ...] = ()
+    auto_reply: bool = False
+    auto_file: bool = False
 
 
 def _norm(text: str) -> str:
@@ -162,12 +172,14 @@ def disallowed_urls(text: str, allowed: tuple[str, ...]) -> list[str]:
     return bad
 
 
-def _recipients_allowed(target: str | None, allowed: tuple[str, ...]) -> bool:
+def _recipients_allowed(target: str | None, allowed: tuple[str, ...], addresses: tuple[str, ...] = ()) -> bool:
     if not target:
         return False
+    known = {a.strip().lower() for a in addresses}
     addrs = _ADDR_RE.findall(target)
     if addrs:
-        return all(_host_allowed(domains.normalize_host(a.rpartition("@")[2]), allowed) for a in addrs)
+        return all(a.strip().lower() in known or _host_allowed(domains.normalize_host(a.rpartition("@")[2]), allowed)
+                   for a in addrs)
     return _host_allowed(domains.host_of(target), allowed)
 
 
@@ -199,7 +211,7 @@ def _balanced(action: str, target: str | None, origin: str, label: str, ctx: Use
             return _d("REQUIRE_APPROVAL", "E-FINANCIAL", "The outgoing text contains "
                       + ", ".join(sorted(k.lower().replace("_", " ") for k in kinds))
                       + " details. A person must check this before it goes anywhere.")
-    if action in RECIPIENT_ACTIONS and not _recipients_allowed(target, ctx.allowed_domains):
+    if action in RECIPIENT_ACTIONS and not _recipients_allowed(target, ctx.allowed_domains, ctx.allowed_addresses):
         return _d("REQUIRE_APPROVAL", "P4", f"The recipient ({target or 'none given'}) is not on your list of "
                                             "trusted addresses.")
     if label == "SUSPICIOUS" and action in CONSEQUENTIAL:
@@ -208,6 +220,12 @@ def _balanced(action: str, target: str | None, origin: str, label: str, ctx: Use
         return _d("REQUIRE_APPROVAL", "P6", "Deleting an email always needs your approval.")
     if action in P7_ALLOW:
         return _d("ALLOW", "P7", "This action only reads, drafts or keeps notes inside FactFlow, or protects you.")
+    if action == "send_reply" and ctx.auto_reply and label == "SAFE":
+        return _d("ALLOW", "P7-R", "A routine reply to someone you already write to, on a safe email, with no links "
+                                   "or sensitive details. You can undo it for a short while after it is queued.")
+    if action == "share_data" and ctx.auto_file and label == "SAFE":
+        return _d("ALLOW", "P7-F", "A file you marked shareable, requested by a verified sender you trust. You can "
+                                   "undo it for a short while after it is queued.")
     return _d("REQUIRE_APPROVAL", "P8", "No rule allows this action automatically, so a person must decide.")
 
 

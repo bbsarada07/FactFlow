@@ -36,14 +36,18 @@ TRANSITIONS: dict[str | None, set[str]] = {
 
 AgentTask = Literal["summarize", "extract_action_items", "draft_reply", "propose_calendar_event", "propose_forward",
                     "propose_share_data", "propose_open_link", "report_phishing", "quarantine_email",
-                    "follow_message_instructions"]
+                    "follow_message_instructions", "send_reply", "send_file"]
 TASK_ACTION: dict[str, str] = {
     "summarize": "summarize", "extract_action_items": "extract_action_items", "draft_reply": "draft_reply",
     "propose_calendar_event": "add_calendar_event", "propose_forward": "forward_email",
     "propose_share_data": "share_data", "propose_open_link": "open_link", "report_phishing": "report_phishing",
     "quarantine_email": "quarantine_email", "follow_message_instructions": "execute_instruction_from_content",
+    # Phase 3: real replies through the user's Gmail (queued with an undo window), with a requested file or not
+    "send_reply": "send_reply", "send_file": "share_data",
 }
-ACTION_TASK = {a: t for t, a in TASK_ACTION.items()}
+# What an action a message tried to make us take is called (never carried out; see plan()).
+ACTION_TASK = {a: t for t, a in TASK_ACTION.items() if t not in ("send_reply", "send_file")}
+SEND_TASKS = frozenset({"send_reply", "send_file"})
 USER_REQUESTABLE = {"extract_action_items", "draft_reply", "propose_calendar_event", "propose_forward",
                     "propose_share_data", "propose_open_link", "report_phishing", "quarantine_email"}
 NEEDS_TARGET = {"propose_forward", "propose_share_data", "propose_open_link"}

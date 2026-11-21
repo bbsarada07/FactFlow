@@ -60,7 +60,23 @@ class StandIns:
             c.status, c.verdict, c.confidence, c.claim_text = "complete", "FALSE", 0.92, c.raw_input
             await s.commit()
 
+    async def replier(self, system, user, **k):
+        """The reply writer: routine unless the email is about money; names a file if one is asked for."""
+        self.calls["replier"] = self.calls.get("replier", 0) + 1
+        if self.reply_override is not None:
+            return LLMResult(data=self.reply_override, model="stand-in", ms=1, tokens=1)
+        content = " ".join(re.findall(r"<untrusted_content[^>]*>(.*?)</untrusted_content>", user, re.DOTALL)).lower()
+        money = any(w in content for w in ("transfer", "payment", "rs ", "upi", "bank"))
+        wanted = re.search(r"send (?:me |us )?the ([a-z0-9 ]+?(?:report|deck|sheet|file|document))", content)
+        return LLMResult(data={"needs_reply": True, "routine": not money,
+                               "reply": "Hi, thanks for your email. I will take care of it. Tester",
+                               "file_request": wanted.group(1) if wanted else None,
+                               "reason": "about money" if money else "a routine work request"},
+                         model="stand-in", ms=1, tokens=1)
+
     def install(self, monkeypatch) -> None:
+        self.reply_override = None
+        monkeypatch.setattr("agents.reply_writer.call_nano", self.replier)
         monkeypatch.setattr("agents.inbox_pipeline.call_nano", self.reader)
         monkeypatch.setattr("agents.explainer.call_nano", self.explainer)
         monkeypatch.setattr("agents.inbox_pipeline.run_pipeline", self.factcheck)

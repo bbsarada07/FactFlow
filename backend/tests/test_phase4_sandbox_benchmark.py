@@ -22,7 +22,7 @@ from standins import OP
 
 
 def test_no_real_send_path_in_codebase():
-    """Grep the entire codebase to verify no real SMTP, sendmail, or external mail send API exists."""
+    """No SMTP, sendmail or third-party mail API anywhere; the only send is the Gmail API in shield/providers/gmail.py."""
     backend_path = BASE_DIR
     forbidden_tokens = [
         "smtplib.SMTP",
@@ -41,6 +41,8 @@ def test_no_real_send_path_in_codebase():
 
         content = py_file.read_text(encoding="utf-8", errors="ignore")
         for token in forbidden_tokens:
+            if token == "messages.send" and rel_str == "shield/providers/gmail.py":
+                continue  # the one real send: the user's own Gmail, reached only via services/mail_sender.py
             assert token not in content, f"Forbidden real send token '{token}' found in {rel_str}"
 
 

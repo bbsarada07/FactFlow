@@ -128,6 +128,14 @@ class Settings(BaseSettings):
     MAIL_FIRST_SYNC: int = 20  # on first connect, only the most recent messages
     MAIL_MAX_PER_SYNC: int = 50
     MAIL_AGENT_MAX_PER_MINUTE: int = 20
+    # Acting on mail (Phase 3). Every outgoing message waits MAIL_SEND_DELAY_SECONDS so it can be undone.
+    MAIL_SEND_DELAY_SECONDS: int = 120
+    MAIL_APPROVAL_TTL_HOURS: int = 72  # how long a "Needs you" item from the mail agent stays open
+    AUTO_REPLY_MAX_CHARS: int = 1200
+    MAX_FILE_BYTES: int = 10 * 1024 * 1024  # files in "My files" that the agent may send
+    MAX_FILES_PER_USER: int = 50
+    MAIL_SENT_SCAN_PER_SYNC: int = 20  # sent messages checked for leaks per sync
+    DIGEST_HOURS: int = 24
 
     # Allow-listed URLs for user-facing "checks to do" (never model-generated)
     GOOGLE_SEARCH_URL: str = "https://www.google.com/search?q="

@@ -29,13 +29,14 @@ def approvals_enabled() -> bool:
         return False
 
 
-def approvals() -> SqlApprovals | None:
-    """The approval store, or None when APPROVAL_SECRET is missing or too short (approvals off)."""
+def approvals(ttl_seconds: int | None = None) -> SqlApprovals | None:
+    """The approval store, or None when APPROVAL_SECRET is missing or too short (approvals off). `ttl_seconds`
+    overrides how long new approvals stay open (the mail agent's "Needs you" items wait for days, not minutes)."""
     if not approvals_enabled():
         return None
     cfg = policy_store().get()
     return SqlApprovals(connection.session_factory(), settings.APPROVAL_SECRET, audit=audit(),
-                        ttl_seconds=cfg.approval_ttl_seconds)
+                        ttl_seconds=ttl_seconds or cfg.approval_ttl_seconds)
 
 
 def policy_store() -> PolicyStore:

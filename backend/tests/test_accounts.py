@@ -366,7 +366,31 @@ def test_every_data_route_refuses_anonymous_requests(env):
         ("GET", "/api/mail/tasks"), ("GET", "/api/mail/outbox"), ("GET", "/api/approvals"), ("GET", "/api/audit"),
         ("GET", "/api/audit/verify"), ("GET", "/api/policy"), ("PUT", "/api/policy/mode"),
         ("GET", "/api/sandbox/outbox"), ("GET", "/api/benchmark/latest"), ("GET", "/api/account/extension-tokens"),
+        ("GET", "/api/agent/files"), ("GET", "/api/agent/outgoing"), ("GET", "/api/agent/alerts"),
+        ("GET", "/api/agent/settings"), ("GET", "/api/agent/needs-you"), ("POST", "/api/agent/compose/check"),
+        ("DELETE", "/api/account"),
     ]:
         assert c.request(method, path, json={}).status_code == 401, (method, path)
     for path in ("/health", "/api/config", "/api/accuracy"):
         assert c.get(path).status_code == 200, path
+
+
+def test_files_outgoing_alerts_and_agent_settings_are_private(env):
+    import base64
+
+    a = sign_in(env, "files-a@example.com")
+    b = sign_in(env, "files-b@example.com")
+    made = a.post("/api/agent/files", json={"filename": "payroll.xlsx", "data_base64": base64.b64encode(b"x").decode(),
+                                            "shareable": True})
+    assert made.status_code == 201
+    fid = made.json()["id"]
+    assert [f["id"] for f in a.get("/api/agent/files").json()["items"]] == [fid]
+    assert b.get("/api/agent/files").json()["items"] == []
+    assert b.patch(f"/api/agent/files/{fid}", json={"shareable": False}).status_code == 404
+    assert b.delete(f"/api/agent/files/{fid}").status_code == 404
+    # B cannot attach A's file to a message
+    assert b.post("/api/agent/compose/check", json={"to": "x@y.com", "body": "hi", "file_ids": [fid]}).status_code == 404
+    assert a.put("/api/agent/settings", json={"autonomy": "drafts"}).json()["autonomy"] == "drafts"
+    assert b.get("/api/agent/settings").json()["autonomy"] == "auto"
+    assert b.get("/api/agent/outgoing").json()["items"] == [] and b.get("/api/agent/alerts").json()["items"] == []
+    assert b.post("/api/agent/outgoing/not-yours/cancel").status_code == 404

@@ -1,9 +1,12 @@
-"""GmailApiProvider: read-only Gmail access over the Gmail REST API (Addendum v2, A2.1).
+"""GmailApiProvider: the user's Gmail over the Gmail REST API.
 
-* The only OAuth scope is gmail.readonly. A token that comes back with any other scope is
-  refused. Even a fully fooled agent therefore cannot send, delete or change mail.
-* Every Gmail API call is a GET. Messages are fetched with format=raw and handed to the same
-  RFC 822 parser as uploaded mail.
+* Scopes are an explicit allowlist: gmail.readonly, gmail.send and gmail.modify (labels and archiving).
+  Anything broader (for example full mail access, which can permanently delete) is refused and revoked.
+  A token with read access only still works: the agent then reads and checks but cannot send or label.
+* Reading is GETs. The only writes are in one section below: sending a message (messages.send), changing
+  labels on one message (messages.modify) and creating FactFlow's own labels. There is no delete or trash call.
+  The mail agent reaches them only after the policy engine allowed the step (services/mail_agent.py).
+* Messages are fetched with format=raw and handed to the same RFC 822 parser as uploaded mail.
 * OAuth uses the authorization-code flow with a state value and PKCE (S256). The client secret
   and tokens are passed in by the caller; this module never logs or stores them.
 
@@ -26,6 +29,24 @@ import httpx
 from shield.providers.base import ProviderAuthError, ProviderTemporaryError, RawMessageRef
 
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
+GMAIL_MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
+# What FactFlow asks for, and the only scopes it accepts back. gmail.modify includes reading.
+REQUESTED_SCOPES = (GMAIL_MODIFY_SCOPE, GMAIL_SEND_SCOPE)
+ALLOWED_SCOPES = frozenset({GMAIL_READONLY_SCOPE, GMAIL_SEND_SCOPE, GMAIL_MODIFY_SCOPE})
+
+
+def can_read(scope: str | None) -> bool:
+    granted = set((scope or "").split())
+    return bool(granted & {GMAIL_READONLY_SCOPE, GMAIL_MODIFY_SCOPE})
+
+
+def can_send(scope: str | None) -> bool:
+    return bool(set((scope or "").split()) & {GMAIL_SEND_SCOPE, GMAIL_MODIFY_SCOPE})
+
+
+def can_label(scope: str | None) -> bool:
+    return GMAIL_MODIFY_SCOPE in set((scope or "").split())
 AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke"
@@ -36,7 +57,7 @@ TIMEOUT = httpx.Timeout(15.0, connect=5.0)
 
 
 class ScopeError(Exception):
-    """Google granted a scope other than gmail.readonly; the token is not accepted. `token` is
+    """Google granted a scope outside ALLOWED_SCOPES (or no read access); the token is not accepted. `token` is
     the token that was issued, so the caller can revoke it (it is never stored)."""
 
     def __init__(self, message: str, token: str | None = None) -> None:
@@ -67,10 +88,10 @@ def pkce_pair() -> tuple[str, str]:
 
 
 def authorization_url(client: OAuthClient, state: str, code_challenge: str, login_hint: str | None = None) -> str:
-    """Google consent screen URL asking for gmail.readonly only, with offline access."""
+    """Google consent screen URL asking for read, send and label access (REQUESTED_SCOPES), with offline access."""
     params = {
         "client_id": client.client_id, "redirect_uri": client.redirect_uri, "response_type": "code",
-        "scope": GMAIL_READONLY_SCOPE, "access_type": "offline", "prompt": "consent", "state": state,
+        "scope": " ".join(REQUESTED_SCOPES), "access_type": "offline", "prompt": "consent", "state": state,
         "code_challenge": code_challenge, "code_challenge_method": "S256",
     }
     if login_hint:
@@ -80,14 +101,14 @@ def authorization_url(client: OAuthClient, state: str, code_challenge: str, logi
 
 def _token_set(data: dict, previous_refresh: str | None = None) -> TokenSet:
     granted = set((data.get("scope") or "").split())
-    if granted != {GMAIL_READONLY_SCOPE}:
-        raise ScopeError("Google granted scopes other than gmail.readonly; FactFlow only accepts read-only access.",
+    if not granted <= ALLOWED_SCOPES or not can_read(" ".join(granted)):
+        raise ScopeError("Google granted access FactFlow does not accept (only reading, sending and labels are allowed).",
                          token=data.get("refresh_token") or data.get("access_token"))
     return TokenSet(
         access_token=data["access_token"],
         expires_at=datetime.now(timezone.utc) + timedelta(seconds=int(data.get("expires_in", 3600)) - 60),
         refresh_token=data.get("refresh_token") or previous_refresh,
-        scope=GMAIL_READONLY_SCOPE,
+        scope=" ".join(sorted(granted)),
     )
 
 
@@ -111,7 +132,8 @@ async def exchange_code(client: OAuthClient, code: str, code_verifier: str,
     return _token_set(resp.json())
 
 
-async def refresh(client: OAuthClient, refresh_token: str, transport: httpx.AsyncBaseTransport | None = None) -> TokenSet:
+async def refresh(client: OAuthClient, refresh_token: str, transport: httpx.AsyncBaseTransport | None = None,
+                  previous_scope: str | None = None) -> TokenSet:
     """New access token. An expired or revoked refresh token raises ProviderAuthError (reconnect)."""
     resp = await _post_form(TOKEN_ENDPOINT, {
         "client_id": client.client_id, "client_secret": client.client_secret,
@@ -122,7 +144,7 @@ async def refresh(client: OAuthClient, refresh_token: str, transport: httpx.Asyn
     if resp.status_code != 200:
         raise ProviderTemporaryError(f"Google token endpoint answered {resp.status_code}")
     data = resp.json()
-    data.setdefault("scope", GMAIL_READONLY_SCOPE)
+    data.setdefault("scope", previous_scope or GMAIL_READONLY_SCOPE)
     return _token_set(data, previous_refresh=refresh_token)
 
 
@@ -157,7 +179,7 @@ class TokenSource(Protocol):
 
 
 class GmailApiProvider:
-    """Read-only Gmail provider. All requests are GETs to the Gmail API."""
+    """The user's Gmail: reads are GETs; the only writes are send, modify labels and create a label (below)."""
 
     name = "gmail"
 
@@ -167,12 +189,15 @@ class GmailApiProvider:
         self.first_sync, self.max_per_sync = first_sync, max_per_sync
 
     async def _get(self, path: str, params: dict | None = None) -> dict:
+        return await self._call("GET", path, params=params)
+
+    async def _call(self, method: str, path: str, params: dict | None = None, body: dict | None = None) -> dict:
         for attempt in range(2):
             token = await (self.tokens.access_token() if attempt == 0 else self.tokens.force_refresh())
             try:
                 async with httpx.AsyncClient(transport=self.transport, timeout=TIMEOUT, trust_env=False) as http:
-                    resp = await http.get(f"{GMAIL_API}{path}", params=params or {},
-                                          headers={"Authorization": f"Bearer {token}"})
+                    resp = await http.request(method, f"{GMAIL_API}{path}", params=params or {}, json=body,
+                                              headers={"Authorization": f"Bearer {token}"})
             except httpx.HTTPError as exc:
                 raise ProviderTemporaryError(f"could not reach Gmail ({type(exc).__name__})") from exc
             if resp.status_code == 401 and attempt == 0:
@@ -183,7 +208,7 @@ class GmailApiProvider:
                 raise ProviderTemporaryError(f"Gmail answered {resp.status_code}")
             if resp.status_code != 200:
                 raise ProviderTemporaryError(f"Gmail answered {resp.status_code} ({_error_code(resp)})")
-            return resp.json()
+            return resp.json() if resp.content else {}
         raise ProviderAuthError("Gmail refused access after a token refresh")
 
     async def profile(self) -> dict:
@@ -211,3 +236,38 @@ class GmailApiProvider:
             return base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
         except (binascii.Error, ValueError) as exc:
             raise ProviderTemporaryError("Gmail returned a message that could not be decoded") from exc
+
+    async def list_sent(self, since: datetime | None, limit: int = 20) -> list[RawMessageRef]:
+        """Messages the user sent after `since` (or the latest `limit`), oldest first."""
+        params = {"maxResults": limit, "labelIds": "SENT"}
+        if since is not None:
+            params["q"] = f"after:{int(since.timestamp())}"
+        data = await self._get("/messages", params)
+        items = data.get("messages") or []
+        return [RawMessageRef(self.name, m["id"], None, m.get("threadId")) for m in reversed(items) if m.get("id")]
+
+    # ------------------------------------------------------------------ writes (the only ones there are)
+
+    async def send(self, raw: bytes, thread_id: str | None = None) -> dict:
+        """Send one RFC 822 message (users.messages.send). Returns Gmail's {id, threadId}."""
+        body = {"raw": base64.urlsafe_b64encode(raw).decode("ascii")}
+        if thread_id:
+            body["threadId"] = thread_id
+        return await self._call("POST", "/messages/send", body=body)
+
+    async def modify_labels(self, message_id: str, add: list[str] = (), remove: list[str] = ()) -> dict:
+        """Add or remove labels on one message (users.messages.modify). Removing INBOX archives it."""
+        if not message_id.replace("-", "").replace("_", "").isalnum():
+            raise ValueError("invalid Gmail message id")
+        return await self._call("POST", f"/messages/{message_id}/modify",
+                                body={"addLabelIds": list(add), "removeLabelIds": list(remove)})
+
+    async def label_id(self, name: str) -> str:
+        """The id of a user label called `name`, creating it if it does not exist."""
+        data = await self._get("/labels")
+        for label in data.get("labels") or []:
+            if label.get("name") == name:
+                return label["id"]
+        created = await self._call("POST", "/labels", body={
+            "name": name, "labelListVisibility": "labelShow", "messageListVisibility": "show"})
+        return created["id"]

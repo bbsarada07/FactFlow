@@ -24,6 +24,8 @@ from services.token_crypto import decrypt, encrypt, fernet
 from shield.providers.base import ProviderAuthError, ProviderTemporaryError
 from shield.providers.gmail import (
     GMAIL_READONLY_SCOPE,
+    can_label,
+    can_send,
     GmailApiProvider,
     OAuthClient,
     ScopeError,
@@ -148,7 +150,7 @@ async def finish_connect(state: str, code: str, user_id: str) -> dict:
         row.email_address = address
         row.status, row.connected_at, row.last_error, row.sync_cursor = "connected", utcnow(), None, None
         await s.commit()
-    await shield_runtime.audit().append("agent:mail", "mail_connected", {"provider": PROVIDER, "scope": GMAIL_READONLY_SCOPE},
+    await shield_runtime.audit().append("agent:mail", "mail_connected", {"provider": PROVIDER, "scope": tokens.scope},
                                         user_id=user_id)
     return await status(user_id)
 
@@ -191,10 +193,28 @@ async def status(user_id: str) -> dict:
     if row is None:
         return {"provider": PROVIDER, "configured": configured, "status": "disconnected", "email_address": None,
                 "connected_at": None, "last_sync_at": None, "last_error": None, "reconnect_required": False,
-                "scope": GMAIL_READONLY_SCOPE}
+                "scope": None, "can_send": False, "can_label": False, "needs_upgrade": False}
+    connected = row.status == "connected"
+    sends, labels = can_send(row.scope), can_label(row.scope)
     return {"provider": PROVIDER, "configured": configured, "status": row.status, "email_address": row.email_address,
             "connected_at": iso(row.connected_at), "last_sync_at": iso(row.last_sync_at), "last_error": row.last_error,
-            "reconnect_required": row.status == "reconnect_required", "scope": GMAIL_READONLY_SCOPE}
+            "reconnect_required": row.status == "reconnect_required", "scope": row.scope,
+            "can_send": connected and sends, "can_label": connected and labels,
+            # connected before FactFlow could act: reconnect once to allow replies and labels
+            "needs_upgrade": connected and not (sends and labels)}
+
+
+async def scope(user_id: str) -> str | None:
+    """The scopes this user's connected Gmail granted (None when not connected)."""
+    async with connection.session_factory()() as s:
+        row = await _account(s, user_id)
+    return row.scope if row is not None and row.status == "connected" else None
+
+
+async def address(user_id: str) -> str | None:
+    async with connection.session_factory()() as s:
+        row = await _account(s, user_id)
+    return row.email_address if row is not None else None
 
 
 class _StaticTokens:
@@ -217,6 +237,7 @@ class StoredTokens:
         self.user_id = user_id
 
     async def _row_tokens(self) -> tuple[str | None, datetime | None, str | None]:
+        self.scope = None
         f = fernet()
         if f is None:
             raise ProviderAuthError("TOKEN_ENCRYPTION_KEY is missing or changed")
@@ -227,6 +248,7 @@ class StoredTokens:
             expires = row.access_token_expires_at
             if expires is not None and expires.tzinfo is None:
                 expires = expires.replace(tzinfo=timezone.utc)
+            self.scope = row.scope
             return decrypt(f, row.access_token_enc), expires, decrypt(f, row.refresh_token_enc)
 
     async def access_token(self) -> str:
@@ -241,7 +263,7 @@ class StoredTokens:
             await mark(self.user_id, "reconnect_required", "no refresh token is stored")
             raise ProviderAuthError("Gmail needs to be reconnected")
         try:
-            tokens = await refresh(oauth_client(), refresh_token, transport=HTTP_TRANSPORT)
+            tokens = await refresh(oauth_client(), refresh_token, transport=HTTP_TRANSPORT, previous_scope=self.scope)
         except (ProviderAuthError, ScopeError, GmailSetupError) as exc:
             await mark(self.user_id, "reconnect_required", str(exc))
             logger.warning("Gmail access expired or was revoked; reconnect required")
@@ -291,3 +313,19 @@ async def record_sync(user_id: str, new_cursor: datetime | None, error: str | No
         if row.status == "connected":
             row.last_error = error
         await s.commit()
+
+
+async def sent_cursor(user_id: str) -> datetime | None:
+    async with connection.session_factory()() as s:
+        row = await _account(s, user_id)
+    if row is None or row.sent_cursor is None:
+        return None
+    return row.sent_cursor if row.sent_cursor.tzinfo else row.sent_cursor.replace(tzinfo=timezone.utc)
+
+
+async def record_sent_scan(user_id: str, new_cursor: datetime) -> None:
+    async with connection.session_factory()() as s:
+        row = await _account(s, user_id)
+        if row is not None:
+            row.sent_cursor = new_cursor
+            await s.commit()

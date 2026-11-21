@@ -2,8 +2,14 @@
 through the state machine, gate every step with the policy engine, and resume tasks when a human
 decides an approval.
 
-Effects stay inside FactFlow: notes on the task, flags on the email row, and the simulated outbox.
-There is no code path that sends, deletes or modifies real mail.
+Effects (Phase 3):
+* notes on the task and flags on the email row (always);
+* for a connected Gmail: replies, and files from My files, queued in services/mail_sender.py with an undo
+  window and sent through the user's own Gmail; FactFlow labels, and quarantine (label + out of the inbox) for
+  dangerous mail. Nothing is ever deleted.
+* for the demo inbox: the same steps land in the simulated outbox instead.
+A step that sends anything runs only when the policy engine allows it (P7-R / P7-F, set only by the
+deterministic checks in _plan_reply) or after the user approved it.
 
 Everything is per user: each user has their own Gmail connection, demo inbox, policy, rate limit, tasks,
 approvals and outbox. Every function that reads or changes a task takes the owner's user_id and treats a task
@@ -21,12 +27,16 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from agents import reply_writer
 from agents.inbox_pipeline import InboxOptions, analyze
 from config import BASE_DIR, settings
 from database import connection
-from database.models import Email, MailTask, ShieldApproval, SimulatedOutbox, iso, utcnow
-from services import gmail_account, runtime_settings, shield_runtime
+from database.models import AgentAlert, Email, MailTask, OutgoingMail, ShieldApproval, SimulatedOutbox, User, iso, utcnow
+from models.groq_client import LLMError
+from services import files, gmail_account, mail_sender, runtime_settings, shield_runtime
 from shield import mail_agent as rules
+from shield import outgoing
+from shield.providers.gmail import can_label, can_send
 
 from shield.email_parser import EmailInputError, parse_input
 from shield.mail_agent import Step
@@ -119,12 +129,42 @@ async def _verdict(s, email_id: str | None) -> UnifiedVerdict | None:
 # ---------------------------------------------------------------------------- policy
 
 
-def _decide(step: Step, v: UnifiedVerdict, cfg: PolicyConfig) -> PolicyDecision:
-    user_values = (step.target,) if step.requested_by == "user" and step.target else ()
-    content = rules.draft_reply_text(v) if step.task == "draft_reply" else None
-    return decide(step.action, step.target, step.origin, v.overall.label,
-                  UserContext(allowed_domains=cfg.allowed_domains, user_values=user_values),
+def _decide(step: Step, v: UnifiedVerdict, cfg: PolicyConfig, contacts: tuple[str, ...] = ()) -> PolicyDecision:
+    # A reply goes to the sender of this email (never a Reply-To that differs, see _plan_reply): replying to who
+    # wrote is the user's own intent, so that one address counts as user-authorised.
+    sends = step.task in rules.SEND_TASKS
+    user_values = (step.target,) if (step.requested_by == "user" or sends) and step.target else ()
+    if step.task == "draft_reply":
+        content = rules.draft_reply_text(v)
+    elif sends:
+        content = step.result.get("draft") or ""
+    else:
+        content = None
+    ctx = UserContext(allowed_domains=cfg.allowed_domains, user_values=user_values, allowed_addresses=contacts,
+                      auto_reply=sends and bool(step.result.get("auto_reply")),
+                      auto_file=sends and bool(step.result.get("auto_file")))
+    return decide(step.action, step.target, step.origin, v.overall.label, ctx,
                   mode=cfg.mode, signals=Signals.from_verdict(v), content=content)
+
+
+def _reply_subject(subject: str) -> str:
+    subject = (subject or "").strip()
+    return subject if subject.lower().startswith("re:") else f"Re: {subject}" if subject else "Re: your message"
+
+
+async def _gmail_labels(task: MailTask, add: list[str], remove: list[str] = ()) -> dict:
+    """Apply FactFlow labels in the user's Gmail (best effort; never fails the task)."""
+    if task.provider != "gmail":
+        return {"labels": "demo inbox: nothing changed"}
+    try:
+        if not can_label(await gmail_account.scope(task.user_id)):
+            return {"labels": "not applied: reconnect Gmail to let FactFlow label mail"}
+        provider = await gmail_account.provider(task.user_id)
+        ids = [await provider.label_id(name) for name in add]
+        await provider.modify_labels(task.message_id, add=ids, remove=list(remove))
+        return {"labels": add, "removed": list(remove)}
+    except Exception as exc:  # noqa: BLE001 - labelling is a convenience; the verdict stands without it
+        return {"labels": f"not applied ({type(exc).__name__})"}
 
 
 async def _execute(s, task: MailTask, steps: list[Step], step: Step, v: UnifiedVerdict,
@@ -147,9 +187,32 @@ async def _execute(s, task: MailTask, steps: list[Step], step: Step, v: UnifiedV
         email = await s.get(Email, task.email_id)
         if step.task == "report_phishing":
             email.reported_phishing = True
+            step.result = {"flag": step.task, **await _gmail_labels(task, ["FactFlow/Phishing"])}
         else:
             email.quarantined = True
-        step.result = {"flag": step.task, "where": "FactFlow only; the mailbox was not changed"}
+            # Quarantine: labelled and taken out of the inbox (archived). Never deleted.
+            step.result = {"flag": step.task, **await _gmail_labels(task, ["FactFlow/Quarantine"], ["INBOX"])}
+    elif step.task in rules.SEND_TASKS:
+        subject = _reply_subject(v.message.subject if v.message else "")
+        body = step.result.get("draft") or ""
+        file_ids = [step.result["file_id"]] if step.task == "send_file" and step.result.get("file_id") else []
+        if step.task == "send_file" and not file_ids:
+            raise PermissionError("no file was chosen for this request")
+        if task.provider == "gmail":
+            out = await mail_sender.enqueue(
+                task.user_id, to=step.target, subject=subject, body=body, file_ids=file_ids,
+                origin="approved" if approved_by else "agent", thread_id=task.thread_id,
+                in_reply_to=task.rfc_message_id, task_id=task.id, step_id=step.id)
+            step.result = {**step.result, "outgoing_id": out.id, "send_at": iso(out.send_at),
+                           "note": "Queued in your Gmail outbox; you can undo it until it is sent."}
+        else:
+            entry = SimulatedOutbox(user_id=task.user_id, task_id=task.id, step_id=step.id, email_id=task.email_id,
+                                    kind="share_data" if file_ids else "reply", target=step.target, subject=subject[:500],
+                                    approved_by=approved_by, body_preview=body[:500])
+            s.add(entry)
+            await s.flush()
+            step.result = {**step.result, "outbox_id": entry.id, "simulated": True,
+                           "note": "Demo inbox: simulated, nothing was sent."}
     elif step.task in rules.OUTBOX_KIND:
         subject = v.message.subject if v.message else ""
         entry = SimulatedOutbox(user_id=task.user_id, task_id=task.id, step_id=step.id, email_id=task.email_id,
@@ -172,12 +235,13 @@ async def _execute(s, task: MailTask, steps: list[Step], step: Step, v: UnifiedV
 
 async def _gate(s, task: MailTask, steps: list[Step], v: UnifiedVerdict) -> None:
     """Policy-check planned steps, then execute, park for approval, or block each one."""
-    store = shield_runtime.approvals()
+    store = shield_runtime.approvals(ttl_seconds=settings.MAIL_APPROVAL_TTL_HOURS * 3600)
     cfg = await runtime_settings.policy_for(task.user_id)
+    contacts = tuple(sorted(await mail_sender.known_contacts(task.user_id)))
     for step in steps:
         if step.status != "planned":
             continue
-        step.policy = _decide(step, v, cfg)
+        step.policy = _decide(step, v, cfg, contacts)
         await shield_runtime.audit().append("policy", "policy_decision", {
             "email_id": task.email_id, "task_id": task.id, "step_id": step.id, "action": step.action,
             "target": step.target, "origin": step.origin, "decision": step.policy.decision,
@@ -200,7 +264,10 @@ async def _gate(s, task: MailTask, steps: list[Step], v: UnifiedVerdict) -> None
                 rule_id=step.policy.rule_id, reason=step.policy.reason,
                 evidence={"task": step.task, "label": v.overall.label, "llm_state": v.llm_status.state,
                           "hidden_text": [d.text[:200] for d in v.visible_vs_raw.diff[:3]],
-                          "attempted_actions": [a.model_dump() for a in v.components.injection.attempted_actions]})
+                          "attempted_actions": [a.model_dump() for a in v.components.injection.attempted_actions],
+                          "subject": (v.message.subject if v.message else "")[:200],
+                          "draft": (step.result.get("draft") or "")[:4000] if step.task in rules.SEND_TASKS else None,
+                          "filename": step.result.get("filename"), "why_not_automatic": step.result.get("why_not", [])})
             step.status, step.approval_id = "awaiting_approval", approval.id
     _put_steps(task, steps)
     await _settle(s, task, steps)
@@ -210,6 +277,8 @@ async def _settle(s, task: MailTask, steps: list[Step]) -> None:
     state = rules.state_after_policy(steps)
     if task.state != state:
         await _transition(task, state, s, steps=[{"task": x.task, "status": x.status} for x in steps])
+        if state == "AWAITING_APPROVAL":
+            await _gmail_labels(task, ["FactFlow/Needs you"])
     if state != "AWAITING_APPROVAL":
         await _transition(task, "DONE", s)
 
@@ -229,6 +298,71 @@ async def _owned_task(s, task_id: str, user_id: str) -> MailTask | None:
     return task if task is not None and task.user_id == user_id else None
 
 
+async def _plan_reply(task: MailTask, v: UnifiedVerdict) -> Step | None:
+    """A reply (with a requested file, if one clearly matches) and whether it may go out on its own.
+
+    The decision is made here from structured facts only (settings, verdict, sender, contacts, file metadata);
+    the drafted text is checked by rules (reply_writer.checks). The policy engine still decides the step."""
+    m, notes = v.message, v.reader_notes
+    if m is None or not m.has_headers or notes is None or not notes.reply_requested or v.overall.label == "DANGEROUS":
+        return None
+    agent = await runtime_settings.agent_settings(task.user_id)
+    if agent["autonomy"] == "off":
+        return None
+    sender = (m.from_addr or "").strip().lower()
+    if "@" not in sender or outgoing.is_automated_sender(sender):
+        return None
+    async with connection.session_factory()() as s:
+        user = await s.get(User, task.user_id)
+    try:
+        d = await reply_writer.draft(v.visible_vs_raw.visible_text, m.subject, m.from_display, user.name if user else None,
+                                     user.email if user else "me@example.com")
+    except LLMError:
+        return None
+    if not d.needs_reply or not d.reply:
+        return None
+
+    cfg = await runtime_settings.policy_for(task.user_id)
+    contacts = await mail_sender.known_contacts(task.user_id)
+    a = v.components.authenticity
+    domain = sender.rpartition("@")[2]
+    trusted_domain = any(domain == x or domain.endswith("." + x) for x in cfg.allowed_domains)
+    why_not = []
+    if agent["autonomy"] != "auto":
+        why_not.append("your agent is set to drafts only")
+    if task.provider == "gmail" and not can_send(await gmail_account.scope(task.user_id)):
+        why_not.append("Gmail is connected without permission to send (reconnect in Settings)")
+    if v.overall.label != "SAFE":
+        why_not.append(f"the email is {v.overall.label}")
+    if Signals.from_verdict(v).any():
+        why_not.append("the email raised warning signs: " + "; ".join(Signals.from_verdict(v).describe()))
+    if a.reply_to_mismatch or (m.reply_to and m.reply_to.strip().lower() != sender):
+        why_not.append("replies are redirected to a different address")
+    if a.lookalikes:
+        why_not.append("the sender's domain imitates another")
+    if sender not in contacts and not trusted_domain:
+        why_not.append("you have not written to this sender before")
+    if not d.routine:
+        why_not.append("the request is not routine" + (f" ({d.reason})" if d.reason else ""))
+    why_not += [f"the draft failed a check: {p}" for p in d.problems]
+
+    result = {"draft": d.reply, "routine": d.routine, "reason": d.reason, "problems": list(d.problems),
+              "file_request": d.file_request}
+    if d.file_request:
+        match = await files.match(task.user_id, d.file_request)
+        result.update(candidates=match.candidates, match_reason=match.reason)
+        if match.file is not None:
+            if not match.file.shareable:
+                why_not.append(f"{match.file.filename} is not marked OK to share")
+            if not (a.dkim == "pass" and a.dmarc == "pass"):
+                why_not.append("the sender's identity is not verified (DKIM and DMARC must pass to send a file)")
+            result.update(file_id=match.file.id, filename=match.file.filename, auto_file=not why_not, why_not=why_not)
+            return rules.new_step("send_file", target=sender).model_copy(update={"result": result})
+        why_not.append(f"the email asks for a file, but {match.reason}")
+    result.update(auto_reply=not why_not, why_not=why_not)
+    return rules.new_step("send_reply", target=sender).model_copy(update={"result": result})
+
+
 async def process(user_id: str, provider: MailProvider, ref: RawMessageRef, *, source: str | None = None,
                   use_llm: bool | None = None) -> str | None:
     """Run one new message of `user_id` through the whole state machine. Returns the task id (None if another
@@ -237,6 +371,7 @@ async def process(user_id: str, provider: MailProvider, ref: RawMessageRef, *, s
     mode = (await runtime_settings.policy_for(user_id)).mode
     async with connection.session_factory()() as s:
         task = MailTask(user_id=user_id, provider=provider.name, message_id=ref.message_id, state="FETCHED",
+                        thread_id=getattr(ref, "thread_id", None),
                         policy_mode=mode, transitions=[{"state": "FETCHED", "at": utcnow().isoformat()}])
         s.add(task)
         try:
@@ -261,6 +396,7 @@ async def process(user_id: str, provider: MailProvider, ref: RawMessageRef, *, s
         s.add(email)
         await s.flush()
         task.email_id = email.id
+        task.rfc_message_id = (pe.message_id or "")[:500] or None
         await _transition(task, "PARSED", s, has_headers=pe.has_headers, attachments=len(pe.attachments))
 
         llm = settings.INBOX_USE_LLM if use_llm is None else use_llm
@@ -276,6 +412,9 @@ async def process(user_id: str, provider: MailProvider, ref: RawMessageRef, *, s
         await _transition(task, "SCANNED", s, label=verdict.overall.label, score=verdict.overall.score,
                           llm_state=verdict.llm_status.state)
         steps = rules.plan(verdict)
+        reply = await _plan_reply(task, verdict)
+        if reply is not None:
+            steps = [x for x in steps if x.task != "draft_reply"] + [reply]  # the real reply replaces the note
         _put_steps(task, steps)
         await _transition(task, "PLANNED", s, steps=[{"task": x.task, "requested_by": x.requested_by} for x in steps])
         await _gate(s, task, steps, verdict)
@@ -371,8 +510,9 @@ async def task_for_approval(approval: Approval, user_id: str) -> dict | None:
     return await task_view(task_id, user_id) if task_id else None
 
 
-async def on_approval_decided(approval: Approval) -> None:
-    """Resume the task that waits on `approval`: run the step if approved, end it otherwise."""
+async def on_approval_decided(approval: Approval, edited_text: str | None = None) -> None:
+    """Resume the task that waits on `approval`: run the step if approved (with the user's edited reply text,
+    if they changed it), end it otherwise."""
     task_id = await _task_id_for(approval)
     if task_id is None:
         return
@@ -384,6 +524,8 @@ async def on_approval_decided(approval: Approval) -> None:
             return
         if approval.status == "approved":
             v = await _verdict(s, task.email_id)
+            if edited_text is not None and step.task in rules.SEND_TASKS:
+                step.result = {**step.result, "draft": edited_text[:5000], "edited": True}
             await _execute(s, task, steps, step, v, approved_by=approval.decided_by)
         else:
             step.status = "denied" if approval.status == "denied" else "expired"
@@ -406,7 +548,7 @@ async def expire_due() -> int:
         for r in due:
             r.status = "expired"
         await s.commit()
-    store = shield_runtime.approvals()
+    store = shield_runtime.approvals(ttl_seconds=settings.MAIL_APPROVAL_TTL_HOURS * 3600)
     for r in due:
         approval = await store.get(r.id) if store else None
         if approval is not None:
@@ -470,6 +612,83 @@ async def clear_outbox(user_id: str) -> int:
         return res.rowcount or 0
 
 
+async def scan_sent(user_id: str, provider) -> int:
+    """Learn who the user writes to, and warn about leaks in mail they sent from Gmail. The first scan after
+    connecting only learns contacts (no alerts about old mail). Returns how many sent messages were checked."""
+    from shield.email_parser import parse_input
+
+    since = await gmail_account.sent_cursor(user_id)
+    started = datetime.now(timezone.utc)
+    refs = await provider.list_sent(since, limit=50 if since is None else settings.MAIL_SENT_SCAN_PER_SYNC)
+    async with connection.session_factory()() as s:
+        ours = set((await s.scalars(select(OutgoingMail.provider_message_id).where(
+            OutgoingMail.user_id == user_id, OutgoingMail.provider_message_id.is_not(None)))).all())
+    known = await mail_sender.known_contacts(user_id)
+    checked = 0
+    for ref in refs:
+        try:
+            pe = parse_input(await provider.fetch_raw(ref.message_id), "gmail")
+        except Exception:  # noqa: BLE001 - one unreadable message must not stop the scan
+            continue
+        recipients = outgoing.addresses(" ".join(pe.to))
+        if since is not None and ref.message_id not in ours:
+            findings = outgoing.check(pe.text_plain or "", recipients, known)
+            if findings:
+                async with connection.session_factory()() as s:
+                    s.add(AgentAlert(user_id=user_id, kind="sent_leak",
+                                     title=f"Check the email you sent: {(pe.subject or '(no subject)')[:120]}",
+                                     detail={"to": recipients[:5], "findings": [f.to_dict() for f in findings],
+                                             "gmail_id": ref.message_id}))
+                    await s.commit()
+        for addr in recipients:
+            await mail_sender.add_contact(user_id, addr, "sent")
+        checked += 1
+    await gmail_account.record_sent_scan(user_id, started - CURSOR_OVERLAP)
+    return checked
+
+
+async def digest_counts(user_id: str, since: datetime) -> dict:
+    from sqlalchemy import func
+
+    async with connection.session_factory()() as s:
+        tasks = (await s.scalars(select(MailTask).where(MailTask.user_id == user_id, MailTask.created_at >= since))).all()
+        pending = await s.scalar(select(func.count()).select_from(ShieldApproval).where(
+            ShieldApproval.user_id == user_id, ShieldApproval.status == "pending")) or 0
+        sent = await s.scalar(select(func.count()).select_from(OutgoingMail).where(
+            OutgoingMail.user_id == user_id, OutgoingMail.status == "sent", OutgoingMail.sent_at >= since)) or 0
+    blocked = sum(1 for t in tasks for x in (t.steps or []) if x.get("status") == "blocked")
+    quarantined = sum(1 for t in tasks for x in (t.steps or []) if x.get("task") == "quarantine_email" and x.get("status") == "executed")
+    return {"checked": len(tasks), "needs_you": pending, "sent": sent, "blocked": blocked, "quarantined": quarantined}
+
+
+async def maybe_send_digest(user_id: str) -> bool:
+    """Once a day: a short summary to the user's own inbox (only when something happened)."""
+    agent = await runtime_settings.agent_settings(user_id)
+    if not agent["digest_enabled"] or not can_send(await gmail_account.scope(user_id)):
+        return False
+    now = datetime.now(timezone.utc)
+    last = datetime.fromisoformat(agent["last_digest_at"]) if agent["last_digest_at"] else None
+    if last is not None and last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    if last is None:
+        await runtime_settings.mark_digest(user_id, now)  # start counting from the first day
+        return False
+    if now - last < timedelta(hours=settings.DIGEST_HOURS):
+        return False
+    c = await digest_counts(user_id, last)
+    await runtime_settings.mark_digest(user_id, now)
+    if not (c["checked"] or c["needs_you"] or c["sent"]):
+        return False
+    me = await gmail_account.address(user_id)
+    body = (f"Your FactFlow agent since yesterday:\n\n"
+            f"- {c['checked']} emails checked\n- {c['sent']} replies sent for you\n"
+            f"- {c['quarantined']} dangerous emails quarantined\n- {c['blocked']} risky actions blocked\n"
+            f"- {c['needs_you']} waiting for you\n\nOpen FactFlow to review: {settings.FRONTEND_URL.rstrip('/')}/shield/approvals")
+    await mail_sender.enqueue(user_id, to=me, subject="Your FactFlow daily digest", body=body, origin="digest",
+                              delay_seconds=0)
+    return True
+
+
 async def poll_once() -> int:
     """One pass: sync every user whose Gmail is connected and set as their inbox. Returns users synced.
     One user's failure never stops the others."""
@@ -479,6 +698,8 @@ async def poll_once() -> int:
             name, provider = await active_provider(user_id)
             if name == "gmail" and provider is not None:
                 await sync(user_id, provider)
+                await scan_sent(user_id, provider)
+                await maybe_send_digest(user_id)
                 synced += 1
         except asyncio.CancelledError:
             raise

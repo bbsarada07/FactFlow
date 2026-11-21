@@ -8,6 +8,7 @@ from urllib.parse import quote_plus
 from sqlalchemy import (
     JSON,
     Boolean,
+    LargeBinary,
     Date,
     DateTime,
     Float,
@@ -482,6 +483,7 @@ class MailAccount(Base):
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sync_cursor: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # list mail after this time
+    sent_cursor: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # sent mail checked up to here
     last_error: Mapped[str | None] = mapped_column(Text)  # a short code or sentence; never a token
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -497,6 +499,8 @@ class MailTask(Base):
     provider: Mapped[str] = mapped_column(String(16))
     message_id: Mapped[str] = mapped_column(String(128))
     email_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    thread_id: Mapped[str | None] = mapped_column(String(128))  # provider thread, for replies
+    rfc_message_id: Mapped[str | None] = mapped_column(String(500))  # Message-ID header, for In-Reply-To
     state: Mapped[str] = mapped_column(String(24), default="FETCHED", index=True)
     policy_mode: Mapped[str | None] = mapped_column(String(16))
     steps: Mapped[list] = mapped_column(JSON, default=list)
@@ -713,6 +717,11 @@ class UserSettings(Base):
     policy_mode: Mapped[str] = mapped_column(String(16), default="strict")
     allowed_domains: Mapped[list | None] = mapped_column(JSON)  # None = the defaults in shield/config/policy.yml
     mail_provider: Mapped[str] = mapped_column(String(16), default="auto")  # auto | gmail | eml
+    # auto: routine replies and requested files go out on their own (with undo); drafts: everything waits for
+    # you; off: the agent only reads, labels and protects
+    autonomy: Mapped[str | None] = mapped_column(String(16))
+    digest_enabled: Mapped[bool | None] = mapped_column(Boolean)
+    last_digest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
@@ -734,3 +743,88 @@ class WhatsAppLinkCode(Base):
     code: Mapped[str] = mapped_column(String(16), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+# ------------------------------------------------------------------------------------------ acting on mail
+
+
+class UserFile(Base):
+    """A file in "My files" that the user allows their agent to send (only if marked shareable)."""
+
+    __tablename__ = "user_files"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(32), index=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(100), default="application/octet-stream")
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    sha256: Mapped[str] = mapped_column(String(64))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    shareable: Mapped[bool] = mapped_column(Boolean, default=False)  # "OK for my agent to send to my team"
+    description: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "filename": self.filename, "content_type": self.content_type, "size": self.size,
+                "shareable": bool(self.shareable), "description": self.description, "created_at": iso(self.created_at)}
+
+
+class OutgoingMail(Base):
+    """A message the agent (or the user, from FactFlow) is sending. It waits `send_at` so it can be undone."""
+
+    __tablename__ = "outgoing_mail"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(32), index=True)
+    origin: Mapped[str] = mapped_column(String(16), default="agent")  # agent | approved | user
+    task_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    step_id: Mapped[str | None] = mapped_column(String(32), unique=True)  # one send per step
+    to_addr: Mapped[str] = mapped_column(String(320))
+    subject: Mapped[str] = mapped_column(Text, default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    file_ids: Mapped[list] = mapped_column(JSON, default=list)
+    thread_id: Mapped[str | None] = mapped_column(String(128))
+    in_reply_to: Mapped[str | None] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(16), default="scheduled", index=True)  # scheduled|sent|cancelled|failed
+    send_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    provider_message_id: Mapped[str | None] = mapped_column(String(128))
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "origin": self.origin, "task_id": self.task_id, "to": self.to_addr,
+                "subject": self.subject, "body": self.body, "file_ids": self.file_ids or [], "status": self.status,
+                "send_at": iso(self.send_at), "sent_at": iso(self.sent_at), "error": self.error,
+                "created_at": iso(self.created_at)}
+
+
+class KnownContact(Base):
+    """Someone the user has written to (from their sent mail or an approved send): replies to them may be routine."""
+
+    __tablename__ = "known_contacts"
+    __table_args__ = (UniqueConstraint("user_id", "address", name="uq_known_contacts_user_address"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(32), index=True)
+    address: Mapped[str] = mapped_column(String(320))
+    source: Mapped[str] = mapped_column(String(16), default="sent")  # sent | approved
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentAlert(Base):
+    """Something the user should look at that is not an approval: e.g. a leak found in mail they sent."""
+
+    __tablename__ = "agent_alerts"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(32), index=True)
+    kind: Mapped[str] = mapped_column(String(32))  # sent_leak | digest | send_failed
+    title: Mapped[str] = mapped_column(String(300))
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | dismissed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "kind": self.kind, "title": self.title, "detail": self.detail or {},
+                "status": self.status, "created_at": iso(self.created_at)}

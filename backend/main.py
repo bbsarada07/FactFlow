@@ -13,13 +13,13 @@ from loguru import logger
 from sqlalchemy import text
 
 from api import (
-    account, accuracy, approvals, audit, auth, benchmark, history, inbox, incidents, mail, policy, public_config,
+    account, accuracy, agent, approvals, audit, auth, benchmark, history, inbox, incidents, mail, policy, public_config,
     registry, result, sandbox, stats, stream, verify, whatsapp,
 )
 from config import settings
 from database import connection
 from models.gemini_client import vision_available
-from services import mail_agent
+from services import mail_agent, mail_sender
 from services.cache_service import redis_ping
 
 logger.remove()
@@ -33,12 +33,13 @@ async def lifespan(app: FastAPI):
     if not settings.GROQ_API_KEY:
         logger.error("GROQ_API_KEY missing — verifications will fail until it is set in backend/.env")
     logger.info(f"FactFlow ready · db={dialect} · nano={settings.NANO_MODEL} · ultra={settings.ULTRA_MODEL}")
-    poller = asyncio.create_task(mail_agent.poll_forever()) if settings.MAIL_POLL_ENABLED else None
+    loops = [asyncio.create_task(mail_agent.poll_forever()),  # each user's Gmail: check, act, scan sent, digest
+             asyncio.create_task(mail_sender.dispatch_forever())] if settings.MAIL_POLL_ENABLED else []  # undo window
     yield
-    if poller is not None:
-        poller.cancel()
+    for loop in loops:
+        loop.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await poller
+            await loop
     await connection.close_db()
 
 
@@ -58,7 +59,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (auth, account, verify, stream, result, history, incidents, stats, registry, public_config, accuracy,
+app.include_router(agent.account_router)
+for module in (auth, account, agent, verify, stream, result, history, incidents, stats, registry, public_config, accuracy,
                inbox, approvals, audit, policy, mail, sandbox, benchmark, whatsapp):
     app.include_router(module.router)
 
