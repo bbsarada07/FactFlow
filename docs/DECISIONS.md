@@ -164,7 +164,7 @@ The review of commit `427136e` is logged in `docs/REVIEW_PHASE4_5.md`. Decisions
 | # | Decision | Why |
 |---|---|---|
 | D72 | Every figure in `docs/BENCHMARK.md` is generated from a saved run output (`docs/benchmark_runs/`) and cites its run id. Anything without a run says "pending, not measured". | Fabricated attack-success figures were found and removed. |
-| D73 | Benchmark expected labels and detectors are not tuned to the benchmark output. The high false-positive rate is explained case by case instead (mostly test data whose plain and HTML parts differ). | Tuning to our own test set would inflate the numbers. |
+| D73 | Benchmark expected labels are never changed to fit the output. False positives are diagnosed case by case; a case is fixed only when the test data itself is wrong (2026-11-21: seven "benign" brand emails on fake domains now use the real domains, and a test proves the fake-domain version is still flagged). Rules added after seeing a miss are disclosed next to the result. | Tuning to our own test set would inflate the numbers, so every change is shown. |
 
 ## Phase 5: WhatsApp checks
 

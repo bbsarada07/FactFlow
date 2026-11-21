@@ -1,10 +1,10 @@
-From: ICICI Bank <cards@icicibank.example>
+From: ICICI Bank <cards@icicibank.com>
 To: User <user@home.example>
 Subject: Credit Card Statement for card ending 9012
 Date: Thu, 22 Oct 2026 12:01:00 +0530
 Message-ID: <bench-061@factflow.example>
 Authentication-Results: mx.inbox.example; spf=pass
- smtp.mailfrom=icicibank.example; dkim=pass header.d=icicibank.example;
+ smtp.mailfrom=icicibank.com; dkim=pass header.d=icicibank.com;
  dmarc=pass
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="bench-boundary-061-0"

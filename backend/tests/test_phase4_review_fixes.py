@@ -85,6 +85,9 @@ def test_benchmark_llm_mode_runs_a_mixed_sample_by_default(mail_env):
 
 def test_benchmark_reports_flagged_benign_cases_by_label(mail_env, tmp_path):
     bench = _bench_subset(tmp_path, {"ben_trap05_bank_debit_hdfc.eml", "ben_19_colleague_lunch.eml"})
+    # ben_trap05 comes from hdfcbank.com in the dataset (SAFE); the same mail from a fake HDFC domain is DANGEROUS.
+    hdfc = bench / "ben_trap05_bank_debit_hdfc.eml"
+    hdfc.write_bytes(hdfc.read_bytes().replace(b"hdfcbank.com", b"hdfcbank.example"))
     # ben_19 is SAFE since the HC-12 fix, so add a benign case that is still SUSPICIOUS: its plain-text
     # part gives a phone number the visible HTML never shows (HC-12, medium).
     (bench / "ben_x_plain_phone.eml").write_bytes(

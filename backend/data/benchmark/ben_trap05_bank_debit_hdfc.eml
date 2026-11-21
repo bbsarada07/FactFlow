@@ -1,10 +1,10 @@
-From: HDFC Alerts <alerts@hdfcbank.example>
+From: HDFC Alerts <alerts@hdfcbank.com>
 To: User <user@home.example>
 Subject: Alert: A/C XX7102 debited for Rs 850.00
 Date: Thu, 22 Oct 2026 12:59:00 +0530
 Message-ID: <bench-059@factflow.example>
 Authentication-Results: mx.inbox.example; spf=pass
- smtp.mailfrom=hdfcbank.example; dkim=pass header.d=hdfcbank.example;
+ smtp.mailfrom=hdfcbank.com; dkim=pass header.d=hdfcbank.com;
  dmarc=pass
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="bench-boundary-059-0"

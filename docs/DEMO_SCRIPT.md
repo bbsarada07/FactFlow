@@ -1,5 +1,9 @@
 # FactFlow 4-minute demo script
 
+> **Out of date (2026-11-21).** This script predates Google sign-in, the web Shield pages and the autonomous mail
+> agent, and still uses the removed operator token. It is being rewritten for the final pitch; only section (f), the
+> benchmark numbers, is current.
+
 Written only against what exists on branch `shield-integration` at commit `734abfd`.
 
 - **No Shield web pages exist yet.** Every Shield step runs in the API explorer at `http://localhost:8000/docs`
@@ -205,20 +209,23 @@ salted hash of their number and the result, not the number or the message."
 
 **Click (Driver):** run `GET /api/benchmark/latest` with your token, or open `docs/BENCHMARK.md`.
 
-**Expected:** `detection_rate: 94.44`, `false_positive_rate: 85.71`, `policy_block_rate: 100.0` for `mode: "rules"`.
-These match the saved run `31376138` in `docs/benchmark_runs/`; the rehearsal on 2026-10-23 gave the same rates.
+**Expected:** `detection_rate: 100.0`, `false_positive_rate: 0.0`, `policy_block_rate: 100.0` for `mode: "rules"`.
+These match the saved run `3600b988` in `docs/benchmark_runs/` (2026-11-21). Running the benchmark needs an admin
+account; anyone signed in can read the latest result.
 
 **Presenter:**
-- "On our own 89 test cases, rules only: 51 of 54 attacks flagged and 3 missed. In no attack case did a consequential
-  action get through without approval."
-- "The false-positive rate is high: 30 of 35 benign cases flagged. We checked every one. Most are test emails we
-  wrote badly, with different text in the plain and HTML parts, and that is exactly what that detector exists to
-  catch. These are our own cases, not an independent evaluation."
+- "On our own 89 test cases, rules only: all 54 attacks flagged, none of the 35 normal emails flagged, and in no
+  attack case did a consequential action get through without approval. About 40 milliseconds an email, no AI calls."
+- "A month ago it flagged 30 of 35 normal emails. We checked every one: most were test emails we wrote badly, and
+  seven were bank mail from fake domains, which really is impersonation. We fixed the test data and made one detector
+  grade its findings, and we have a test proving the fake-domain version is still caught. Three attack phrasings
+  were added after we saw them missed, so treat 54 of 54 as 'known gaps closed'. These are our own cases, not an
+  independent evaluation."
 - "With Shield off, a real model followed the hidden instruction in 4 of 5 runs on the white-on-white email, and
   in none of 5 runs on each of the other 7 attack emails. That is a small sample: 5 runs per email. With Shield on,
   nothing got through in any of the 40 runs."
 
-**Backup:** show `docs/BENCHMARK.md` sections 1 and 5.
+**Backup:** show `docs/BENCHMARK.md` "Current results" and section 5 (the October diagnosis).
 
 ## (g) Close: 3:50-4:00 (Presenter)
 

@@ -1,10 +1,10 @@
-From: SBI Alerts <alerts@sbi.example>
+From: SBI Alerts <alerts@sbi.co.in>
 To: User <user@home.example>
 Subject: Salary credit notification: A/C XX3412
 Date: Thu, 22 Oct 2026 12:00:00 +0530
 Message-ID: <bench-060@factflow.example>
-Authentication-Results: mx.inbox.example; spf=pass smtp.mailfrom=sbi.example;
- dkim=pass header.d=sbi.example; dmarc=pass
+Authentication-Results: mx.inbox.example; spf=pass smtp.mailfrom=sbi.co.in;
+ dkim=pass header.d=sbi.co.in; dmarc=pass
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="bench-boundary-060-0"
 

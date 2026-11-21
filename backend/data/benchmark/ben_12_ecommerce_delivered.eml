@@ -1,10 +1,10 @@
-From: Amazon.in <shipment@amazon.example>
+From: Amazon.in <shipment@amazon.in>
 To: User <user@home.example>
 Subject: Delivered: Your Amazon.in order #402-9182371-1201923
 Date: Thu, 22 Oct 2026 12:06:00 +0530
 Message-ID: <bench-066@factflow.example>
 Authentication-Results: mx.inbox.example; spf=pass
- smtp.mailfrom=amazon.example; dkim=pass header.d=amazon.example; dmarc=pass
+ smtp.mailfrom=amazon.in; dkim=pass header.d=amazon.in; dmarc=pass
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="bench-boundary-066-0"
 

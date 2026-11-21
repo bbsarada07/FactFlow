@@ -1,10 +1,10 @@
-From: IT Dept Portal <donotreply@incometax.example>
+From: IT Dept Portal <donotreply@incometax.gov.in>
 To: User <user@home.example>
 Subject: Income Tax Return ITR-1 e-Verification Acknowledgment
 Date: Thu, 22 Oct 2026 12:18:00 +0530
 Message-ID: <bench-078@factflow.example>
 Authentication-Results: mx.inbox.example; spf=pass
- smtp.mailfrom=incometax.example; dkim=pass header.d=incometax.example;
+ smtp.mailfrom=incometax.gov.in; dkim=pass header.d=incometax.gov.in;
  dmarc=pass
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="bench-boundary-078-0"

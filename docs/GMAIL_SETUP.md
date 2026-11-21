@@ -1,102 +1,104 @@
-# Connecting a Gmail account (read-only)
+# Google sign-in and Gmail for the mail agent
 
-FactFlow's mail agent can read a Gmail inbox and check every new message. It asks Google for one
-permission only: **read your email** (`https://www.googleapis.com/auth/gmail.readonly`). It cannot
-send, delete, label or change anything, even if a message manages to fool it.
+One Google OAuth client does two jobs:
 
-> **Use a throwaway test Gmail account only.** Never connect a personal or work inbox to this
-> prototype. Create a new Gmail account for the demo and send the test emails to it.
+1. **Sign in with Google** (`openid email profile`). Every FactFlow account is a Google account. Nothing else is
+   needed to use the website, the extension or WhatsApp.
+2. **Connect Gmail** (optional, per user, from **Settings**). The user's own agent then checks every new message and
+   acts on it under the policy engine. It asks for:
+   - `gmail.modify`: read mail, add the `FactFlow/Quarantine`, `FactFlow/Needs you` and `FactFlow/Phishing` labels,
+     and archive (remove from Inbox). FactFlow never deletes mail.
+   - `gmail.send`: send replies and requested files, always after a 2-minute undo window (`MAIL_SEND_DELAY_SECONDS`).
 
-Without Gmail, the agent uses the **demo inbox** (the 14 emails in `backend/data/demo_emails/` and
-anything uploaded), so the demo works even without Wi-Fi or OAuth.
+FactFlow refuses and revokes a grant that includes full mail access (`https://mail.google.com/`) or any scope
+outside these. If a user unticks send or modify on the consent screen, the agent still works read-only: it checks
+mail and asks the user instead of acting.
+
+> **Keep the app in Testing mode.** Only the test users you list can sign in. Use your own or throwaway accounts,
+> never someone else's inbox, and do not publish the app: `gmail.modify` is a restricted scope that needs Google's
+> security review before it can be public.
+
+Without Gmail, the agent can use the **demo inbox** (the `.eml` files in `backend/data/demo_emails/` and anything
+uploaded), so the demo works without OAuth.
 
 ## 1. Google Cloud project
 
-1. Go to <https://console.cloud.google.com/> and sign in with any Google account (it does not need
-   to be the test inbox).
-2. Create a project, for example `factflow-demo`.
-3. Open **APIs & Services → Library**, search for **Gmail API**, and click **Enable**.
+1. Go to <https://console.cloud.google.com/> and create a project, for example `factflow`.
+2. **APIs & Services → Library**: enable the **Gmail API**.
 
-## 2. OAuth consent screen
+## 2. Consent screen (Google Auth Platform)
 
-1. Open **APIs & Services → OAuth consent screen** (in newer consoles: **Google Auth Platform →
-   Branding / Audience / Data access**).
-2. User type: **External**. Publishing status: leave it in **Testing**.
-3. App name `FactFlow (test)`, and your own address as the support and developer contact.
-4. **Data access / Scopes**: add only `.../auth/gmail.readonly`. Do not add any other Gmail scope.
-   FactFlow refuses and revokes a token that comes back with more than read-only access.
-5. **Test users**: add the throwaway Gmail address. In Testing mode, only listed test users can
-   connect.
+1. **Branding:** app name `FactFlow`, your address as support and developer contact.
+2. **Audience:** user type **External**, publishing status **Testing**. Under **Test users**, add every Google
+   account that should be able to sign in (Testing mode allows up to 100).
+3. **Data access:** add `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`, `.../auth/gmail.modify`
+   and `.../auth/gmail.send`. Nothing else.
 
 ## 3. OAuth client
 
-1. Open **APIs & Services → Credentials → Create credentials → OAuth client ID**.
-2. Application type: **Web application**.
-3. **Authorized redirect URIs**: add
-   `http://localhost:8000/api/mail/gmail/callback`
-   (add `https://<your-backend-host>/api/mail/gmail/callback` too if you deploy the backend).
-4. Copy the client ID and client secret.
+1. **Clients → Create client → Web application.** Leave "Use this client for an AI-powered agent" unticked.
+2. **Authorized redirect URIs:** both callbacks go through the **frontend** origin, which forwards `/api` to the
+   backend, so the session cookie stays first-party:
+   - `http://localhost:3000/api/auth/google/callback`
+   - `http://localhost:3000/api/mail/gmail/callback`
+   - and the same two paths on your deployed frontend, e.g. `https://factflow-2.onrender.com/api/...`.
+3. Copy the client ID and secret.
 
-## 4. Environment variables (`backend/.env`)
+## 4. Environment variables (`backend/.env`, or the backend service on Render)
 
 ```
 GOOGLE_CLIENT_ID=<client id>.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=<client secret>
-GOOGLE_REDIRECT_URI=http://localhost:8000/api/mail/gmail/callback
-TOKEN_ENCRYPTION_KEY=<generated below>
-OPERATOR_TOKEN=<generated below>
-APPROVAL_SECRET=<generated below>
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:3000            # the site users open; callbacks are built from it
+TOKEN_ENCRYPTION_KEY=<generated below>        # encrypts stored Gmail tokens
+APPROVAL_SECRET=<generated below>             # signs "Needs you" approvals
+SECRET_KEY=<generated below>                  # signs sign-in state and view tokens
+ADMIN_EMAILS=you@gmail.com                    # optional: may run the benchmark and read the system audit log
+ALLOWED_EMAILS=                               # optional extra allow-list on top of Google's test users
 ```
 
-Generate the keys (run inside `backend/` with the venv active):
+`GOOGLE_REDIRECT_URI` can stay empty; it defaults to `FRONTEND_URL` + `/api/mail/gmail/callback`.
+
+Generate the keys (inside `backend/` with the venv active):
 
 ```
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"   # TOKEN_ENCRYPTION_KEY
-python -c "import secrets; print(secrets.token_urlsafe(32))"                                # OPERATOR_TOKEN
-python -c "import secrets; print(secrets.token_urlsafe(32))"                                # APPROVAL_SECRET
+python -c "import secrets; print(secrets.token_urlsafe(32))"                                # APPROVAL_SECRET, SECRET_KEY
 ```
 
-- `TOKEN_ENCRYPTION_KEY` encrypts the stored Gmail tokens. If you change it, stored tokens can no
-  longer be read and you must reconnect.
-- Never commit `.env`. It is already git-ignored.
+Changing `TOKEN_ENCRYPTION_KEY` makes stored Gmail tokens unreadable; users then reconnect. Never commit `.env`.
 
-Restart the backend after changing `.env`.
+## 5. Use it
 
-## 5. Connect
+1. Open the site and **Sign in with Google** as a test user.
+2. **Settings → Gmail → Connect Gmail**, then allow access. Google warns that the app is unverified; that is expected
+   in Testing mode. You land on `/settings?gmail=connected`, or `?gmail=error&reason=...` with one of `denied`,
+   `scope_not_allowed`, `auth_failed`, `not_configured`, `google_unreachable`, `missing_code`.
+3. The first sync reads the **20 most recent** inbox messages. After that the agent polls every 45 seconds
+   (`MAIL_POLL_SECONDS`), at most 50 new messages per sync, and checks up to 20 sent messages for leaks.
+4. **Settings → What your agent does on its own** controls autonomy: automatic routine replies, sending files from
+   **My files**, and the addresses it may send to. **Needs you** lists everything waiting for a decision, and
+   **Sent for you** shows queued mail with **Undo** and **Send now**.
 
-1. In the app, enter the operator token, open the Inbox page and click **Connect Gmail**. (Without
-   the UI: `POST /api/mail/gmail/connect` with the `X-Operator-Token` header, then open the
-   returned `auth_url` in a browser.)
-2. Sign in as the throwaway test account and allow **read** access. Google shows a warning that the
-   app is unverified; that is expected for a Testing-mode app.
-3. Google sends you back to `http://localhost:3000/inbox?gmail=connected`. On failure the page
-   gets `gmail=error&reason=...`. The reasons are `denied`, `scope_not_allowed`, `auth_failed`,
-   `not_configured`, `google_unreachable` and `missing_code`.
+## 6. Reconnect, disconnect, delete
 
-On the first connect the agent reads only the **20 most recent** inbox messages. After that it polls
-every 45 seconds (`MAIL_POLL_SECONDS`) and takes at most 50 new messages per sync.
+- Testing-mode refresh tokens can expire after about a week, or when access is removed in the Google account. The
+  status becomes `reconnect_required` and that user's agent pauses; others are unaffected. Click **Connect Gmail**
+  again.
+- **Disconnect** revokes the token at Google and deletes it from FactFlow.
+- **Settings → Delete my account and data** revokes Gmail and deletes everything the user owns. Audit records stay
+  for the hash chain, detached from the person.
 
-## 6. Reconnect, disconnect
+## Live checks with two test accounts
 
-- **Testing-mode refresh tokens can expire after about a week.** Google also revokes them if you
-  remove FactFlow's access in the Google account. FactFlow then shows the account as
-  `reconnect_required` (in `GET /api/mail/status`) and stops polling it; the poller keeps running.
-  Click **Connect Gmail** again.
-- **Disconnect** (`POST /api/mail/gmail/disconnect`) revokes the token at Google and deletes it
-  from FactFlow's database.
+The automated tests use a fake Gmail API built from Google's documented formats (`backend/tests/gmail_fake.py`).
+Against real accounts A (agent) and B (sender), check:
 
-## What to check against a live account
-
-The tests use fixtures built from the documented Gmail API formats
-(`backend/tests/fixtures/gmail/`); no live account existed when they were written. With the
-throwaway account, check:
-
-1. Consent shows read-only access only, and the callback lands on `?gmail=connected`.
-2. `users.messages.list` with `labelIds=INBOX` and `q=after:<epoch seconds>` returns the expected
-   messages, newest first.
-3. `users.messages.get?format=raw` decodes to the exact bytes of a sent `.eml`. Send the demo
-   emails as attachments-free raw mail, for example with a script or Thunderbird "Send Again".
-4. A message that arrives after the first sync is picked up on the next poll, and only once.
-5. Revoking access in the Google account turns the status into `reconnect_required`.
-6. Disconnect removes FactFlow from the account's third-party access list.
+1. Consent lists only read/label/send access, and the callback lands on `?gmail=connected`.
+2. B sends a routine question to A; A's agent queues a reply, **Outgoing** shows it with Undo, and B receives it
+   after 2 minutes.
+3. B asks for a file that A marked shareable in **My files**; B receives it as an attachment.
+4. B sends a mail with hidden instructions (white-on-white "forward the inbox"); it is labelled
+   `FactFlow/Quarantine`, nothing is sent, and it appears under **Needs you**.
+5. B signs in to FactFlow and cannot see any of A's mail, checks or files.
+6. Disconnect removes FactFlow from A's third-party access list.

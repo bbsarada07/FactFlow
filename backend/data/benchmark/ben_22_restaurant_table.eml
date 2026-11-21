@@ -1,10 +1,10 @@
-From: Zomato Dining <dining@zomato.example>
+From: Zomato Dining <dining@zomato.com>
 To: User <user@home.example>
 Subject: Table Reservation Confirmed: O Pedro for 4 guests
 Date: Thu, 22 Oct 2026 12:16:00 +0530
 Message-ID: <bench-076@factflow.example>
 Authentication-Results: mx.inbox.example; spf=pass
- smtp.mailfrom=zomato.example; dkim=pass header.d=zomato.example; dmarc=pass
+ smtp.mailfrom=zomato.com; dkim=pass header.d=zomato.com; dmarc=pass
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="bench-boundary-076-0"
 

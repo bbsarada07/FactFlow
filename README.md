@@ -1,13 +1,15 @@
 # FactFlow
 
-FactFlow checks the messages people in India are asked to believe or act on: WhatsApp forwards, emails and web
-pages. Its core rule is that **untrusted content is data, never a command**, and a human approves any risky action.
+FactFlow is a personal AI agent for people in India. Each person signs in with Google and gets their own agent that
+**fact-checks** what they are asked to believe (WhatsApp forwards, links, screenshots, claims) and **runs their Gmail**
+safely: it answers routine mail, sends files people ask for, and shields the inbox from scams and hidden prompt
+injection. Its core rule is that **untrusted content is data, never a command**, and the person is asked whenever
+something is risky.
 
-It has two halves:
-
-- **Truth** fact-checks a claim against published sources and says plainly when it cannot tell.
-- **Shield** finds hidden text, prompt injection and scam patterns in emails and messages, and puts every action an
-  AI assistant might take behind a deterministic policy gate, human approvals and a tamper-evident audit log.
+- **Live:** <https://factflow-2.onrender.com> (Google Testing mode: only invited test users can sign in; the free
+  server may take up to a minute to wake).
+- **Private by default:** every check, email, file and setting belongs to one account. A verdict page is public only
+  when its owner presses **Share**.
 
 ![Stack](https://img.shields.io/badge/backend-FastAPI-009688) ![Stack](https://img.shields.io/badge/frontend-Next.js%2014-black) ![Stack](https://img.shields.io/badge/inference-Groq-f55036) ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -17,10 +19,17 @@ It has two halves:
 
 - **Truth:** paste a claim, a link or a PNG/JPG screenshot. A six-agent pipeline finds sources, reasons over them
   and returns a verdict. A code gate, not the model, turns weak verdicts into UNVERIFIED.
-- **Shield:** give it an email (`.eml` or pasted) or a WhatsApp message. Deterministic detectors compare what a
-  person sees with what an AI would read, and check the sender, links and scam patterns. A single quarantined model
-  call reads the text; it has no tools. A policy engine decides every action the mail agent could take. Anything
-  that sends data out needs a human approval, and even then it only reaches a **simulated outbox**.
+- **Shield:** every email or message is scanned by deterministic detectors that compare what a person sees with
+  what an AI would read, and check the sender, links and scam patterns. A single quarantined model call reads the
+  text; it has no tools. A policy engine decides every action the agent could take.
+- **The mail agent** (per user, on their connected Gmail):
+  - answers routine questions with a reply writer that sees one email's visible text, has no tools, and whose draft
+    must pass code checks (no links, no ID or bank numbers, no sensitive topics, no accepted invitations);
+  - sends files the user marked shareable in **My files** when a known contact asks for them;
+  - labels and archives risky mail (`FactFlow/Quarantine`, `FactFlow/Phishing`), never deletes;
+  - checks the user's own sent mail for leaks;
+  - holds every outgoing message for 2 minutes with **Undo**, and puts anything unusual under **Needs you**.
+- **Channels:** the website, a Chrome extension (per-user token), and WhatsApp (when Twilio is configured).
 
 ## 2. The problem
 
@@ -58,11 +67,11 @@ Built on top of the earlier pipeline (see "Project history"), from the commit hi
   Phase 2 also hardened the existing pipeline: an SSRF-guarded fetcher (`services/safe_fetch.py`) and wrapping of
   untrusted text in agent prompts.
 - **Read-only mail agent** (Phase 3, `d158060`):
-  - a Gmail provider limited to `gmail.readonly`;
+  - a Gmail provider limited to `gmail.readonly` (later widened to modify + send for the autonomous agent);
   - a demo inbox of `.eml` files;
   - a task state machine;
   - strict and balanced policy modes;
-  - `OPERATOR_TOKEN` for operator routes.
+  - `OPERATOR_TOKEN` for operator routes (replaced by Google sign-in in `fd73bfe`).
 - **Sandbox assistant and red-team benchmark** (Phase 4, `427136e`, reviewed and fixed in `fc2620c`..`0f2cf52`):
   - Shield-off and Shield-on modes of a simulated email assistant;
   - 89 team-written benchmark cases;
@@ -73,6 +82,18 @@ Built on top of the earlier pipeline (see "Project history"), from the commit hi
   - replies in English, Hindi or Telugu;
   - storage of only a salted hash of the sender's number;
   - STOP/START, a per-sender rate limit.
+- **Accounts** (`fd73bfe`, `dac86e0`, `edee5ed`):
+  - Sign in with Google (OIDC with PKCE); HttpOnly session cookies stored only as SHA-256, with CSRF tokens;
+  - every table that holds user data is scoped to its owner; the operator token is gone;
+  - per-user settings (policy mode, trusted domains) stored in the database;
+  - extension tokens (`ffx_...`), WhatsApp link codes, sign out everywhere, delete account.
+- **Autonomous mail agent** (`f62f6c8`, `a82aa94`):
+  - Gmail with `gmail.modify` + `gmail.send` (full mail access is refused);
+  - isolated reply writer, requested-file sending, quarantine labels, sent-mail leak checks;
+  - a 2-minute undo window on every outgoing message, **Needs you**, **Write** (compose with a pre-send check);
+  - a daily digest of what the agent did.
+- **Finishing work** (2026-11-21): opt-in sharing of verdict pages, admin-only benchmark runs, WhatsApp shown as
+  "coming soon" until configured, an optional keep-awake ping, and the benchmark dataset correction (section 6).
 
 ## 4. How it works
 
@@ -84,8 +105,8 @@ flowchart LR
     B --> E[Unified verdict<br/>SAFE / SUSPICIOUS / DANGEROUS]
     D --> E
     E --> F{Policy engine<br/>deterministic}
-    F -->|ALLOW| G[Runs: summary, flags,<br/>simulated outbox]
-    F -->|REQUIRE_APPROVAL| H[Human approval<br/>operator token]
+    F -->|ALLOW| G[Agent acts: reply, file,<br/>label; 2-min undo]
+    F -->|REQUIRE_APPROVAL| H[Needs you<br/>the account owner]
     F -->|BLOCK| I[Blocked, in audit log]
     H --> G
 ```
@@ -124,53 +145,55 @@ Labels: REAL AND TESTED · TESTED WITH FIXTURES OR STAND-IN MODELS ONLY · NOT L
 | Truth claim pipeline (six agents, verdict gate) | REAL AND TESTED | Real model calls and real source searches | backend tests; one live run in `docs/AUDIT.md` section 9 |
 | Truth accuracy bench (30 claims) | PENDING | | no saved result; `/api/accuracy` reports no complete run |
 | Screenshot reading (Gemma 4 / Tesseract) | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Image reader only transcribes | `tests/test_gemma.py`, `tests/test_screenshot.py` |
-| Truth web pages (home, registry, tracker, incidents, accuracy, about, verdict pages) | REAL AND TESTED | | `npm run build`; pages served by `next dev`; 3 frontend unit tests |
-| Chrome extension | NOT LIVE-TESTED | | carried over from the earlier project; no automated tests; not re-tested since the rename |
+| Sign in with Google, sessions, per-user data | REAL AND TESTED | Live on the deployed site in Testing mode | `tests/test_accounts.py` (two users, every private route) |
+| Verdict sharing (private until the owner shares) | REAL AND TESTED | | `tests/test_accounts.py` |
+| Web pages (home, my verdicts, tracker, Shield, Needs you, Write, settings, about, accuracy) | REAL AND TESTED | | `npm run build`; frontend unit tests; deployed |
+| Chrome extension (per-user token) | NOT LIVE-TESTED | | no automated tests |
 | Android overlay | NOT BUILT | Design mockup only (`android/overlay_mockup.html`) | |
-| Shield detectors (HC-01..12, injection rules, SC-01..13, brand lookalikes) | REAL AND TESTED | Deterministic, no model | `backend/tests/shield/` |
-| Policy engine, strict/balanced modes | REAL AND TESTED | Deterministic | `tests/shield/test_shield_policy.py` |
-| Approvals (HMAC token, single use, 10 minutes) | REAL AND TESTED | An approved outgoing step only writes to the **simulated outbox** | `tests/shield/test_shield_approvals.py`, mail-agent tests |
+| Shield detectors (HC-01..12, injection rules, SC-01..13, brand lookalikes) | REAL AND TESTED | Deterministic, no model | `backend/tests/shield/`, `tests/test_benchmark_realism.py` |
+| Policy engine (P0-P8, strict/balanced, per user) | REAL AND TESTED | Deterministic | `tests/shield/test_shield_policy.py`, `tests/test_mail_actions.py` |
+| Approvals (HMAC token, single use) and Needs you | REAL AND TESTED | | `tests/shield/test_shield_approvals.py`, mail-agent tests |
 | Audit log (SHA-256 hash chain, `GET /api/audit/verify`) | REAL AND TESTED | | `tests/shield/test_shield_audit.py` |
 | Inbox pipeline, rules-only mode | REAL AND TESTED | No model calls | inbox tests; `docs/MEASUREMENTS.md` |
-| Inbox pipeline, full mode (quarantined reader, claim checks, explainer) | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Real model calls when quota allows | stand-in models in `tests/standins.py`; token use not measured (`docs/MEASUREMENTS.md`) |
-| Mail agent with the demo inbox (`.eml`) | REAL AND TESTED | Nothing is sent: outgoing steps reach the simulated outbox | mail-agent tests |
-| Gmail provider (`gmail.readonly`) | NOT LIVE-TESTED | Read-only; no send scope exists in the code | fixtures built from documented formats (`docs/DECISIONS.md` D57) |
-| Sandbox assistant, Shield on | REAL AND TESTED | Simulated outbox only | `tests/test_phase4_sandbox_benchmark.py` (rules mode; LLM mode with stand-ins) |
+| Inbox pipeline, full mode (quarantined reader, claim checks, explainer) | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Real model calls when quota allows | stand-in models in `tests/standins.py` |
+| Mail agent on Gmail (labels, replies, files, undo window, sent-mail checks) | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Real sends through the user's Gmail | fake Gmail API (`tests/gmail_fake.py`), `tests/test_mail_actions.py`, `tests/test_mail_permissions.py`; live two-account run pending (`docs/GMAIL_SETUP.md`) |
+| Mail agent with the demo inbox (`.eml`) | REAL AND TESTED | Outgoing steps reach the simulated outbox | mail-agent tests |
+| Sandbox assistant, Shield on | REAL AND TESTED | Simulated outbox only | `tests/test_phase4_sandbox_benchmark.py` |
 | Sandbox assistant, Shield off (vulnerable baseline) | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Simulated outbox only; off unless `ALLOW_VULNERABLE_DEMO=true` | one recorded real run: `backend/data/demo_recordings/demo_run_20261022_174542.json` |
 | Attack-success rates (20 runs per attack, both modes) | PENDING | | `backend/scripts/measure_attacks.py` is ready; needs model quota |
 | Red-team benchmark, rules-only | REAL AND TESTED | | `docs/benchmark_runs/` |
 | Red-team benchmark, LLM mode | PENDING | | no saved run |
-| WhatsApp via Twilio | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Never run against a live Twilio account; without send credentials replies are DRY RUN audit entries | `tests/test_whatsapp.py` (fake Twilio API) |
+| WhatsApp via Twilio | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Shown as "coming soon" until Twilio is configured | `tests/test_whatsapp.py` (fake Twilio API) |
 | WhatsApp via Meta Cloud API | STUBBED | Signature check and parsing exist; replies are dry-run only | `tests/shield/test_shield_whatsapp.py` |
 | Safe fetcher (SSRF guard), short-link expansion, DNS checks | TESTED WITH FIXTURES OR STAND-IN MODELS ONLY | Expansion and DNS checks are off by default | `tests/test_safe_fetch.py` |
-| Celery queue mode (`USE_CELERY=true`) | NOT LIVE-TESTED | | no automated tests; not exercised in this project |
-| Shield web pages (inbox, approvals, sandbox, benchmark, WhatsApp) | NOT BUILT | Use the API or `/docs` for now | a teammate's UI is on branch `teammate-b/shield-ui`, not merged |
-| Gmail banner in the extension | NOT BUILT | Cut (`docs/DECISIONS.md` D54) | |
+| Celery queue mode (`USE_CELERY=true`) | NOT LIVE-TESTED | | no automated tests |
 | Hardware / edge device | NOT BUILT | Postponed | |
 
 ## 6. Honest numbers
 
-Rules-only red-team benchmark, run `31376138137544938f198afc1c9aaaed`, 2026-10-23 10:36 UTC
-(`docs/benchmark_runs/rules_31376138137544938f198afc1c9aaaed.json`; details in [docs/BENCHMARK.md](docs/BENCHMARK.md)):
+Rules-only red-team benchmark, run `3600b988f57643e0981ed5a054c908e0`, 2026-11-21
+(`docs/benchmark_runs/rules_3600b988f57643e0981ed5a054c908e0.json`; details and history in [docs/BENCHMARK.md](docs/BENCHMARK.md)):
 
 | Metric | Result |
 |---|---|
 | Cases | 89 (54 attack, 35 benign) |
-| Detection rate (attack flagged SUSPICIOUS or DANGEROUS) | 94.44 % (51/54) |
-| False-positive rate (benign flagged SUSPICIOUS or DANGEROUS) | 85.71 % (30/35) |
+| Detection rate (attack flagged SUSPICIOUS or DANGEROUS) | 100.0 % (54/54) |
+| False-positive rate (benign flagged SUSPICIOUS or DANGEROUS) | 0.0 % (0/35) |
 | Policy level (attacks where no consequential action was allowed without approval) | 100.0 % (54/54) |
+| Latency p50 / p95 per email | 39.7 / 50.1 ms |
 | Model tokens used | none (rules only) |
 
-- **Why the false-positive rate is high.** Each of the 30 cases was diagnosed
-  (`docs/benchmark_runs/benign_case_diagnosis_2026-10-23.txt`):
-  - In 26, the team's generator wrote different sentences into the plain-text and HTML parts of the "benign"
-    emails. Detector HC-12 is built to flag exactly that difference.
-  - In 4 more, a bank or brand name is shown on a placeholder domain (for example `hdfcbank.example`). That is
-    impersonation by definition.
-  Expected labels were not changed to fit the output.
-- **Missed attacks (3):** `att_hc09_attachment_invoice`, `att_inj_secrecy_02`, `att_inj_tool_02`. These are phrasings
-  the injection rules do not match. They were not patched, because tuning the rules to the test set would inflate the
-  score.
+- **How it got here.** In October the rules flagged 30 of 35 benign cases and missed 3 attacks. Each case was
+  diagnosed (`docs/benchmark_runs/benign_case_diagnosis_2026-10-23.txt`):
+  - 26 were "benign" emails whose plain-text and HTML parts said different things. HC-12 now grades that: low when
+    the wording differs, medium when the plain part adds a scam pitch, links or numbers, critical when it adds AI
+    instructions.
+  - 7 were brand mail on fake domains (`hdfcbank.example`), which is impersonation. Those test files now use the
+    brands' real domains. `tests/test_benchmark_realism.py` proves the same mail from the fake domain is still
+    flagged. Expected labels were never changed.
+- **The 3 former misses** (`att_hc09_attachment_invoice`, `att_inj_secrecy_02`, `att_inj_tool_02`) are caught by
+  injection phrasings added after we saw them. So 54/54 includes rules fitted to this test set: read it as "known
+  gaps closed", not as an unbiased detection rate.
 - **These are team-written cases, not an independent evaluation.**
 - **PENDING:** the attack-success rates in both modes and LLM-mode results. Only one real Shield-off run is recorded,
   and it is one run, not a rate.
@@ -179,11 +202,16 @@ Rules-only red-team benchmark, run `31376138137544938f198afc1c9aaaed`, 2026-10-2
 
 - **CSS hiding gaps.** `@media` rules are evaluated for one desktop screen in light mode only. Text hidden only on
   phone widths, only in dark mode, or inside `@supports` blocks is missed.
-- **Heuristic detection** can miss new phrasings (see the 3 missed attacks) and flags legitimate hidden preheaders.
-- **Settings kept in memory are lost on restart:** policy mode and allowed domains, the active mail provider,
-  pending Gmail connections and rate limits (`docs/DECISIONS.md` D70).
-- **Placeholder domains only** in the benchmark and demo emails (`.example`, `.test`, `.invalid`). Real brand domains
-  were never tested.
+- **Heuristic detection** can miss new phrasings; the benchmark is team-written and partly fitted (section 6).
+- **Kept in memory, lost on restart:** Gmail connections in progress (10-minute state), rate limits, and emails
+  uploaded to the demo inbox. Accounts, settings, queued mail and approvals are in the database.
+- **Google Testing mode:** only listed test users can sign in, and their Gmail grants can expire after about a week
+  (the user reconnects). Going public needs Google's security review for `gmail.modify`.
+- **Free hosting:** the Render free server sleeps after about 15 idle minutes, and a sleeping agent checks no mail.
+  `KEEP_ALIVE_URL` keeps it awake (about 720 of the 750 free hours a month). The free Postgres database expires
+  30 days after creation unless upgraded.
+- **Benchmark domains:** attack cases use placeholder domains (`.example`, `.test`, `.invalid`); seven benign cases
+  use real brand domains.
 - **Hindi and Telugu OCR:** the development machine's Tesseract has only English data (`eng`, `osd`). Hindi and
   Telugu screenshots need Gemma (`GEMINI_API_KEY`) or the `hin`/`tel` Tesseract data. The WhatsApp reply says when
   this applies.
@@ -199,26 +227,20 @@ Rules-only red-team benchmark, run `31376138137544938f198afc1c9aaaed`, 2026-10-2
 
 ## 8. Privacy
 
-What is stored:
-
-- **Claim text**, PII-redacted, in the `claims` table. This includes claims taken from emails and WhatsApp messages;
-  those are private and never shown in the public registry.
-- **WhatsApp senders:** only a salted SHA-256 of the number (`whatsapp_checks`, `whatsapp_opt_outs`, audit actor
-  `whatsapp:<first 12 hex characters>`).
-- **Check results:** label, score, reasons and detector findings. For WhatsApp messages, the stored verdict has the
-  message text and every excerpt of it removed (`docs/DECISIONS.md` D77-D78).
-- **Emails analysed through the inbox:** the verdict, including the visible and hidden text of the email, so the
-  operator can review it. Only the operator or the submitter (view token) can read it.
-- **The audit log:** PII-redacted payloads.
-
-What is not stored:
-
-- Raw WhatsApp phone numbers, or the full text of WhatsApp messages.
-- The raw bytes of analysed emails, in the database. Only a SHA-256 of them is kept there. (Emails given to the
-  mail agent with `POST /api/mail/upload` stay in memory until the server restarts.)
-- Gmail tokens in plain text: they are Fernet-encrypted (`TOKEN_ENCRYPTION_KEY`).
-
-Logs use the hash prefix instead of numbers, and tracebacks do not print variables.
+- **One account, one agent.** Every row with user data carries its owner's id, and every route filters by it.
+  `tests/test_accounts.py` signs in two users and checks that neither can read, change or even detect the other's
+  checks, emails, files, queued mail, alerts or settings.
+- **Verdict pages are private** until their owner presses **Share**; **Stop sharing** closes them again.
+- **Sign-in:** FactFlow stores the Google account id, email, name and picture. Session cookies are HttpOnly and only
+  their SHA-256 is stored.
+- **Gmail:** tokens are Fernet-encrypted (`TOKEN_ENCRYPTION_KEY`). Raw email bytes are not stored; analysed emails
+  keep the verdict (visible and hidden text) for their owner. The reply writer sees one email's visible text, PII
+  redacted.
+- **My files** are stored for their owner and sent only when marked shareable.
+- **Claim text** is PII-redacted. **WhatsApp senders** are stored only as a salted SHA-256, and WhatsApp verdicts
+  have the message text removed (`docs/DECISIONS.md` D77-D78).
+- **The audit log** keeps PII-redacted payloads in a hash chain. When an account is deleted, its records are kept
+  for the chain but detached from the person; everything else the user owns is deleted and Gmail access revoked.
 
 ## 9. Setup on Windows
 
@@ -242,8 +264,8 @@ Copy-Item .env.example .env                                     # then fill in t
 venv\Scripts\python -m uvicorn main:app --reload --port 8000    # development
 ```
 
-**Do not use `--reload` during a demo.** A reload restarts the server and wipes the settings kept in memory
-(policy mode, allowed domains, mail provider, pending connections). For a demo, run
+**Do not use `--reload` during a demo.** A reload restarts the server and drops what is kept in memory (Gmail
+connections in progress, rate limits). For a demo, run
 `venv\Scripts\python -m uvicorn main:app --port 8000`. Check it with `http://localhost:8000/health`; the API explorer
 is at `http://localhost:8000/docs`.
 
@@ -269,14 +291,12 @@ npm run build
 To run the database tests on PostgreSQL as well, set `FACTFLOW_TEST_DATABASE_URL` to a disposable database. The
 tests drop its tables; never point it at your real database.
 
-**Benchmark (rules only, no model calls):** open `http://localhost:8000/docs`, expand `POST /api/benchmark/run`,
-click **Try it out**, put your `OPERATOR_TOKEN` in the `x-operator-token` field and `{"mode": "rules"}` in the body,
-then **Execute**. `GET /api/benchmark/latest` returns the last run. To run it from PowerShell:
+**Sign in locally:** set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `SECRET_KEY` (see
+[docs/GMAIL_SETUP.md](docs/GMAIL_SETUP.md)) and add your address as a test user in Google Cloud.
 
-```powershell
-$h = @{ "X-Operator-Token" = "<your OPERATOR_TOKEN>" }
-Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/benchmark/run -Headers $h -ContentType "application/json" -Body '{"mode":"rules"}'
-```
+**Benchmark (rules only, no model calls):** sign in with an address listed in `ADMIN_EMAILS`, open
+**Shield → Advanced → Benchmark** and press **Run**. Anyone signed in can read the latest result
+(`GET /api/benchmark/latest`).
 
 **Gmail and WhatsApp:** see [docs/GMAIL_SETUP.md](docs/GMAIL_SETUP.md) and [docs/WHATSAPP_SETUP.md](docs/WHATSAPP_SETUP.md).
 
@@ -303,16 +323,25 @@ Names only. Never commit `.env`. To generate a random secret:
 | `ASYNC_DATABASE_URL` | `postgresql+asyncpg://...`; if PostgreSQL is unreachable the backend falls back to SQLite |
 | `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, `USE_CELERY` | Optional Celery queue mode |
 | `SECRET_KEY` | At least 32 random characters; signs view tokens (generate as above) |
-| `FRONTEND_URL`, `BACKEND_URL`, `ENVIRONMENT`, `DEBUG` | App URLs and mode |
+| `FRONTEND_URL`, `BACKEND_URL`, `ENVIRONMENT`, `DEBUG` | App URLs and mode. Google callbacks are built from `FRONTEND_URL` |
+| `KEEP_ALIVE_URL`, `KEEP_ALIVE_MINUTES` | Optional: the backend requests this URL (its own `/health`) every N minutes so free hosting does not sleep |
 | `DEEP_REASONING_THRESHOLD` | Confidence below which Truth escalates to Deep Reasoning |
 | `MAX_REQUESTS_PER_MINUTE` | Rate limit on the public check routes |
 | `CACHE_TTL_HOURS` | Listed in `.env.example` but not read by the backend |
+
+**Accounts**
+
+| Name | What it is |
+|---|---|
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | The Google OAuth client, used for sign-in and Gmail |
+| `ADMIN_EMAILS` | Comma-separated; may run the benchmark and read the system audit log |
+| `ALLOWED_EMAILS` | Optional allow-list on top of Google's test users; empty means any test user |
+| `SESSION_DAYS` | Session length (default 30) |
 
 **Shield**
 
 | Name | What it is |
 |---|---|
-| `OPERATOR_TOKEN` | Unlocks the operator routes (approvals, policy, audit, inbox list, mail, sandbox, benchmark); empty means closed. Generate as above |
 | `APPROVAL_SECRET` | At least 32 characters; signs approval tokens; empty means no approvals (such steps are blocked) |
 | `INBOX_USE_LLM`, `INBOX_MAX_CLAIMS` | Allow model calls in the inbox pipeline; maximum claims fact-checked per message |
 | `ENABLE_LINK_EXPANSION`, `ENABLE_DNS_CHECKS` | Follow short links (SSRF-guarded); look up SPF/DMARC records. Both default to off |
@@ -322,9 +351,11 @@ Names only. Never commit `.env`. To generate a random secret:
 
 | Name | What it is |
 |---|---|
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Gmail OAuth client |
+| `GOOGLE_REDIRECT_URI` | Optional; defaults to `FRONTEND_URL` + `/api/mail/gmail/callback` |
 | `TOKEN_ENCRYPTION_KEY` | Fernet key: `py -3.11 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `MAIL_POLL_ENABLED`, `MAIL_POLL_SECONDS`, `MAIL_FIRST_SYNC`, `MAIL_MAX_PER_SYNC`, `MAIL_AGENT_MAX_PER_MINUTE` | Gmail polling and mail-agent limits |
+| `MAIL_SEND_DELAY_SECONDS`, `MAIL_APPROVAL_TTL_HOURS`, `AUTO_REPLY_MAX_CHARS` | Undo window (120 s), how long Needs you items stay open, reply length |
+| `MAX_FILE_BYTES`, `MAX_FILES_PER_USER`, `MAIL_SENT_SCAN_PER_SYNC`, `DIGEST_HOURS` | My files limits, sent-mail checks per sync, digest interval |
 
 **WhatsApp** (see docs/WHATSAPP_SETUP.md)
 
@@ -342,14 +373,14 @@ Names only. Never commit `.env`. To generate a random secret:
 
 ## 10. Security notes
 
-- **`OPERATOR_TOKEN`** is entered at runtime: in the `X-Operator-Token` header, or in the `x-operator-token` field of each operator route in `/docs`. It is
-  compared in constant time, and failed attempts are rate-limited. The frontend bundle contains no operator token and
-  no `NEXT_PUBLIC_` secret.
-- **Use a throwaway Gmail account only**, never a personal or work inbox. FactFlow asks only for `gmail.readonly`.
+- **No shared secret in the browser.** Users sign in with Google; the frontend bundle contains no token and no
+  `NEXT_PUBLIC_` secret. Unsafe requests need the CSRF token, and the extension uses its own revocable token.
+- **Least Gmail access.** `gmail.modify` + `gmail.send`; full mail access is refused and revoked. FactFlow never
+  deletes mail, and every message it sends waits 2 minutes with Undo.
+- **Content never gives orders.** Instructions found in an email become a blocked step (rule P1); replies come from
+  an isolated writer whose draft is checked by code before it is queued.
+- **Keep the Google app in Testing mode**, and connect only accounts that agreed to it.
 - **Never commit `.env`.** It is git-ignored; `.env.example` holds names only.
-- **Nothing is sent.** No email, link or share action leaves FactFlow: approved outgoing steps go to the simulated
-  outbox. The only outgoing message anywhere is the WhatsApp reply, and it goes only to the person who wrote.
-- **Keep the backend on localhost** or behind your tunnel during a demo.
 
 ## 11. Repository map
 
@@ -376,7 +407,7 @@ FactFlow/
 | [docs/benchmark_runs/](docs/benchmark_runs/) | Saved benchmark run outputs |
 | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | The 4-minute demo |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Design decisions by phase |
-| [docs/GMAIL_SETUP.md](docs/GMAIL_SETUP.md) | Read-only Gmail setup |
+| [docs/GMAIL_SETUP.md](docs/GMAIL_SETUP.md) | Google sign-in and Gmail setup, live checks |
 | [docs/WHATSAPP_SETUP.md](docs/WHATSAPP_SETUP.md) | Twilio WhatsApp sandbox setup |
 | [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) | Latency and token measurements |
 | [docs/AUDIT.md](docs/AUDIT.md) | Phase 0 audit (a dated snapshot) |

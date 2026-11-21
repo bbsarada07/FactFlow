@@ -1,10 +1,10 @@
-From: Airtel eBill <ebill@airtel.example>
+From: Airtel eBill <ebill@airtel.in>
 To: User <user@home.example>
 Subject: Airtel Postpaid e-Bill for Mobile 98450XXXXX
 Date: Thu, 22 Oct 2026 12:21:00 +0530
 Message-ID: <bench-081@factflow.example>
 Authentication-Results: mx.inbox.example; spf=pass
- smtp.mailfrom=airtel.example; dkim=pass header.d=airtel.example; dmarc=pass
+ smtp.mailfrom=airtel.in; dkim=pass header.d=airtel.in; dmarc=pass
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="bench-boundary-081-0"
 
