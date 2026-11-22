@@ -45,6 +45,16 @@ async def ensure_user(user_id: str, email: str, role: str = "user") -> None:
 
 
 @pytest.fixture(autouse=True)
+def no_live_news_search(monkeypatch):
+    """The Source Tracer's Bing News and Google News searches find nothing unless a test sets them, so no test
+    reaches the internet (the older providers are stubbed by the tests that use them)."""
+    from unittest.mock import AsyncMock
+
+    for name in ("search_bing_news", "search_google_news"):
+        monkeypatch.setattr(f"agents.source_tracer.{name}", AsyncMock(return_value=[]))
+
+
+@pytest.fixture(autouse=True)
 def signed_in(request, monkeypatch):
     """Every API test runs as one signed-in test user (an admin), unless marked `real_auth`. Features are tested
     as that user; sign-in, CSRF and isolation between users are tested with real_auth (tests/test_accounts.py)."""

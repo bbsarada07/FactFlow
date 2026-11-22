@@ -1,4 +1,4 @@
-"""Agent 2 — Source Tracer (Nano + GDELT + NewsAPI + Google Fact Check + DuckDuckGo).
+"""Agent 2 — Source Tracer (Nano + Google Fact Check + Bing News + Google News + GDELT + NewsAPI + DuckDuckGo).
 
 Gathers evidence with spelling/transliteration query variants, assigns credibility tiers
 from the config allow-lists (never from the model), asks the Nano model to judge
@@ -25,7 +25,15 @@ from config import settings
 from models.groq_client import LLMJSONError, call_nano
 from database import connection
 from services.factcheck_service import search_factchecks
-from services.news_service import failure_reason, record_failure, search_duckduckgo, search_gdelt, search_newsapi
+from services.news_service import (
+    failure_reason,
+    record_failure,
+    search_bing_news,
+    search_duckduckgo,
+    search_gdelt,
+    search_google_news,
+    search_newsapi,
+)
 from services.tiers import TIER_SCORE, domain_of, tier_for
 from shield.kb.retrieve import retrieve
 
@@ -158,7 +166,7 @@ def _logged(ctx: PipelineContext, provider: str, query: str, fn, *args):
                 "provider": provider,
                 "query": query,
                 "results": len(rows),
-                "domains": [tier_domain(r["url"]) for r in rows[:8]],
+                "domains": [tier_domain(r.get("tier_url") or r["url"]) for r in rows[:8]],
                 "error": errs[0] if errs else None,
             }
         )
@@ -195,7 +203,11 @@ async def _gather(ctx: PipelineContext) -> list[dict]:
         _logged(ctx, "Google Fact Check", fc_q, search_factchecks, fc_q),
         _logged(ctx, "NewsAPI", news_q, search_newsapi, news_q),
         _logged(ctx, "DuckDuckGo", base, search_duckduckgo, base),
+        _logged(ctx, "Bing News", news_q, search_bing_news, news_q),
+        _logged(ctx, "Google News", news_q, search_google_news, news_q),
     ]
+    if base.lower() != news_q.lower():
+        tasks.append(_logged(ctx, "Bing News", base, search_bing_news, base))
     fc_seen = {fc_q.lower()}
     for q in (stripped, fc_keywords):
         if q and q.lower() not in fc_seen:
@@ -206,15 +218,19 @@ async def _gather(ctx: PipelineContext) -> list[dict]:
     batches = await asyncio.gather(*tasks)
     errors = ctx.provider_errors
 
-    seen: set[str] = set()
+    seen: set = set()
     items: list[dict] = []
     for batch in batches:
         for r in batch:
             key = r["url"].split("?")[0].split("#")[0].rstrip("/").lower()
-            if key in seen:
+            # The same article often comes back from several news searches under different links.
+            title_key = (domain_of(r.get("tier_url") or r["url"]), re.sub(r"\W+", " ", (r.get("title") or "").lower()).strip()[:80])
+            if key in seen or (title_key[1] and title_key in seen):
                 continue
             seen.add(key)
-            r["tier"] = tier_for(r["url"])
+            if title_key[1]:
+                seen.add(title_key)
+            r["tier"] = tier_for(r.get("tier_url") or r["url"])
             if r.get("origin") == "internal" and r.get("verified") and r["tier"] > 2:
                 r["tier"] = 2
             r["credibility"] = TIER_SCORE[r["tier"]]
@@ -222,7 +238,7 @@ async def _gather(ctx: PipelineContext) -> list[dict]:
     # Deduplicate provider failure messages (several queries hit the same provider).
     ctx.provider_errors[:] = list(dict.fromkeys(errors))
     ctx.scanned_count = len(items)
-    origin_rank = {"internal": 0, "factcheck": 1, "gdelt": 2, "newsapi": 3, "duckduckgo": 4}
+    origin_rank = {"internal": 0, "factcheck": 1, "bingnews": 2, "gdelt": 2, "googlenews": 3, "newsapi": 3, "duckduckgo": 4}
     items.sort(key=lambda r: (r["tier"], origin_rank.get(r["origin"], 4)))
     return items[:MAX_CANDIDATES]
 

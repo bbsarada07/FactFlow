@@ -169,13 +169,7 @@ def _wait(state) -> float:
     return _backoff(state)
 
 
-@retry(
-    retry=retry_if_exception_type((*RETRYABLE, LLMJSONError)),
-    stop=stop_after_attempt(5),
-    wait=_wait,
-    reraise=True,
-)
-async def _chat_json(model: str, effort: str, system: str, user: str, max_tokens: int, temperature: float) -> LLMResult:
+async def _chat_json_once(model: str, effort: str, system: str, user: str, max_tokens: int, temperature: float) -> LLMResult:
     t0 = time.perf_counter()
     tokens = 0
     for budget in (max_tokens, max_tokens * 2):
@@ -212,7 +206,44 @@ async def _chat_json(model: str, effort: str, system: str, user: str, max_tokens
     return LLMResult(data=data, model=model, ms=ms, tokens=tokens)
 
 
+# One model call, retried on transient errors (rate limits included, honouring the provider's wait hint).
+_chat_json = retry(
+    retry=retry_if_exception_type((*RETRYABLE, LLMJSONError)),
+    stop=stop_after_attempt(5),
+    wait=_wait,
+    reraise=True,
+)(_chat_json_once)
+
+# The same, except that a rate limit is not waited out: it is raised at once so the caller can switch models.
+_chat_json_no_rate_wait = retry(
+    retry=retry_if_exception_type((*(e for e in RETRYABLE if e is not openai.RateLimitError), LLMJSONError)),
+    stop=stop_after_attempt(3),
+    wait=_backoff,
+    reraise=True,
+)(_chat_json_once)
+
+
 async def call_nano(system: str, user: str, max_tokens: int = 1500, temperature: float = 0.2) -> LLMResult:
+    """The fast model. Groq's free tier gives each model its own tokens-per-minute budget (8,000 for
+    gpt-oss-20b), and one fact-check makes several calls, so back-to-back checks run into it. A
+    rate-limited call moves to the larger model, which has a separate budget, instead of waiting."""
+    try:
+        return await _chat_json_no_rate_wait(settings.NANO_MODEL, settings.NANO_REASONING_EFFORT, system, user,
+                                             max_tokens, temperature)
+    except openai.RateLimitError:
+        if not settings.ULTRA_MODEL or settings.ULTRA_MODEL == settings.NANO_MODEL:
+            return await _nano_waiting(system, user, max_tokens, temperature)
+        logger.info(f"{settings.NANO_MODEL} is rate limited; using {settings.ULTRA_MODEL} for this call")
+        try:
+            return await _chat_json(settings.ULTRA_MODEL, settings.NANO_REASONING_EFFORT, system, user, max_tokens,
+                                    temperature)
+        except openai.APIError as exc:
+            raise LLMError(f"Nano model call failed (rate limited; fallback model failed too): {exc}") from exc
+    except openai.APIError as exc:
+        raise LLMError(f"Nano model call failed: {exc}") from exc
+
+
+async def _nano_waiting(system: str, user: str, max_tokens: int, temperature: float) -> LLMResult:
     try:
         return await _chat_json(settings.NANO_MODEL, settings.NANO_REASONING_EFFORT, system, user, max_tokens, temperature)
     except openai.APIError as exc:

@@ -1,11 +1,19 @@
-"""News and web evidence: GDELT (default, no key), NewsAPI and DuckDuckGo.
+"""News and web evidence: Bing News and Google News (RSS, no key), GDELT (no key), NewsAPI and DuckDuckGo.
+
+DuckDuckGo and GDELT often refuse requests from cloud hosts (shared IP addresses); the two news
+RSS feeds answer them, so a deployed server still finds news coverage.
 
 Every search function accepts an optional `errors` list. A provider failure (timeout,
 HTTP error, throttling) is appended there as a short human-readable string so the
 pipeline can record it as an evidence gap instead of silently returning nothing.
 """
 import asyncio
+import re
 import time
+import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
+from html import unescape
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 from loguru import logger
@@ -19,11 +27,32 @@ except ImportError:  # pragma: no cover
     DDGS = None
 
 NEWSAPI_URL = "https://newsapi.org/v2/everything"
+BING_NEWS_URL = "https://www.bing.com/news/search"
+GOOGLE_NEWS_URL = "https://news.google.com/rss/search"
+RSS_MAX_BYTES = 2_000_000
+_TAGS = re.compile(r"<[^>]+>")
 GDELT_MIN_INTERVAL = 5.5  # GDELT asks for at most one request every 5 seconds
 GDELT_THROTTLE_PREFIX = "Please limit requests"
 
 _gdelt_lock = asyncio.Lock()
 _gdelt_last = 0.0
+
+# A provider that just timed out or refused us is skipped for a while: on a cloud host DuckDuckGo and GDELT
+# fail for every check, and waiting out their timeouts made each check ~20 seconds slower for nothing.
+PAUSE_SECONDS = 600
+_paused_until: dict[str, float] = {}
+
+
+def _paused(provider: str, errors: list[str] | None) -> bool:
+    if time.monotonic() < _paused_until.get(provider, 0.0):
+        if errors is not None:
+            errors.append(f"{provider} search unavailable (paused after a recent failure)")
+        return True
+    return False
+
+
+def _pause(provider: str) -> None:
+    _paused_until[provider] = time.monotonic() + PAUSE_SECONDS
 
 
 def record_failure(errors: list[str] | None, provider: str, reason: str) -> None:
@@ -78,7 +107,7 @@ async def search_gdelt(query: str, date_params: dict, limit: int = 15, errors: l
     reply is retried once after waiting.
     """
     global _gdelt_last
-    if not settings.GDELT_ENABLED:
+    if not settings.GDELT_ENABLED or _paused("GDELT", errors):
         return []
     params = {"query": query, "mode": "artlist", "format": "json", "maxrecords": limit, "sort": "hybridrel"}
     params.update(date_params or {})
@@ -96,12 +125,14 @@ async def search_gdelt(query: str, date_params: dict, limit: int = 15, errors: l
                     resp.raise_for_status()
             except Exception as exc:  # noqa: BLE001
                 record_failure(errors, "GDELT", failure_reason(exc))
+                _pause("GDELT")
                 return []
             body = resp.text.strip()
             if resp.status_code == 429 or body.startswith(GDELT_THROTTLE_PREFIX):
                 if attempt == 0:
                     continue
                 record_failure(errors, "GDELT", "rate limited")
+                _pause("GDELT")
                 return []
             if not body:
                 return []
@@ -160,13 +191,81 @@ def _ddg_sync(query: str, limit: int) -> tuple[list[dict], list[str]]:
 
 async def search_duckduckgo(query: str, limit: int = 6, errors: list[str] | None = None) -> list[dict]:
     """DuckDuckGo text + news verticals. 'No results' is an empty answer, not a failure."""
-    if DDGS is None:
+    if DDGS is None or _paused("DuckDuckGo", errors):
         return []
     try:
         rows, failures = await asyncio.wait_for(asyncio.to_thread(_ddg_sync, query, limit), timeout=20)
     except Exception as exc:  # noqa: BLE001
         record_failure(errors, "DuckDuckGo", failure_reason(exc))
+        _pause("DuckDuckGo")
         return []
     if failures and not rows:
         record_failure(errors, "DuckDuckGo", failures[0])
+        _pause("DuckDuckGo")
     return rows
+
+
+def _rss_items(body: bytes) -> list[ET.Element]:
+    if len(body) > RSS_MAX_BYTES:
+        raise ValueError("RSS response too large")
+    return ET.fromstring(body).findall(".//item")
+
+
+def _rss_date(text: str | None) -> str | None:
+    try:
+        return parsedate_to_datetime(text).date().isoformat() if text else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _plain(text: str | None) -> str:
+    return " ".join(unescape(_TAGS.sub(" ", text or "")).split())
+
+
+async def _get_rss(provider: str, url: str, params: dict, errors: list[str] | None) -> list[ET.Element] | None:
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True,
+                                     headers={"User-Agent": "Mozilla/5.0 (compatible; FactFlow/1.0)"}) as http:
+            resp = await http.get(url, params=params)
+        resp.raise_for_status()
+        return _rss_items(resp.content)
+    except Exception as exc:  # noqa: BLE001
+        record_failure(errors, provider, failure_reason(exc))
+        return None
+
+
+async def search_bing_news(query: str, limit: int = 8, errors: list[str] | None = None) -> list[dict]:
+    """Bing News search as RSS. Each link carries the article's own address in its `url` parameter."""
+    items = await _get_rss("Bing News", BING_NEWS_URL, {"q": query, "format": "rss", "cc": "IN"}, errors)
+    out = []
+    for it in items or []:
+        link = it.findtext("link") or ""
+        url = (parse_qs(urlparse(link).query).get("url") or [link])[0]
+        if not url.startswith(("http://", "https://")) or domain_of(url).endswith("bing.com"):
+            continue
+        out.append({"origin": "bingnews", "name": domain_of(url), "url": url, "title": _plain(it.findtext("title")),
+                    "snippet": _plain(it.findtext("description"))[:400], "published_at": _rss_date(it.findtext("pubDate"))})
+        if len(out) >= limit:
+            break
+    return out
+
+
+async def search_google_news(query: str, limit: int = 8, errors: list[str] | None = None) -> list[dict]:
+    """Google News search as RSS. Links open the article through news.google.com, so the credibility tier
+    comes from the publisher's own address (`tier_url`), which the feed names for every item."""
+    items = await _get_rss("Google News", GOOGLE_NEWS_URL, {"q": query, "hl": "en-IN", "gl": "IN", "ceid": "IN:en"}, errors)
+    out = []
+    for it in items or []:
+        link, source = it.findtext("link") or "", it.find("source")
+        publisher_url = source.get("url", "") if source is not None else ""
+        if not link.startswith("https://") or not publisher_url.startswith(("http://", "https://")):
+            continue
+        publisher = (source.text or "").strip() or domain_of(publisher_url)
+        title = _plain(it.findtext("title"))
+        if publisher and title.endswith(f" - {publisher}"):
+            title = title[: -len(publisher) - 3]
+        out.append({"origin": "googlenews", "name": publisher, "url": link, "tier_url": publisher_url, "title": title,
+                    "snippet": "", "published_at": _rss_date(it.findtext("pubDate"))})
+        if len(out) >= limit:
+            break
+    return out

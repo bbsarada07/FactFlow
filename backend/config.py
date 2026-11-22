@@ -47,10 +47,16 @@ class Settings(BaseSettings):
     # Source credibility tiers: fixed allow-lists (comma-separated domains), never model-assigned.
     # Suffix entries starting with "." match any domain ending in them.
     TIER_1_DOMAINS: str = "aninews.in,pib.gov.in,ptinews.com,reuters.com,apnews.com,who.int,rbi.org.in,.gov.in,.nic.in"
+    # Tier 2 = established national newsrooms and IFCN-certified fact-checkers (Vishvas News, Fact Crescendo,
+    # NewsMeter, The Logical Indian, Youturn and India Today's fact-check desk are IFCN signatories like Alt News,
+    # BOOM and Factly). Without them a rumour refuted by six certified fact-checkers counted one strong source.
     TIER_2_DOMAINS: str = (
         "siasat.com,telanganatoday.com,thehindu.com,timesofindia.indiatimes.com,indianexpress.com,"
         "ndtv.com,news18.com,altnews.in,boomlive.in,factly.in,"
-        "afp.com,newschecker.in,thequint.com,snopes.com"
+        "afp.com,newschecker.in,thequint.com,snopes.com,"
+        "vishvasnews.com,factcrescendo.com,newsmeter.in,thelogicalindian.com,youturn.in,indiatoday.in,"
+        "hindustantimes.com,livemint.com,economictimes.indiatimes.com,business-standard.com,thehindubusinessline.com,"
+        "deccanherald.com,newindianexpress.com,theprint.in,scroll.in,bbc.com,bbc.co.uk"
     )
     TIER_4_DOMAINS: str = (
         "facebook.com,twitter.com,x.com,instagram.com,youtube.com,tiktok.com,reddit.com,quora.com,medium.com,"
