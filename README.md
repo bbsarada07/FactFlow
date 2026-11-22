@@ -410,13 +410,6 @@ FactFlow/
 
 Built by **Team Zenthra** (4 members), Aditya University, for **HackWithAditya 2026**, theme **AI for Bharat**.
 
-FactFlow builds on two earlier projects by the same team:
-
-- **NemesisAI**, the misinformation fact-checker that became FactFlow's fact-check half; FactFlow is its renamed continuation.
-- **Sentinel**, the team's secure email-agent project. Ideas from its policy engine were adapted (recomputed argument provenance, fail-closed evaluation, the egress URL check, the recipient allowlist, the monotonic policy store). Its detectors were rewritten for real email parsing; its parser and planner were not ported ([docs/AUDIT.md](docs/AUDIT.md) section 3).
-
-AI coding assistants were used to write parts of the code.
-
 <details>
 <summary><b>What was built when</b></summary>
 
