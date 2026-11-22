@@ -1,11 +1,16 @@
 import { Head, Html, Main, NextScript } from "next/document";
 
+// Google Search Console ownership check (Settings → Ownership verification → HTML tag). Set on the frontend
+// service as GOOGLE_SITE_VERIFICATION=<the content value>; it is read when the site is built.
+const SITE_VERIFICATION = process.env.GOOGLE_SITE_VERIFICATION || "";
+
 export default function Document() {
   return (
     <Html lang="en">
       <Head>
         <meta charSet="utf-8" />
         <meta name="theme-color" content="#040407" />
+        {SITE_VERIFICATION && <meta name="google-site-verification" content={SITE_VERIFICATION} />}
         <meta
           name="description"
           content="FactFlow — multi-agent forensic verification for WhatsApp forwards, tweets and headlines."
