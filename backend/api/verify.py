@@ -188,7 +188,9 @@ async def verify(
         found = await lookup_repeat(session, normalized, user_id=user.id)
         if found:
             match_claim, match = found
-            if is_fresh(match_claim.created_at):
+            # Only a definite verdict is reused. UNVERIFIED means the evidence was missing at the time (a search
+            # provider down, a story not yet covered), so the same claim is checked again as a new version.
+            if is_fresh(match_claim.created_at) and match_claim.verdict != "UNVERIFIED":
                 match_claim.repeat_count = (match_claim.repeat_count or 0) + 1
                 await session.commit()
                 response.status_code = status.HTTP_200_OK
