@@ -1,0 +1,72 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>It has already happened</title>
+<style>
+  :root{--bg:#09090e;--card:#13131b;--line:#2a2a3a;--ink:#f0f0f5;--sec:#a6a6bc;--mut:#6f6f86;--red:#ff2d2d;--uv:#b9a8ff}
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;color:var(--ink);font-family:"Segoe UI",sans-serif}
+  body{display:flex;flex-direction:column;justify-content:center;
+       background:radial-gradient(ellipse 1100px 420px at 50% 1000px,rgba(98,60,230,.22),transparent 70%),
+                  radial-gradient(ellipse 900px 380px at 50% 80px,rgba(255,45,45,.08),transparent 70%),var(--bg)}
+  .kicker{text-align:center;font:700 18px "Cascadia Mono",Consolas,monospace;letter-spacing:7px;color:var(--red)}
+  h1{text-align:center;margin:12px 0 0;font:700 52px "Segoe UI";letter-spacing:-1px;color:#e6e6ee}
+  .cards{display:grid;grid-template-columns:1fr 1fr 1.08fr;gap:26px;padding:48px 96px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:34px 36px 30px;position:relative;overflow:hidden}
+  .card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
+  .top{display:flex;justify-content:space-between;align-items:baseline}
+  .when{font:700 15px "Cascadia Mono",Consolas,monospace;letter-spacing:3px;color:var(--mut)}
+  .badge{font:700 14px "Cascadia Mono",Consolas,monospace;letter-spacing:2px;color:var(--c);border:1px solid var(--c);border-radius:999px;padding:5px 12px}
+  .name{margin:16px 0 4px;font:800 46px "Segoe UI";letter-spacing:-1px}
+  .target{font-size:21px;color:var(--sec)}
+  .flow{margin:26px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px}
+  .flow li{display:flex;gap:14px;align-items:flex-start;font-size:22px;line-height:1.35}
+  .flow b{font:700 15px "Cascadia Mono",Consolas,monospace;color:var(--c);min-width:26px;padding-top:4px}
+  .big{font:800 78px/1 "Segoe UI";letter-spacing:-2px;margin:20px 0 6px;color:#fff}
+  .big small{font-size:34px;font-weight:700;color:var(--sec);letter-spacing:0}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
+  .stat{background:#0e0e15;border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .stat .v{font:800 34px "Segoe UI";letter-spacing:-.5px}
+  .stat .d{font-size:16px;color:var(--sec);margin-top:2px}
+  .punch{text-align:center;margin-top:62px}
+  .p1{font:600 48px/1.2 "Segoe UI";color:#c9c9d6;letter-spacing:-.5px}
+  .p2{font:800 64px/1.2 "Segoe UI";letter-spacing:-1.5px;color:#ece6ff;text-shadow:0 0 20px rgba(160,120,255,.8),0 0 56px rgba(110,70,255,.55)}
+  .src{position:absolute;left:96px;right:96px;bottom:26px;font-size:14px;color:#55556a;text-align:center}
+</style></head>
+<body>
+  <div class="kicker">THIS HAS ALREADY HAPPENED</div>
+  <h1>One email. Zero clicks. The AI obeyed.</h1>
+  <div class="cards">
+    <div class="card" style="--c:#3987e5">
+      <div class="top"><span class="when">JUNE 2025</span><span class="badge">SEVERITY 9.3 / 10</span></div>
+      <div class="name">EchoLeak</div>
+      <div class="target">Microsoft 365 Copilot</div>
+      <ul class="flow">
+        <li><b>01</b>One crafted email lands in the inbox</li>
+        <li><b>02</b>No click, no reply: the user does nothing</li>
+        <li><b>03</b>Copilot obeys hidden instructions and could be made to leak company data</li>
+      </ul>
+    </div>
+    <div class="card" style="--c:#d95926">
+      <div class="top"><span class="when">DECEMBER 2025</span><span class="badge">ZERO-CLICK</span></div>
+      <div class="name">GeminiJack</div>
+      <div class="target">Google Gemini Enterprise</div>
+      <ul class="flow">
+        <li><b>01</b>A poisoned email, document or calendar invite</li>
+        <li><b>02</b>An employee simply runs a search</li>
+        <li><b>03</b>Gemini obeys the hidden orders and could be made to send company data to the attacker</li>
+      </ul>
+    </div>
+    <div class="card" style="--c:#ff2d2d">
+      <div class="top"><span class="when">INDIA · 2024</span><span class="badge">CYBER FRAUD</span></div>
+      <div class="big">₹22,845<small> crore lost</small></div>
+      <div class="target">in a single year, up 206% from 2023</div>
+      <div class="stats">
+        <div class="stat"><div class="v">₹62 crore</div><div class="d">lost every single day</div></div>
+        <div class="stat"><div class="v">36.4 lakh</div><div class="d">fraud incidents reported</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="punch">
+    <div class="p1">Everyone is building AI that does more.</div>
+    <div class="p2">Nobody is building AI that knows who its boss is.</div>
+  </div>
+  <div class="src">Sources: Aim Security (EchoLeak, CVE-2025-32711) · Noma Security (GeminiJack) · Ministry of Home Affairs reply in the Lok Sabha, July 2025 (I4C data)</div>
+</body></html>

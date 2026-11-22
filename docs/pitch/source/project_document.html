@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>FactFlow — Project Document</title>
+<style>
+  @page{size:A4;margin:16mm 15mm 16mm 15mm}
+  :root{--ink:#14141c;--sec:#4a4a5c;--mut:#80809a;--line:#e3e3ea;--red:#e0262b;--uv:#6a4ce0;--uvbg:#f3f0ff;--soft:#f7f7fa}
+  *{box-sizing:border-box}
+  html,body{margin:0;color:var(--ink);font:10.1pt/1.5 "Segoe UI",Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  h1,h2,h3{font-family:"Segoe UI",Arial,sans-serif;letter-spacing:-.3px;margin:0}
+  h2{font-size:21pt;font-weight:800;margin:0 0 4px}
+  h3{font-size:12pt;font-weight:700;margin:11px 0 5px}
+  p{margin:0 0 8px}
+  .page{page-break-after:always;break-after:page}
+  .page:last-child{page-break-after:auto;break-after:auto}
+  .kicker{font:700 8.5pt "Cascadia Mono",Consolas,monospace;letter-spacing:3px;color:var(--red);text-transform:uppercase;margin-bottom:6px}
+  .lead{font-size:11.2pt;color:var(--sec);margin:5px 0 10px}
+  .punch{margin:10px 0;padding:9px 14px;border-left:4px solid var(--uv);background:var(--uvbg);font-weight:700;font-size:11.5pt;color:#2a1f6b;border-radius:0 8px 8px 0}
+  .punch.red{border-color:var(--red);background:#fff1f1;color:#7a1014}
+  img.fig{width:100%;border-radius:8px;border:1px solid var(--line);display:block}
+  .cap{font-size:8.5pt;color:var(--mut);margin:4px 0 8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .box{border:1px solid var(--line);border-radius:10px;padding:11px 13px;background:#fff}
+  .box h4{margin:0 0 4px;font-size:10.5pt}
+  .box .k{font:700 7.8pt "Cascadia Mono",Consolas,monospace;letter-spacing:2px;color:var(--mut);text-transform:uppercase}
+  .box .v{font-size:18pt;font-weight:800;letter-spacing:-.5px;margin:2px 0}
+  .box p{font-size:9.6pt;color:var(--sec);margin:0}
+  .pill{display:inline-block;font:700 7.5pt "Cascadia Mono",Consolas,monospace;letter-spacing:1.5px;padding:2px 8px;border-radius:999px;border:1px solid currentColor}
+  table{width:100%;border-collapse:collapse;font-size:9.6pt;margin:6px 0 10px}
+  th{text-align:left;font:700 7.8pt "Cascadia Mono",Consolas,monospace;letter-spacing:1.5px;color:var(--mut);text-transform:uppercase;border-bottom:2px solid var(--ink);padding:6px 8px}
+  td{border-bottom:1px solid var(--line);padding:4px 7px;vertical-align:top}
+  td b{color:var(--ink)}
+  ul{margin:4px 0 8px;padding-left:18px} li{margin:2px 0}
+  .muted{color:var(--mut)}
+  .num{font-variant-numeric:tabular-nums}
+  /* cover */
+  .cover{height:265mm;display:flex;flex-direction:column}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:42px;height:42px;border-radius:10px;border:2.5px solid var(--red);display:grid;place-items:center;font:800 22pt "Segoe UI";color:var(--red)}
+  .brand .n{font:800 20pt "Segoe UI";letter-spacing:-.5px}
+  .cover h1{font-size:38pt;line-height:1.05;font-weight:800;letter-spacing:-1.2px;margin:26px 0 10px}
+  .cover h1 em{font-style:normal;color:var(--uv)}
+  .cover .sub{font-size:13pt;color:var(--sec);max-width:160mm}
+  .meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:auto}
+  .meta .box .v{font-size:11pt}
+  .tagline{text-align:center;font-size:15pt;font-weight:800;color:#2a1f6b;margin:16px 0 14px}
+  .flow{width:100%;height:auto}
+</style></head>
+<body>
+
+<!-- 1. COVER -->
+<section class="page cover">
+  <div class="brand"><div class="logo">F</div><div class="n">FactFlow</div>
+    <span class="pill" style="margin-left:auto;color:var(--red)">HACKWITHADITYA 2026 · AI FOR BHARAT</span></div>
+  <h1>The AI that knows<br><em>who its boss is.</em></h1>
+  <div class="sub">Your own AI agent that fact-checks what you are told, runs your Gmail safely, and refuses orders hidden in the content it reads. Built for India, in English, Hindi and Telugu.</div>
+  <img class="fig" src="ink.jpg" style="margin-top:18px">
+  <div class="tagline">They write in invisible ink. We bring the UV light.</div>
+  <div class="meta">
+    <div class="box"><div class="k">Team</div><div class="v">Zenthra · Aditya University</div></div>
+    <div class="box"><div class="k">Live prototype</div><div class="v">factflow-2.onrender.com</div></div>
+    <div class="box"><div class="k">Source code</div><div class="v">github.com/bbsarada07/FactFlow</div></div>
+  </div>
+</section>
+
+<!-- 2. 30-SECOND VERSION -->
+<section class="page">
+  <div class="kicker">The 30-second version</div>
+  <h2>If you read only one page, read this.</h2>
+  <p class="lead">AI assistants now read our email and act on it. Attackers have learned to hide orders in emails that people cannot see but AI obeys. FactFlow is the first personal agent built to work for you and take orders only from you.</p>
+  <div class="grid2">
+    <div class="box"><div class="k">The problem</div><h4>Your AI obeys strangers</h4><p>One email with hidden text made Microsoft 365 Copilot (EchoLeak, severity 9.3/10) and Google Gemini Enterprise (GeminiJack) leak company data, with zero clicks. Meanwhile Indians lost ₹22,845 crore to cyber fraud in 2024.</p></div>
+    <div class="box"><div class="k">Our solution</div><h4>One agent, a UV light built in</h4><p>Shield exposes hidden instructions and Indian scams in about 40 ms. The Gmail agent replies and sends files with a 2-minute Undo and asks you before anything risky. The fact checker gives cited verdicts in three languages, and says "Unverified" when proof is missing.</p></div>
+    <div class="box"><div class="k">The proof</div><h4>Live, tested, honest</h4><p>Live at factflow-2.onrender.com with Google sign-in. 54/54 attacks caught and 0/35 false alarms on our 89-email red-team benchmark. 825 automated tests. Every user's data is private by design.</p></div>
+    <div class="box"><div class="k">The business</div><h4>₹199 a month. Less than a cup of chai a day.</h4><p>Free fact-checking for reach, Pro at ₹199/month, Business at ₹299/seat, and a Shield API for AI builders. One email costs us 5.4 paise to read with AI. Break-even around month 15 on a ₹50 lakh plan.</p></div>
+  </div>
+  <div class="punch">Everyone is building AI that does more. Nobody is building AI that knows who its boss is. We did.</div>
+  <h3>The rule everything is built on</h3>
+  <p><b>Untrusted content is data, never a command.</b> An email, a web page or a forward can inform FactFlow, but it can never instruct it. Only the account owner gives orders, and anything risky waits for the owner's "yes".</p>
+  <h3>What makes it different</h3>
+  <ul>
+    <li><b>It protects the AI, not just the human.</b> Spam filters look for bad links a person might click. FactFlow looks for instructions an AI might obey.</li>
+    <li><b>Detection is not the last wall.</b> Even if a new trick slips past every detector, the policy engine still blocks any action an email asks for.</li>
+    <li><b>Built for Bharat.</b> Rules for digital arrest, fake KYC, UPI collect and lottery scams, in Hindi and Telugu as well as English.</li>
+    <li><b>Honest by design.</b> A code gate, not the model, decides when the evidence is strong enough for a verdict.</li>
+  </ul>
+</section>
+
+<!-- 3. PROBLEM -->
+<section class="page">
+  <div class="kicker">The problem</div>
+  <h2>Write on white paper with a white pen.</h2>
+  <p class="lead">Can anyone read it? No. Shine a UV light, and the words appear. Hackers now write in invisible ink inside emails, and AI assistants read every word.</p>
+  <img class="fig" src="problem.jpg" style="width:86%;margin:0 auto">
+  <div class="cap">Sources: Aim Security (EchoLeak, CVE-2025-32711, disclosed June 2025); Noma Security (GeminiJack, December 2025); Ministry of Home Affairs written reply in the Lok Sabha, July 2025 (I4C data).</div>
+  <h3>Why this matters right now</h3>
+  <ul>
+    <li><b>AI is moving into the inbox.</b> Gartner expects a third of enterprise software to include agentic AI by 2028, up from under 1% in 2024. Every one of those agents reads untrusted content.</li>
+    <li><b>The attack needs no mistake from you.</b> In EchoLeak and GeminiJack the user did not click anything. The AI read the email, and the AI obeyed.</li>
+    <li><b>India pays the highest price for believing the wrong message.</b> ₹22,845 crore lost in 2024 (up 206% in a year), ₹1,935 crore to "digital arrest" scams alone, and rumours on WhatsApp that move faster than any manual fact-check.</li>
+  </ul>
+  <div class="punch red">You see a lunch invite. Your AI sees a command.</div>
+  <h3>Why today's tools miss it</h3>
+  <table>
+    <tr><th>Today's answer</th><th>Built for</th><th>What it misses</th></tr>
+    <tr><td><b>Spam filters and email gateways</b></td><td>Bad links and malware a person might click</td><td>Plain-text orders hidden for an AI to obey</td></tr>
+    <tr><td><b>Patches from AI companies</b></td><td>Their own assistant, one hole at a time</td><td>The next trick; EchoLeak took about five months to fix</td></tr>
+    <tr><td><b>Fact-checkers (PIB, Alt News, BOOM)</b></td><td>Careful manual checks</td><td>Speed; the answer comes after the lie went viral</td></tr>
+    <tr><td><b>AI guardrail APIs</b></td><td>Developers at large companies</td><td>A student, a family, a ten-person firm in Kakinada</td></tr>
+  </table>
+</section>
+
+<!-- 4. SOLUTION -->
+<section class="page">
+  <div class="kicker">Our solution</div>
+  <h2>One personal agent. Three jobs. One boss.</h2>
+  <p class="lead">Sign in with Google and you get your own FactFlow agent. Everything it checks, reads or sends belongs to your account alone.</p>
+  <div class="grid3">
+    <div class="box" style="border-top:4px solid var(--uv)"><div class="k">01 · Shield</div><h4>Sees the invisible ink</h4><p>Compares what a person sees with what an AI would read: white or tiny text, invisible characters, hidden comments, look-alike bank domains, and 13 Indian scam patterns. About 40 ms, no AI call needed.</p></div>
+    <div class="box" style="border-top:4px solid #2a78d6"><div class="k">02 · Your agent</div><h4>Does your email work</h4><p>Answers routine mail, sends files you marked shareable, quarantines phishing, and checks your sent mail for leaks. Every send waits two minutes with Undo. Money, passwords and strangers go to "Needs you".</p></div>
+    <div class="box" style="border-top:4px solid #1baf7a"><div class="k">03 · Fact check</div><h4>Checks before you forward</h4><p>Six AI agents search fact-checkers and news, rank sources by credibility, and return a cited verdict plus a ready reply in English, Hindi or Telugu. No proof, no verdict: it says "Unverified".</p></div>
+  </div>
+  <div class="punch">Other AIs are trained to answer. Ours is trained to doubt.</div>
+  <h3>How it works</h3>
+  <svg class="flow" viewBox="0 0 900 280" font-family="Segoe UI, Arial" font-size="13">
+    <defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#4a4a5c"/></marker></defs>
+    <g>
+      <rect x="10" y="110" width="140" height="70" rx="10" fill="#f7f7fa" stroke="#c9c9d6"/>
+      <text x="80" y="140" text-anchor="middle" font-weight="700">Email, forward,</text>
+      <text x="80" y="158" text-anchor="middle" font-weight="700">link or screenshot</text>
+      <rect x="185" y="110" width="150" height="70" rx="10" fill="#f3f0ff" stroke="#6a4ce0"/>
+      <text x="260" y="138" text-anchor="middle" font-weight="700" fill="#2a1f6b">Shield scan</text>
+      <text x="260" y="156" text-anchor="middle" fill="#4a4a5c">rules only · ~40 ms</text>
+      <text x="260" y="172" text-anchor="middle" fill="#4a4a5c">no AI involved</text>
+      <rect x="370" y="110" width="160" height="70" rx="10" fill="#f7f7fa" stroke="#c9c9d6"/>
+      <text x="450" y="138" text-anchor="middle" font-weight="700">Quarantined reader</text>
+      <text x="450" y="156" text-anchor="middle" fill="#4a4a5c">one AI call, no tools,</text>
+      <text x="450" y="172" text-anchor="middle" fill="#4a4a5c">answers in fixed JSON</text>
+      <rect x="565" y="110" width="140" height="70" rx="10" fill="#fff1f1" stroke="#e0262b"/>
+      <text x="635" y="140" text-anchor="middle" font-weight="700" fill="#7a1014">Policy engine</text>
+      <text x="635" y="158" text-anchor="middle" fill="#4a4a5c">plain code decides</text>
+      <text x="635" y="173" text-anchor="middle" fill="#4a4a5c">every action</text>
+      <line x1="150" y1="145" x2="183" y2="145" stroke="#4a4a5c" stroke-width="2" marker-end="url(#a)"/>
+      <line x1="335" y1="145" x2="368" y2="145" stroke="#4a4a5c" stroke-width="2" marker-end="url(#a)"/>
+      <line x1="530" y1="145" x2="563" y2="145" stroke="#4a4a5c" stroke-width="2" marker-end="url(#a)"/>
+      <rect x="745" y="20" width="145" height="62" rx="10" fill="#eefaf3" stroke="#1baf7a"/>
+      <text x="817" y="45" text-anchor="middle" font-weight="700" fill="#0d5c3f">ALLOW</text>
+      <text x="817" y="63" text-anchor="middle" fill="#4a4a5c">acts · 2-min Undo</text>
+      <rect x="745" y="114" width="145" height="62" rx="10" fill="#fff7e8" stroke="#d98a00"/>
+      <text x="817" y="139" text-anchor="middle" font-weight="700" fill="#7a4a00">NEEDS YOU</text>
+      <text x="817" y="157" text-anchor="middle" fill="#4a4a5c">waits for the owner</text>
+      <rect x="745" y="208" width="145" height="62" rx="10" fill="#fff1f1" stroke="#e0262b"/>
+      <text x="817" y="233" text-anchor="middle" font-weight="700" fill="#7a1014">BLOCK</text>
+      <text x="817" y="251" text-anchor="middle" fill="#4a4a5c">logged, never run</text>
+      <path d="M705,135 C725,135 725,51 743,51" fill="none" stroke="#4a4a5c" stroke-width="2" marker-end="url(#a)"/>
+      <line x1="705" y1="145" x2="743" y2="145" stroke="#4a4a5c" stroke-width="2" marker-end="url(#a)"/>
+      <path d="M705,155 C725,155 725,239 743,239" fill="none" stroke="#4a4a5c" stroke-width="2" marker-end="url(#a)"/>
+      <text x="450" y="226" text-anchor="middle" fill="#80809a" font-size="12">An action requested by the message itself is always BLOCKED (rule P1).</text>
+      <text x="450" y="244" text-anchor="middle" fill="#80809a" font-size="12">Every decision goes into a SHA-256 hash-chained audit log.</text>
+    </g>
+  </svg>
+  <h3>The fact checker, step by step</h3>
+  <table>
+    <tr><th>Agent</th><th>What it does</th></tr>
+    <tr><td><b>1 · Intake</b></td><td>Pulls out the actual claim from a forward, link or screenshot (OCR), and strips hidden instructions first.</td></tr>
+    <tr><td><b>2 · Source Tracer</b></td><td>Searches Google Fact Check, Bing News, Google News, NewsAPI and GDELT; ranks every source by a fixed credibility list (government, wire services, IFCN-certified fact-checkers), never by the model's opinion.</td></tr>
+    <tr><td><b>3 · Deep Reasoning</b></td><td>A larger model steps in only when confidence is low or harm is high.</td></tr>
+    <tr><td><b>4 · Explainer · 5 · Harm Assessor</b></td><td>Write the cited explanation and the harm level, and draft the correction in English, Hindi and Telugu.</td></tr>
+    <tr><td><b>6 · The gate (code, not AI)</b></td><td>No definite verdict unless at least two high-credibility sources agree and confidence is at least 60%. Otherwise: "Unverified".</td></tr>
+  </table>
+</section>
+
+<!-- 5. SEE IT WORKING -->
+<section class="page">
+  <div class="kicker">See it working</div>
+  <h2>The UV light, on a real email.</h2>
+  <p class="lead">A normal-looking invoice hides one white-on-white line telling the AI to forward 30 days of email to an outsider. Here is what FactFlow shows the user.</p>
+  <img class="fig" src="report_panel.jpg">
+  <div class="cap">Left: what the person sees. Right: what an AI would read, with the hidden order highlighted. Below: the forward the email asked for is BLOCKED by rule P1, "Text inside a message is treated as information, never as a command."</div>
+  <div class="grid2">
+    <div><img class="fig" src="report_top.jpg"><div class="cap">Verdict DANGEROUS (100/100), plain-language next steps and the 1930 cyber-fraud helpline.</div></div>
+    <div><img class="fig" src="verdict.jpg"><div class="cap">A fact-check verdict page: private to its owner until they press Share.</div></div>
+  </div>
+  <div class="punch">It read the email. It saw the hidden order. It said no.</div>
+</section>
+
+<!-- 6. PROOF -->
+<section class="page">
+  <div class="kicker">Proof, not promises</div>
+  <h2>Measured, tested and honest about its limits.</h2>
+  <div class="grid4" style="margin-top:12px">
+    <div class="box"><div class="k">Attacks caught</div><div class="v num">54 / 54</div><p>red-team emails</p></div>
+    <div class="box"><div class="k">False alarms</div><div class="v num">0 / 35</div><p>normal emails</p></div>
+    <div class="box"><div class="k">Speed</div><div class="v num">~40 ms</div><p>per email, no AI call</p></div>
+    <div class="box"><div class="k">Automated tests</div><div class="v num">825</div><p>backend, all passing</p></div>
+  </div>
+  <h3>The red-team benchmark</h3>
+  <p>89 emails: 54 attacks (hidden CSS, tiny and low-contrast text, invisible Unicode, HTML comments, alt-text, encoded payloads, link tricks, prompt injection, data exfiltration, and Indian scams in English, Hindi and Telugu) and 35 normal emails (bank alerts, receipts, newsletters, reminders). In all 54 attacks, <b>no action ran without the human's approval</b>.</p>
+  <p class="muted">Said plainly: the benchmark was written by our team, not an independent lab, and three injection phrasings were added after we saw them missed. Every run is saved in the repository (docs/BENCHMARK.md), including the earlier runs with worse numbers.</p>
+  <h3>Privacy and security, built in</h3>
+  <table>
+    <tr><th>Promise</th><th>How it is enforced</th></tr>
+    <tr><td><b>Your data is yours</b></td><td>Every record carries its owner; tests sign in two users and check neither can see the other's checks, emails, files or settings.</td></tr>
+    <tr><td><b>Least access to Gmail</b></td><td>Read, label and send only. Full mailbox access is refused. FactFlow never deletes mail.</td></tr>
+    <tr><td><b>Nothing leaves without a chance to stop it</b></td><td>Every message the agent sends waits two minutes with Undo; risky ones wait for "Needs you".</td></tr>
+    <tr><td><b>Secrets stay secret</b></td><td>Gmail tokens encrypted; sessions stored only as one-way hashes; phone, Aadhaar and card numbers removed before any AI sees text.</td></tr>
+    <tr><td><b>Nothing is hidden from you</b></td><td>A tamper-evident, hash-chained audit log of every decision the agent made or was stopped from making.</td></tr>
+  </table>
+  <h3>Honest limitations, and what we are doing next</h3>
+  <ul>
+    <li>Google's security review for Gmail access is a paid assessment that takes weeks; until it is done, connecting Gmail shows an "unverified app" screen.</li>
+    <li>WhatsApp checking is built and tested against a stand-in server, but not yet switched on.</li>
+    <li>It runs on free hosting and a free AI tier today: the first visit can take up to a minute.</li>
+  </ul>
+  <div class="punch">We would rather show you a true 54/54 with its fine print than a perfect number nobody can check.</div>
+</section>
+
+<!-- 7. USERS -->
+<section class="page">
+  <div class="kicker">Who it is for</div>
+  <h2>Anyone who has ever asked, "Is this real?"</h2>
+  <div class="grid3" style="margin-top:12px">
+    <div class="box"><div class="k">The family</div><h4>Lakshmi, 58, Rajahmundry</h4><p>Receives "PM free laptop yojana, register before Friday" on the family group. Pastes it into FactFlow: FALSE, with links from Alt News and Factly, and a polite Telugu reply ready to send back.</p></div>
+    <div class="box"><div class="k">The professional</div><h4>Ravi, 34, a CA in Kakinada</h4><p>Gets 80 emails a day. His agent answers routine ones, sends the report a client asked for, and parks the "urgent transfer ₹40,000" email in Needs you. Ravi decides in one tap.</p></div>
+    <div class="box"><div class="k">The student</div><h4>Ananya, 20, B.Tech</h4><p>Her scholarship portal "KYC update" email comes from a look-alike domain. Shield flags it DANGEROUS before she clicks, and tells her to call 1930 if she already shared details.</p></div>
+  </div>
+  <h3>Target users</h3>
+  <ul>
+    <li><b>Individuals:</b> students, professionals and families who receive forwards and use Gmail.</li>
+    <li><b>Small businesses:</b> shops, clinics, CA offices and colleges that handle sensitive mail with no security team. India has 7.3 crore Udyam-registered MSMEs.</li>
+    <li><b>AI builders:</b> startups and companies whose own agents read untrusted content and need a prompt-injection firewall.</li>
+  </ul>
+  <div class="punch">Built for the people scammers target first, not the people who can afford a security team.</div>
+  <h3>Technology</h3>
+  <table>
+    <tr><th>Layer</th><th>What we use</th></tr>
+    <tr><td><b>Web app</b></td><td>Next.js 14 (React), Tailwind CSS</td></tr>
+    <tr><td><b>Backend</b></td><td>FastAPI (Python), SQLAlchemy (async), PostgreSQL</td></tr>
+    <tr><td><b>AI</b></td><td>Groq (gpt-oss-20b, gpt-oss-120b), Gemma 4 for screenshots, Tesseract OCR</td></tr>
+    <tr><td><b>Evidence</b></td><td>Google Fact Check Tools, Bing News, Google News, NewsAPI, GDELT</td></tr>
+    <tr><td><b>Identity and mail</b></td><td>Google Sign-In (OpenID Connect with PKCE), Gmail API</td></tr>
+    <tr><td><b>Hosting</b></td><td>Render (web service and PostgreSQL)</td></tr>
+  </table>
+</section>
+
+<!-- 8. BUSINESS -->
+<section class="page">
+  <div class="kicker">Business model</div>
+  <h2>Free to trust. Cheap to keep. Built to last.</h2>
+  <p class="lead">Free fact-checking brings people in. A personal agent they cannot live without keeps them.</p>
+  <img class="fig" src="canvas.jpg" style="width:94%;margin:0 auto">
+  <div class="cap">FactFlow Lean Canvas.</div>
+  <table>
+    <tr><th>Tier</th><th>Price</th><th>Who buys it</th><th>What they get</th></tr>
+    <tr><td><b>Free</b></td><td>₹0</td><td>Everyone</td><td>Fact-checks, Shield scans of pasted emails, the browser extension</td></tr>
+    <tr><td><b>Pro</b></td><td>₹199/month or ₹1,999/year</td><td>Students and professionals</td><td>The full Gmail agent and unlimited fact-checks</td></tr>
+    <tr><td><b>Business</b></td><td>₹299 per seat per month</td><td>Small firms, CA offices, clinics, colleges</td><td>Pro for every seat, shared safety rules, admin console, audit log</td></tr>
+    <tr><td><b>Shield API</b></td><td>₹3–8 lakh per year</td><td>Companies building AI agents</td><td>Our hidden-content scanner and policy engine as an API</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <div class="kicker">The numbers</div>
+  <h2>5.4 paise an email. 54% margin today, 77% next.</h2>
+  <img class="fig" src="numbers.jpg" style="margin:8px auto 0;width:82%">
+  <div class="cap">User counts in the plan are our assumptions; costs use published prices (Groq gpt-oss-20b at $0.075 / $0.30 per million tokens, ₹94 per US dollar).</div>
+  <div class="grid2">
+    <div>
+      <h3>Cost to serve one Pro user, per month</h3>
+      <table>
+        <tr><th>Item</th><th>₹</th></tr>
+        <tr><td>AI reading 1,200 emails (40 a day at 5.4 paise)</td><td class="num">65</td></tr>
+        <tr><td>Replies and fact-checks</td><td class="num">12</td></tr>
+        <tr><td>Hosting and database</td><td class="num">10</td></tr>
+        <tr><td>Payment gateway (~2%)</td><td class="num">4</td></tr>
+        <tr><td><b>Total, against a ₹199 price</b></td><td class="num"><b>91 (54% margin)</b></td></tr>
+      </table>
+      <p class="muted">Rules-only handling of bulk mail plus prompt caching bring this to about ₹45 (77% margin).</p>
+    </div>
+    <div>
+      <h3>The ask: ₹50 lakh for 12 months</h3>
+      <table>
+        <tr><th>Use</th><th>₹ lakh</th></tr>
+        <tr><td>Go-to-market: campus ambassadors, CA-firm pilots, Telugu and Hindi content</td><td class="num">10.0</td></tr>
+        <tr><td>Founders' stipends (4 × ₹20,000/month)</td><td class="num">9.6</td></tr>
+        <tr><td>One security engineer</td><td class="num">8.4</td></tr>
+        <tr><td>AI and cloud costs</td><td class="num">8.0</td></tr>
+        <tr><td>Google security assessment, pen-test, DPDP Act review</td><td class="num">6.0</td></tr>
+        <tr><td>WhatsApp messaging fees</td><td class="num">3.0</td></tr>
+        <tr><td>Contingency</td><td class="num">5.0</td></tr>
+      </table>
+      <p class="muted">First money can be non-dilutive: the Startup India Seed Fund Scheme offers up to ₹20 lakh as a proof-of-concept grant through a recognised incubator.</p>
+    </div>
+  </div>
+  <div class="punch">If one Indian MSME in a thousand puts five people on FactFlow, that is ₹131 crore a year.</div>
+</section>
+
+<!-- 9. ROADMAP + CLOSE -->
+<section class="page">
+  <div class="kicker">What comes next</div>
+  <h2>From a hackathon prototype to India's trusted AI agent.</h2>
+  <table style="margin-top:10px">
+    <tr><th>When</th><th>Milestone</th><th>Why it matters</th></tr>
+    <tr><td><b>Next 3 months</b></td><td>Google's security assessment for Gmail; WhatsApp checking switched on; independent red-team test</td><td>Anyone can connect Gmail without a warning; FactFlow lives where forwards live</td></tr>
+    <tr><td><b>3–6 months</b></td><td>Pilots with colleges and CA firms; Business tier with admin console</td><td>First paying teams and real-world accuracy data</td></tr>
+    <tr><td><b>6–12 months</b></td><td>Shield API for AI builders; voice-note checks; more Indian languages</td><td>A second revenue stream, and reach beyond English, Hindi and Telugu</td></tr>
+  </table>
+  <img class="fig" src="closing.jpg" style="margin-top:12px">
+  <h3>Try it yourself</h3>
+  <ul>
+    <li><b>Live:</b> https://factflow-2.onrender.com (sign in with any Google account; the first visit can take up to a minute).</li>
+    <li><b>To try the Gmail agent:</b> Settings → Connect Gmail. On Google's "unverified app" screen choose Advanced → Go to FactFlow.</li>
+    <li><b>Code:</b> https://github.com/bbsarada07/FactFlow (setup steps in the README).</li>
+  </ul>
+  <div class="punch" style="font-size:14pt;text-align:center;border-left:none;border-radius:10px">They write in invisible ink. We bring the UV light.<br><span style="font-weight:600;font-size:11pt">Because your AI should take orders from exactly one person: you.</span></div>
+</section>
+
+</body></html>
