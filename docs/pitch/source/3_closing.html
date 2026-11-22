@@ -1,0 +1,54 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>FactFlow closing</title>
+<style>
+  :root{--bg:#09090e;--card:#13131b;--line:#2a2a3a;--ink:#f0f0f5;--sec:#a6a6bc;--mut:#6f6f86;--red:#ff2d2d;--uv:#b9a8ff}
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;color:var(--ink);font-family:"Segoe UI",sans-serif}
+  body{display:flex;flex-direction:column;justify-content:center;background:radial-gradient(ellipse 900px 520px at 50% 210px,rgba(98,60,230,.26),transparent 70%),var(--bg)}
+  .top{text-align:center;padding-top:0}
+  .l1{font:600 64px/1.1 "Segoe UI";color:#c9c9d6;letter-spacing:-1px}
+  .l2{font:800 92px/1.15 "Segoe UI";letter-spacing:-2px;color:#e9e3ff;text-shadow:0 0 22px rgba(160,120,255,.85),0 0 60px rgba(110,70,255,.6)}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;padding:64px 96px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:36px 38px 32px;position:relative;overflow:hidden}
+  .card:before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:var(--c)}
+  .card .k{font:700 15px "Cascadia Mono",Consolas,monospace;letter-spacing:4px;color:var(--c)}
+  .card h3{margin:12px 0 16px;font:700 38px/1.15 "Segoe UI";letter-spacing:-.5px}
+  .card ul{margin:0;padding-left:24px;font-size:23px;line-height:1.5;color:var(--sec)}
+  .card li{margin-bottom:4px}
+  .proof{display:flex;justify-content:center;gap:0;margin:44px 96px 0;border:1px solid var(--line);border-radius:16px;background:var(--card)}
+  .p{flex:1;text-align:center;padding:26px 10px;border-left:1px solid var(--line)}
+  .p:first-child{border-left:0}
+  .p .v{font:800 40px "Segoe UI";letter-spacing:-.5px}
+  .p .d{font:600 14px "Cascadia Mono",Consolas,monospace;letter-spacing:2.5px;color:var(--mut);margin-top:4px;text-transform:uppercase}
+  .bottom{display:flex;justify-content:space-between;align-items:center;padding:50px 96px 0}
+  .brand{display:flex;align-items:center;gap:16px}
+  .logo{width:54px;height:54px;border-radius:13px;background:#1d0b0d;border:2px solid var(--red);display:grid;place-items:center;font:800 30px "Segoe UI";color:var(--red)}
+  .name{font:800 40px "Segoe UI";letter-spacing:-.5px}
+  .bottom .q{font:600 27px "Segoe UI";color:var(--sec)}
+  .bottom .q b{color:var(--ink)}
+  .url{font:600 20px "Cascadia Mono",Consolas,monospace;color:var(--uv);letter-spacing:1px}
+</style></head>
+<body>
+  <div class="top">
+    <div class="l1">They write in invisible ink.</div>
+    <div class="l2">We bring the UV light.</div>
+  </div>
+  <div class="cards">
+    <div class="card" style="--c:#b9a8ff"><div class="k">01 · SHIELD</div><h3>Sees the invisible ink</h3>
+      <ul><li>Hidden text, fake domains, Indian scams</li><li>40 ms, no AI call needed</li><li>Orders hidden in email are blocked</li></ul></div>
+    <div class="card" style="--c:#3987e5"><div class="k">02 · YOUR AGENT</div><h3>Does your email work</h3>
+      <ul><li>Replies and sends requested files</li><li>Two minutes to Undo, every time</li><li>Money, passwords, strangers: asks you</li></ul></div>
+    <div class="card" style="--c:#1baf7a"><div class="k">03 · FACT CHECK</div><h3>Checks before you forward</h3>
+      <ul><li>Six agents, cited sources</li><li>Replies in English, Hindi, Telugu</li><li>Says "Unverified" instead of guessing</li></ul></div>
+  </div>
+  <div class="proof">
+    <div class="p"><div class="v">54 / 54</div><div class="d">attacks caught</div></div>
+    <div class="p"><div class="v">0 / 35</div><div class="d">false alarms</div></div>
+    <div class="p"><div class="v">₹199</div><div class="d">a month · Pro</div></div>
+    <div class="p"><div class="v">Month 15</div><div class="d">break-even</div></div>
+    <div class="p"><div class="v" style="color:var(--uv)">Live</div><div class="d">today</div></div>
+  </div>
+  <div class="bottom">
+    <div class="brand"><div class="logo">F</div><div><div class="name">FactFlow</div><div class="url">factflow-2.onrender.com</div></div></div>
+    <div class="q">Your AI should take orders from one person: <b>you.</b></div>
+  </div>
+</body></html>

@@ -1,0 +1,101 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Business in numbers</title>
+<style>
+  :root{--bg:#0b0b10;--card:#14141c;--line:#2a2a3a;--ink:#f0f0f5;--sec:#a6a6bc;--mut:#6f6f86;--red:#ff2d2d;--uv:#b9a8ff;
+        --s1:#3987e5;--s2:#d95926;--s3:#199e70}
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--ink);font-family:"Segoe UI",sans-serif}
+  header{display:flex;align-items:center;justify-content:space-between;padding:38px 64px 26px}
+  .brand{display:flex;align-items:center;gap:16px}
+  .logo{width:46px;height:46px;border-radius:11px;background:#1d0b0d;border:2px solid var(--red);display:grid;place-items:center;font:800 26px "Segoe UI";color:var(--red)}
+  h1{margin:0;font:700 40px "Segoe UI";letter-spacing:-.5px}
+  .tag{font:600 16px "Cascadia Mono",Consolas,monospace;letter-spacing:4px;color:var(--mut)}
+  main{display:grid;grid-template-columns:1060px 1fr;gap:18px 28px;padding:0 64px}
+  .tiles{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,245px);gap:16px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 30px;display:flex;flex-direction:column;justify-content:center}
+  .tile .k{font:600 14px "Cascadia Mono",Consolas,monospace;letter-spacing:3px;color:var(--mut);text-transform:uppercase}
+  .tile .v{font:700 66px/1.05 "Segoe UI";letter-spacing:-1.5px;margin:10px 0 8px}
+  .tile .v small{font-size:30px;font-weight:600;color:var(--sec);letter-spacing:0}
+  .tile .d{font-size:19px;color:var(--sec);line-height:1.35}
+  .tile.hero{background:linear-gradient(150deg,#1c1430,#14141c 70%);border-color:#4a3a86}
+  .tile.hero .v{color:var(--uv)}
+  .chart{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 30px 18px}
+  .chart h3{margin:0;font:700 24px "Segoe UI"}
+  .chart .unit{font-size:17px;color:var(--sec);margin-top:4px}
+  .legend{display:flex;gap:26px;margin:16px 0 4px;font-size:17px;color:var(--sec)}
+  .legend span{display:flex;align-items:center;gap:8px}
+  .legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .foot{grid-column:1/3;display:flex;justify-content:space-between;align-items:center;margin-top:0;
+        background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px 30px;font-size:23px}
+  .foot b{color:var(--uv)}
+  .foot .note{font-size:15px;color:var(--mut);max-width:520px;text-align:right}
+  svg text{font-family:"Segoe UI",sans-serif}
+</style></head>
+<body>
+<header>
+  <div class="brand"><div class="logo">F</div><h1>The business in numbers</h1></div>
+  <div class="tag">FREE · PRO · BUSINESS · SHIELD API</div>
+</header>
+<main>
+  <section class="tiles">
+    <div class="tile hero"><div class="k">Pro · personal Gmail agent</div><div class="v">₹199<small> / month</small></div><div class="d">Less than a cup of chai a day</div></div>
+    <div class="tile"><div class="k">Business · small firms</div><div class="v">₹299<small> / seat / month</small></div><div class="d">Shared safety rules, admin console, audit log</div></div>
+    <div class="tile"><div class="k">Cost of one AI-read email</div><div class="v">5.4<small> paise</small></div><div class="d">Groq gpt-oss-20b at published prices, ₹94 per $</div></div>
+    <div class="tile"><div class="k">Gross margin, Pro user</div><div class="v">54% <small>→</small> 77%</div><div class="d">₹91 to serve today, ₹45 with caching and rules-first triage</div></div>
+    <div class="tile"><div class="k">The ask</div><div class="v">₹50<small> lakh · 12 months</small></div><div class="d">Or start with the Startup India Seed Fund grant (up to ₹20 lakh)</div></div>
+    <div class="tile"><div class="k">Break-even</div><div class="v">Month 15</div><div class="d">Burn ≈ ₹4.2 lakh a month; needs ≈ ₹7 lakh monthly revenue</div></div>
+  </section>
+  <section class="chart">
+    <h3>Annual revenue run-rate at year end</h3>
+    <div class="unit">₹ crore · stacked by revenue stream</div>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Pro</span><span><i style="background:var(--s2)"></i>Business</span><span><i style="background:var(--s3)"></i>Shield API</span></div>
+    <svg id="c" width="636" height="610"></svg>
+  </section>
+  <div class="foot">
+    <div>India has <b>7.3 crore</b> registered MSMEs. One in a thousand × 5 seats × ₹299 = <b>₹131 crore a year</b>.</div>
+    <div class="note">Costs use published prices. User counts in the plan are our assumptions.</div>
+  </div>
+</main>
+<script>
+(() => {
+  const data = [
+    {y:"Year 1", pro:0.239, biz:0.179, api:0.06, total:"₹0.48 cr"},
+    {y:"Year 2", pro:1.91,  biz:1.79,  api:0.5,  total:"₹4.2 cr"},
+    {y:"Year 3", pro:7.16,  biz:8.97,  api:2.4,  total:"₹18.5 cr"},
+  ];
+  const svg = document.getElementById("c"), NS = "http://www.w3.org/2000/svg";
+  const left = 50, top = 44, plotH = 500, max = 20, bw = 112, gap = 2;
+  const sx = [left + 26, left + 190, left + 354];
+  const y = v => top + plotH - v / max * plotH;
+  const el = (t, a, txt) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (txt != null) e.textContent = txt; svg.appendChild(e); return e; };
+  for (const g of [0, 5, 10, 15, 20]) {
+    el("line", {x1:left, x2:490, y1:y(g), y2:y(g), stroke: g ? "#24243a" : "#5a5a70", "stroke-width": g ? 1 : 1.5});
+    el("text", {x:left - 12, y:y(g) + 6, "text-anchor":"end", fill:"#8a8aa0", "font-size":16}, g);
+  }
+  const cols = {pro:"#3987e5", biz:"#d95926", api:"#199e70"};
+  data.forEach((d, i) => {
+    let base = 0;
+    const keys = ["pro", "biz", "api"];
+    keys.forEach((k, j) => {
+      const h = d[k] / max * plotH;
+      const isTop = j === keys.length - 1;
+      const y0 = y(base + d[k]), hh = Math.max(h - (j && h > 6 ? gap : 0), 1);
+      if (isTop && h > 8) {
+        const r = 4, x = sx[i], w = bw, yy = y0;
+        el("path", {d:`M${x},${yy + hh} V${yy + r} Q${x},${yy} ${x + r},${yy} H${x + w - r} Q${x + w},${yy} ${x + w},${yy + r} V${yy + hh} Z`, fill:cols[k]});
+      } else {
+        el("rect", {x:sx[i], y:y0, width:bw, height:hh, fill:cols[k]});
+      }
+      base += d[k];
+    });
+    el("text", {x:sx[i] + bw / 2, y:y(base) - 14, "text-anchor":"middle", fill:"#f0f0f5", "font-size":24, "font-weight":700}, d.total);
+    el("text", {x:sx[i] + bw / 2, y:top + plotH + 32, "text-anchor":"middle", fill:"#a6a6bc", "font-size":18}, d.y);
+  });
+  // direct labels on the year-3 bar
+  const d3 = data[2], x3 = sx[2] + bw + 10;
+  const mid = (a, b) => (y(a) + y(b)) / 2 + 6;
+  el("text", {x:x3, y:mid(0, d3.pro), fill:"#a6a6bc", "font-size":16}, "Pro 7.2");
+  el("text", {x:x3, y:mid(d3.pro, d3.pro + d3.biz), fill:"#a6a6bc", "font-size":16}, "Business 9.0");
+  el("text", {x:x3, y:mid(d3.pro + d3.biz, d3.pro + d3.biz + d3.api), fill:"#a6a6bc", "font-size":16}, "API 2.4");
+})();
+</script>
+</body></html>
