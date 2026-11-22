@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 
 // Pages anyone can open. Everything else belongs to a signed-in person.
 // /v/[slug] is rendered on the server, which already sends signed-out visitors of a private verdict to sign in.
-export const PUBLIC_PATHS = new Set(["/login", "/about", "/accuracy", "/v/[slug]", "/404", "/500", "/_error"]);
+export const PUBLIC_PATHS = new Set(["/login", "/about", "/accuracy", "/privacy", "/terms", "/v/[slug]", "/404", "/500", "/_error"]);
 
 /** Renders the page only for a signed-in user; otherwise sends the browser to /login (and back afterwards). */
 export default function AuthGate({ children }) {

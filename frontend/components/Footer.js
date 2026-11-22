@@ -29,7 +29,7 @@ export default function Footer() {
             "Loading configuration…"
           )}
         </p>
-        <nav className="flex gap-4">
+        <nav className="flex flex-wrap gap-x-4 gap-y-1">
           <Link href="/registry" className="hover:text-primary">
             My verdicts
           </Link>
@@ -39,7 +39,12 @@ export default function Footer() {
           <Link href="/accuracy" className="hover:text-primary">
             Accuracy
           </Link>
-          <span>MIT License</span>
+          <Link href="/privacy" className="hover:text-primary">
+            Privacy
+          </Link>
+          <Link href="/terms" className="hover:text-primary">
+            Terms
+          </Link>
         </nav>
       </div>
     </footer>
